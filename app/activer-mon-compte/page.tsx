@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { createSupabaseServer } from "@/lib/supabaseServer";
-import { getDirectSignupMetadata, isDirectSignupPaid } from "@/lib/directSignupPolicy";
+import { directSignupCanDiscover, getDirectSignupMetadata, isDirectSignupPaid } from "@/lib/directSignupPolicy";
 import { loadOrRepairDirectSignupSubscription } from "@/lib/directSignupServer";
 import { getTemporaryPasswordMetadata } from "@/lib/temporaryPasswordPolicy";
 import TemporaryPasswordWelcomeGate from "@/app/dashboard/_components/TemporaryPasswordWelcomeGate";
@@ -11,7 +11,7 @@ import { withBasicNavigation } from "@/lib/basicNavigation";
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Votre abonnement iNrCy", robots: { index: false, follow: false } };
 
-/** This authenticated purchase area mounts no dashboard or assistant before payment. */
+/** Preserve the authenticated confirmation screen while Stripe synchronizes. */
 export default async function ActivateAccountPage({ searchParams }: {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
@@ -24,6 +24,7 @@ export default async function ActivateAccountPage({ searchParams }: {
   if (isDirectSignupPaid(subscription)) redirect("/dashboard");
   const params = await searchParams;
   const checkout = params?.checkout === "success" || params?.checkout === "cancel" ? params.checkout : null;
+  if (checkout !== "success" && directSignupCanDiscover(user.app_metadata, subscription)) redirect("/dashboard");
   return <TemporaryPasswordWelcomeGate actorUserId={user.id} temporaryPasswordWelcomeId={getTemporaryPasswordMetadata(user.app_metadata)?.welcome_id ?? null} email={user.email ?? ""} navigationEntry="basique">
     <DirectSignupPlans email={user.email ?? ""} checkout={checkout} />
   </TemporaryPasswordWelcomeGate>;

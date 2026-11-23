@@ -169,7 +169,7 @@ for (const plan of ["Basic", "Standard", "Premium"] as const) for (const cycle o
     assert.equal([...params.keys()].some(key => key.startsWith("custom_text[")), false, "direct Checkout sends no custom text block");
     assert.equal(params.get("subscription_data[metadata][plan]"), plan); assert.equal(params.get("client_reference_id"), USER);
     assert.match(params.get("success_url")!, new RegExp(`/activer-mon-compte\\?checkout=success&billing=${cycle}&checkout_plan=${plan}$`));
-    assert.match(params.get("cancel_url")!, /\/activer-mon-compte\?checkout=cancel$/);
+    assert.match(params.get("cancel_url")!, /\/dashboard\?panel=abonnement&checkout=cancel$/);
     assert.equal(f.row.status, "incomplete"); assert.equal(f.row.plan, "Basic"); assert.equal(f.row.trial_end_at, null);
     assert.equal((await (await f.status()).json()).paid, false);
     const forbidden = ["status", "app_edition", "plan", "trial_start_at", "trial_end_at", "monthly_price_eur"];

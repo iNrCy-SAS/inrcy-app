@@ -322,7 +322,7 @@
   },
   "app/dashboard/settings/_components/AiMemoryContent.tsx": {
     "disposition": "basic",
-    "reason": "Contenu de domaine monté dans Personnalisation / les bulles canaux non verrouillées / les panneaux compte. Les contrôles payants sont exclus individuellement ; les variantes desktop/mobile ont leur propre controlId.",
+    "reason": "Contenu de domaine monté dans Personnalisation / les bulles canaux non verrouillées / les panneaux compte. Les contrôles payants sont exclus individuellement ; les variantes desktop/mobile ont leur propre controlId. Revue du mode découverte : les actions payantes sont soumises au verrou d’abonnement et les commandes restantes conservent leurs contrôles natifs.",
     "gateFiles": [
       "app/dashboard/personnalisation/page.tsx",
       "app/dashboard/settings/_components/AiMemoryContent.tsx"
@@ -340,7 +340,7 @@
   },
   "app/dashboard/settings/_components/BasicSubscriptionCard.tsx": {
     "disposition": "basic",
-    "reason": "Contenu de domaine monté dans Personnalisation / les bulles canaux non verrouillées / les panneaux compte. Les contrôles payants sont exclus individuellement ; les variantes desktop/mobile ont leur propre controlId.",
+    "reason": "Contenu de domaine monté dans Personnalisation / les bulles canaux non verrouillées / les panneaux compte. Les contrôles payants sont exclus individuellement ; les variantes desktop/mobile ont leur propre controlId. Revue du mode découverte : les actions payantes sont soumises au verrou d’abonnement et les commandes restantes conservent leurs contrôles natifs.",
     "gateFiles": [
       "app/dashboard/_components/DashboardSettingsDrawerContent.tsx",
       "app/dashboard/settings/_components/BasicSubscriptionCard.tsx"
@@ -373,7 +373,7 @@
   },
   "app/dashboard/settings/_components/BusinessDnaAnalysisWorkspace.tsx": {
     "disposition": "basic",
-    "reason": "Contenu de domaine monté dans Personnalisation / les bulles canaux non verrouillées / les panneaux compte. Les contrôles payants sont exclus individuellement ; les variantes desktop/mobile ont leur propre controlId.",
+    "reason": "Contenu de domaine monté dans Personnalisation / les bulles canaux non verrouillées / les panneaux compte. Les contrôles payants sont exclus individuellement ; les variantes desktop/mobile ont leur propre controlId. Revue du mode découverte : les actions payantes sont soumises au verrou d’abonnement et les commandes restantes conservent leurs contrôles natifs.",
     "gateFiles": [
       "app/dashboard/personnalisation/page.tsx",
       "app/dashboard/settings/_components/AiMemoryContent.tsx"
@@ -531,7 +531,7 @@
   },
   "app/dashboard/settings/_components/StandardSubscriptionContent.tsx": {
     "disposition": "basic",
-    "reason": "Contenu de domaine monté dans Personnalisation / les bulles canaux non verrouillées / les panneaux compte. Les contrôles payants sont exclus individuellement ; les variantes desktop/mobile ont leur propre controlId.",
+    "reason": "Contenu de domaine monté dans Personnalisation / les bulles canaux non verrouillées / les panneaux compte. Les contrôles payants sont exclus individuellement ; les variantes desktop/mobile ont leur propre controlId. Revue du mode découverte : les actions payantes sont soumises au verrou d’abonnement et les commandes restantes conservent leurs contrôles natifs.",
     "gateFiles": [
       "app/dashboard/_components/DashboardSettingsDrawerContent.tsx",
       "app/dashboard/settings/_components/StandardSubscriptionContent.tsx"

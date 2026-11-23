@@ -27,3 +27,9 @@ export function isDirectSignupPaid(subscription: DirectSignupSubscription | null
 export function directSignupNeedsActivation(appMetadata: unknown, subscription: DirectSignupSubscription | null | undefined): boolean {
   return Boolean(getDirectSignupMetadata(appMetadata)) && !isDirectSignupPaid(subscription);
 }
+
+/** A direct signup awaiting activation may browse, including after an expired Checkout. */
+export function directSignupCanDiscover(appMetadata: unknown, subscription: DirectSignupSubscription | null | undefined): boolean {
+  return Boolean(getDirectSignupMetadata(appMetadata))
+    && ["incomplete", "incomplete_expired"].includes(subscription?.status?.trim().toLowerCase() || "");
+}

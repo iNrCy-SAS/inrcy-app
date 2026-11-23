@@ -3,6 +3,7 @@ import { getClientUserFacingErrorMessage as getSafeClientErrorMessage } from "@/
 
 import { useEffect, useId, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
+import usePaidMediaAction from "../_hooks/usePaidMediaAction";
 import { AI_MEDIA_CHARACTER_VOICE_MIN_SECONDS, AI_MEDIA_CHARACTER_VOICE_MAX_SECONDS, type AiMediaCharacterVoiceSample } from "@/lib/aiMediaCharacterVoices";
 import { deleteCharacterVoiceSample, getCharacterVoicePreviewUrl, isCharacterVoiceUploadFileAllowed } from "@/lib/aiMediaCharacterVoiceClient";
 import { ACTIVE_INRCY_ACCOUNT_EVENT } from "@/lib/multicompte/constants";
@@ -25,6 +26,7 @@ type RecordingState = "closed" | "idle" | "starting" | "recording" | "preview";
 
 export default function MediaCharacterVoiceInput({ context = "character", active = true, hideModeControl = false, mode = "ai", sample, disabled, onModeChange, onSampleChange, onBusyChange }: Props) {
   const t = useTranslations("media");
+  const { paidActionsLocked, subscriptionLabel, openSubscription } = usePaidMediaAction();
   const id = useId();
   const inputRef = useRef<HTMLInputElement>(null);
   const sampleAudioRef = useRef<HTMLAudioElement>(null);
@@ -81,6 +83,7 @@ export default function MediaCharacterVoiceInput({ context = "character", active
   }, [onBusyChange]);
 
   const uploadSample = async (file: File, source: "import" | "recording" = "import") => {
+    if (paidActionsLocked) { openSubscription(); return; }
     if (uploadRef.current || externallyLocked) return;
     if (source === "import" && !isCharacterVoiceUploadFileAllowed(file)) { setError(t("ai_generator_character_voice_file_error")); return; }
     const controller = new AbortController(); uploadRef.current = controller;
@@ -111,6 +114,7 @@ export default function MediaCharacterVoiceInput({ context = "character", active
   };
 
   const selectLibrarySample = async (mediaLibraryId: string) => {
+    if (paidActionsLocked) { setLibraryOpen(false); setBusy(false); openSubscription(); return; }
     if (uploadRef.current) return;
     const controller = new AbortController(); uploadRef.current = controller;
     setLibraryOpen(false); setUploading(true); setBusy(true); setError("");
@@ -131,6 +135,7 @@ export default function MediaCharacterVoiceInput({ context = "character", active
   };
 
   const startRecording = async () => {
+    if (paidActionsLocked) { openSubscription(); return; }
     if (externallyLocked || recorderRef.current || uploading) return;
     clearPreview(); setError(""); setElapsedSeconds(0); setRecordingState("starting"); setBusy(true);
     try {
@@ -161,7 +166,7 @@ export default function MediaCharacterVoiceInput({ context = "character", active
   return <div className={styles.voice} data-character-voice-mode={mode} data-voice-context={context}>
     {!hideModeControl ? <>
     <label className={styles.srOnly} htmlFor={`${id}-mode`}>{t("ai_generator_character_voice_label")}</label>
-    <select id={`${id}-mode`} aria-label={t("ai_generator_character_voice_label")} value={mode} disabled={disabled || uploading || recordingOpen} onChange={(event) => {
+    <select id={`${id}-mode`} aria-label={t("ai_generator_character_voice_label")} value={mode} disabled={!paidActionsLocked && (disabled || uploading || recordingOpen)} onChange={(event) => {
       setError(""); onModeChange(event.target.value === "provided" ? "provided" : "ai");
     }}>
       <option value="ai">{t("ai_generator_character_voice_ai")}</option>
@@ -173,9 +178,9 @@ export default function MediaCharacterVoiceInput({ context = "character", active
         const file = event.currentTarget.files?.[0]; event.currentTarget.value = ""; if (file) void uploadSample(file);
       }} />
       {!recordingOpen ? <div className={styles.sourceActions}>
-        <button type="button" disabled={disabled || uploading} onClick={() => inputRef.current?.click()}>{t("ai_generator_character_voice_import")}</button>
-        <button type="button" disabled={disabled || uploading} onClick={() => { setError(""); setRecordingState("idle"); }}>{t("ai_generator_character_voice_record")}</button>
-        <button type="button" disabled={disabled || uploading} onClick={() => { setLibraryOpen(true); setBusy(true); }}>{t("ai_generator_character_voice_library")}</button>
+        <button type="button" disabled={!paidActionsLocked && (disabled || uploading)} onClick={() => paidActionsLocked ? openSubscription() : inputRef.current?.click()} title={paidActionsLocked ? subscriptionLabel : undefined} style={paidActionsLocked ? { filter: "grayscale(1)", opacity: 0.65 } : undefined}>{t("ai_generator_character_voice_import")}</button>
+        <button type="button" disabled={!paidActionsLocked && (disabled || uploading)} onClick={() => { if (paidActionsLocked) { openSubscription(); return; } setError(""); setRecordingState("idle"); }} title={paidActionsLocked ? subscriptionLabel : undefined} style={paidActionsLocked ? { filter: "grayscale(1)", opacity: 0.65 } : undefined}>{t("ai_generator_character_voice_record")}</button>
+        <button type="button" disabled={!paidActionsLocked && (disabled || uploading)} onClick={() => { if (paidActionsLocked) { openSubscription(); return; } setLibraryOpen(true); setBusy(true); }} title={paidActionsLocked ? subscriptionLabel : undefined} style={paidActionsLocked ? { filter: "grayscale(1)", opacity: 0.65 } : undefined}>{t("ai_generator_character_voice_library")}</button>
         <button type="button" className={styles.infoButton} popoverTarget={`${id}-info`} popoverTargetAction="show" aria-haspopup="dialog" aria-label={t("ai_generator_character_voice_info_label")} title={t("ai_generator_character_voice_info_label")}
           onFocus={() => { if (!infoFocusDismissedRef.current) infoRef.current?.showPopover(); }}
           onBlur={() => { infoFocusDismissedRef.current = false; }}
@@ -206,11 +211,12 @@ export default function MediaCharacterVoiceInput({ context = "character", active
         {recordingState === "recording" ? <small role="timer" aria-live="off">{t("ai_generator_character_voice_record_elapsed", { seconds: elapsedSeconds })}</small> : null}
         {previewUrl ? <audio controls preload="metadata" src={previewUrl} aria-label={t("ai_generator_character_voice_preview")} /> : null}
         <div className={styles.actions}>
-          {recordingState === "idle" ? <button type="button" disabled={externallyLocked} onClick={() => void startRecording()}>{t("ai_generator_character_voice_record_start")}</button> : null}
+          {recordingState === "idle" ? <button type="button" disabled={!paidActionsLocked && externallyLocked} onClick={() => void startRecording()} title={paidActionsLocked ? subscriptionLabel : undefined} style={paidActionsLocked ? { filter: "grayscale(1)", opacity: 0.65 } : undefined}>{t("ai_generator_character_voice_record_start")}</button> : null}
           {recordingState === "recording" ? <button type="button" onClick={() => recorderRef.current?.stop()}>{t("ai_generator_character_voice_record_stop")}</button> : null}
           {recordingState === "preview" ? <>
-            <button type="button" disabled={externallyLocked || uploading} onClick={() => void startRecording()}>{t("ai_generator_character_voice_record_retry")}</button>
-            <button type="button" disabled={externallyLocked || uploading || !recording} onClick={() => {
+            <button type="button" disabled={!paidActionsLocked && (externallyLocked || uploading)} onClick={() => void startRecording()} title={paidActionsLocked ? subscriptionLabel : undefined} style={paidActionsLocked ? { filter: "grayscale(1)", opacity: 0.65 } : undefined}>{t("ai_generator_character_voice_record_retry")}</button>
+            <button type="button" disabled={!paidActionsLocked && (externallyLocked || uploading || !recording)} title={paidActionsLocked ? subscriptionLabel : undefined} style={paidActionsLocked ? { filter: "grayscale(1)", opacity: 0.65 } : undefined} onClick={() => {
+              if (paidActionsLocked) { openSubscription(); return; }
               if (!recording) return;
               const extension = recording.mimeType.includes("mp4") ? "m4a" : recording.mimeType.includes("ogg") ? "ogg" : "webm";
               void uploadSample(new File([recording.blob], `vocal.${extension}`, { type: recording.mimeType }), "recording");

@@ -41,7 +41,7 @@ test("blocked and dashboard redirects retain only checkout waiting context, neve
   assert.equal(routing.blockedCheckoutReturnUrl("checkout=success&checkout_plan=Founder&billing=evil"), "/compte-bloque?checkout=success");
 });
 
-function blockedPage(status: string) {
+function blockedPage(status: string, direct = false, checkout = "success") {
   const redirects: string[] = [];
   const component = Symbol("BlockedBillingActions");
   const chain = { select() { return chain; }, eq(key: string, value: string) {
@@ -54,14 +54,48 @@ function blockedPage(status: string) {
     "next/navigation": { redirect: (url: string) => { redirects.push(url); throw new Error("redirect"); } },
     "./compte-bloque.module.css": { default: {} },
     "@/lib/supabaseAdmin": { supabaseAdmin: { from: () => chain } },
-    "@/lib/supabaseServer": { createSupabaseServer: async () => ({ auth: { getUser: async () => ({ data: { user: { id: "owner-1" } } }) } }) },
+    "@/lib/supabaseServer": { createSupabaseServer: async () => ({ auth: { getUser: async () => ({ data: { user: { id: "owner-1", app_metadata: direct ? { [directSignupPolicy.DIRECT_SIGNUP_METADATA_KEY]: { version: 1, entry: "basique", created_at: "2026-11-19T12:00:00.000Z" } } : {} } } }) } }) },
     "@/lib/directSignupPolicy": directSignupPolicy,
     "@/lib/dashboardEdition": { resolveDashboardEdition: () => "standard" },
     "./BlockedBillingActions": { default: component },
     "@/lib/checkoutReturnRouting": routing,
   });
-  return { redirects, component, render: () => page.default({ searchParams: Promise.resolve({ checkout: "success", checkout_plan: "Premium", billing: "yearly", status: "active" }) }) };
+  return { redirects, component, render: () => page.default({ searchParams: Promise.resolve({ checkout, checkout_plan: "Premium", billing: "yearly", status: "active" }) }) };
 }
+
+test("old blocked and activation links lead direct discovery accounts to dashboard except verified checkout return polling", async () => {
+  for (const status of ["incomplete", "incomplete_expired"]) {
+    for (const checkout of ["", "cancel"]) {
+      const page = blockedPage(status, true, checkout);
+      await assert.rejects(page.render(), /redirect/);
+      assert.deepEqual(page.redirects, ["/dashboard"]);
+    }
+    const pending = blockedPage(status, true, "success");
+    await assert.rejects(pending.render(), /redirect/);
+    assert.deepEqual(pending.redirects, ["/activer-mon-compte?checkout=success&billing=yearly&checkout_plan=Premium"]);
+  }
+  for (const checkout of ["", "cancel", "success"]) {
+    const redirects: string[] = [];
+    const user = { id: "owner-1", email: "fixture@example.invalid", app_metadata: { [directSignupPolicy.DIRECT_SIGNUP_METADATA_KEY]: { version: 1, entry: "basique", created_at: "2026-11-19T12:00:00.000Z" } } };
+    const page = load<{ default(props: Row): Promise<unknown> }>("app/activer-mon-compte/page.tsx", {
+      "react/jsx-runtime": { jsx, jsxs: jsx }, "next/navigation": { redirect: (url: string) => { redirects.push(url); throw new Error("redirect"); } },
+      "@/lib/supabaseServer": { createSupabaseServer: async () => ({ auth: { getUser: async () => ({ data: { user }, error: null }) } }) },
+      "@/lib/directSignupPolicy": directSignupPolicy,
+      "@/lib/directSignupServer": { loadOrRepairDirectSignupSubscription: async () => ({ status: "incomplete" }) },
+      "@/lib/temporaryPasswordPolicy": { getTemporaryPasswordMetadata: () => null },
+      "@/app/dashboard/_components/TemporaryPasswordWelcomeGate": { default: "TemporaryPasswordWelcomeGate" },
+      "./DirectSignupPlans": { default: "DirectSignupPlans" }, "@/lib/basicNavigation": { withBasicNavigation: (url: string) => url },
+    });
+    if (checkout === "success") {
+      const result = await page.default({ searchParams: Promise.resolve({ checkout }) });
+      assert.equal(elements(result).find(node => node.type === "DirectSignupPlans")?.props.checkout, "success");
+      assert.deepEqual(redirects, []);
+    } else {
+      await assert.rejects(page.default({ searchParams: Promise.resolve({ checkout }) }), /redirect/);
+      assert.deepEqual(redirects, ["/dashboard"]);
+    }
+  }
+});
 
 test("forged checkout success keeps an expired account blocked and only shows synchronization controls", async () => {
   const page = blockedPage("trial_expired");

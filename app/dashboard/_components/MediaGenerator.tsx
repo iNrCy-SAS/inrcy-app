@@ -1,4 +1,5 @@
 "use client";
+import usePaidMediaAction from "../_hooks/usePaidMediaAction";
 import { getClientUserFacingErrorMessage as getSafeClientErrorMessage } from "@/lib/userFacingErrors";
 import { getClientAiMediaGenerationErrorMessage } from "@/lib/aiMediaGenerationPublicErrorI18n";
 
@@ -269,6 +270,7 @@ export default function MediaGenerator({
   onResultChange,
   onBusyChange,
 }: MediaGeneratorProps) {
+  const { paidActionsLocked, subscriptionLabel, subscriptionMessage, openSubscription } = usePaidMediaAction();
   const i18nT = useTranslations("shell");
   const t = useTranslations("media");
   const locale = useLocale();
@@ -579,8 +581,8 @@ export default function MediaGenerator({
   ]);
 
   useEffect(() => {
-    void loadQuota();
-  }, [loadQuota]);
+    if (!paidActionsLocked) void loadQuota();
+  }, [loadQuota, paidActionsLocked]);
 
   useEffect(() => {
     if (!publicationAvailable && subjectSource === "publication") {
@@ -717,7 +719,7 @@ export default function MediaGenerator({
     hasProvidedCharacterVoice: characterVoiceSelection.hasProvidedVoice, providedCharacterVoicesCount,
     ...(kind === "video" ? { inspirationImages: (mediaSourceMode === "real" ? inspirationImages : []).map(reference => ({ role: reference.role, characterIndex: reference.characterIndex, characterName: reference.characterName })) } : {}),
     teamVideoSpeechMode,
-  }, quota, !videoDurationUnavailable && !referenceDurationUnsupported && referenceCompatible && briefCompatible && !creativeBriefTooLong);
+  }, quota, !paidActionsLocked && !videoDurationUnavailable && !referenceDurationUnsupported && referenceCompatible && briefCompatible && !creativeBriefTooLong);
   const videoCreditInsufficient = creditQuote.insufficient;
   const modelRecommendation = recommendAiMediaModel({ kind, format, operation: "generate", brief: modelBrief,
     durationSeconds, sceneMode: videoSceneMode, withNarration: effectiveWithNarration,
@@ -1233,6 +1235,7 @@ export default function MediaGenerator({
   };
 
   const handleGenerate = async () => {
+    if (paidActionsLocked) { openSubscription(); return; }
     if (disabled) return;
     if (teamCinematicConsentRequired) {
       setTeamVideoVeoConsent(false);
@@ -1628,9 +1631,11 @@ export default function MediaGenerator({
 
   const generationAction = <button
     type="button" className={styles.generateButton} data-media-primary-action
-    disabled={recoveryPending ? recovering || operationLocked : generationBusy ? !generationCancellable : disabled}
-    title={recoveryPending ? t("ai_generator_recovery_generation_blocked") : generationBusy && !generationCancellable ? t("ai_generator_editor_stop_locked") : undefined}
-    onClick={() => { if (recoveryPending) void handleRecoverResult(); else if (generationBusy) handleRequestGenerationStop(); else void handleGenerate(); }}
+    disabled={paidActionsLocked && !recoveryPending && !generationBusy ? false : recoveryPending ? recovering || operationLocked : generationBusy ? !generationCancellable : disabled}
+    style={paidActionsLocked && !recoveryPending && !generationBusy ? { filter: "grayscale(1)", opacity: 0.55 } : undefined}
+    aria-label={paidActionsLocked && !recoveryPending && !generationBusy ? `${t(kind === "video" ? "ai_generator_generate_video" : "ai_generator_generate_image")} — ${subscriptionLabel}` : undefined}
+    title={paidActionsLocked && !recoveryPending && !generationBusy ? subscriptionLabel : recoveryPending ? t("ai_generator_recovery_generation_blocked") : generationBusy && !generationCancellable ? t("ai_generator_editor_stop_locked") : undefined}
+    onClick={() => { if (recoveryPending) void handleRecoverResult(); else if (generationBusy) handleRequestGenerationStop(); else if (paidActionsLocked) openSubscription(); else void handleGenerate(); }}
   >
     <span aria-hidden="true">{generationBusy && !recoveryPending ? "■" : generationResult ? "↻" : "✦"}</span>
     <strong>{t(recoveryPending ? recovering ? "ai_generator_recovery_checking" : "ai_generator_recovery_check" : generationBusy ? "ai_generator_editor_stop" : generationResult ? "ai_generator_regenerate" : kind === "image" ? "ai_generator_generate_image" : "ai_generator_generate_video")}</strong>
@@ -1667,12 +1672,12 @@ export default function MediaGenerator({
         handleEditCriteria={handleEditCriteria}
         criteriaEditorState={{ activeTab: activeSettingsTab, targetTab: "subject", ready: !operationLocked && !teamVideoConsentOpen }}
         disabled={disabled}
-        creditSummary={<MediaCreditQuoteSummary status={creditQuote} quota={quota} />}
+        creditSummary={paidActionsLocked ? null : <MediaCreditQuoteSummary status={creditQuote} quota={quota} />}
         engineControls={engineControls}
         acceptMode={acceptMode}
         savingToLibrary={savingToLibrary}
         actionError={actionError}
-        error={error}
+        error={paidActionsLocked && !recoveryPending ? "" : error}
         originChangedNotice={originChangedNotice}
         identityTeam={effectiveIdentityMode === "reference_team"}
         referenceCinematicRequested={referenceCinematicRequested}
@@ -2671,7 +2676,7 @@ export default function MediaGenerator({
             {t("ai_generator_model_duration_unavailable", { seconds: durationSeconds })}
           </div>
         ) : null}
-        {actionError || error ? (
+        {actionError || (!paidActionsLocked && error) ? (
           <div className={styles.error} role="alert">
             {actionError || error}
           </div>
@@ -2684,8 +2689,8 @@ export default function MediaGenerator({
         data-kind={kind}
         data-consent-required={identityConsentRequired ? "true" : "false"}
       >
-        <MediaQuotaSummary kind={kind} counter={counter} unlimited={quota?.unlimited} creditsReady={quota?.creditsReady}
-          resetDate={resetDate} locked={operationLocked} onRefresh={() => { void loadQuota({ force: true }); }} />
+        {paidActionsLocked ? <p role="status">{subscriptionMessage}</p> : <MediaQuotaSummary kind={kind} counter={counter} unlimited={quota?.unlimited} creditsReady={quota?.creditsReady}
+          resetDate={resetDate} locked={operationLocked} onRefresh={() => { void loadQuota({ force: true }); }} />}
         {identityConsentRequired ? (
           <label
             className={styles.footerConsent}
@@ -2732,7 +2737,7 @@ export default function MediaGenerator({
         ) : null}
         <MediaGenerationActions>
           {engineControls}
-          <MediaCreditQuoteSummary status={creditQuote} quota={quota} />
+          {!paidActionsLocked ? <MediaCreditQuoteSummary status={creditQuote} quota={quota} /> : null}
           {canRecover && !generationBusy ? <div className={styles.recoveryActions} data-media-recovery-actions>
             {generationAction}
             <button type="button" className={styles.recoveryStop} disabled={operationLocked}

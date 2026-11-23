@@ -29,6 +29,7 @@ import { APP_LANGUAGE_OPTIONS, getAppLanguageOption, type AppLanguageCode } from
 import { requestDashboardToolWarmup } from "./DashboardToolWarmup";
 import { useDelayedPendingAction } from "@/hooks/useDelayedPendingAction";
 import { useDashboardEdition } from "./DashboardEditionProvider";
+import { useDashboardViewerAccess } from "./DashboardViewerAccessProvider";
 import { useDashboardAssistant } from "./DashboardAssistantProvider";
 import { DashboardAssistantBadge } from "./DashboardAssistantTrigger";
 
@@ -162,12 +163,14 @@ function ResponsiveBottomNavMobile() {
   const i18nT = useTranslations("shell");
   const helpT = useTranslations("dashboard.helpCenter");
   const menuT = useTranslations("dashboard.mobileMenu");
+  const boosterT = useTranslations("booster");
   const router = useRouter();
   const pathname = usePathname();
   const adsWorkspaceActive = pathname === "/dashboard/ads" || pathname.startsWith("/dashboard/ads/");
   const searchParams = useSearchParams();
   const { requestNavigation } = useDashboardUnsavedNavigation();
   const dashboardEdition = useDashboardEdition();
+  const { paidActionsLocked } = useDashboardViewerAccess();
   const generatorState = useDashboardGeneratorState();
   const { toggleAssistant, assistantOpen, assistantLabel, assistantBadgeState, assistantPending } = useDashboardAssistant();
   const t = useDashboardI18n();
@@ -498,11 +501,15 @@ function ResponsiveBottomNavMobile() {
                   const shortcutActionKey = resolveHrefDestination(option.href).key;
                   const shortcutLoadingVisible = isVisible(shortcutActionKey);
                   const publicationUnavailable = option.id === "publish" && (publishActive || adsWorkspaceActive);
+                  const subscriptionRequired = option.id === "publish" && paidActionsLocked;
                   return <button key={option.id} className={styles.shortcutItem} type="button" role="menuitem"
                     data-mobile-tool={option.id} data-tone={option.tone}
                     aria-busy={shortcutLoadingVisible || undefined} aria-disabled={publicationUnavailable || shortcutLoadingVisible || undefined}
                     disabled={publicationUnavailable}
-                    onClick={() => navigate(option.href)}>
+                    aria-label={subscriptionRequired ? `${label} — ${boosterT("wizard_preview_subscribe")}` : undefined}
+                    title={subscriptionRequired ? boosterT("wizard_preview_subscribe") : undefined}
+                    style={subscriptionRequired ? { filter: "grayscale(1)", opacity: 0.65 } : undefined}
+                    onClick={() => subscriptionRequired ? openDashboardPanel("abonnement") : navigate(option.href)}>
                     <span className={styles.shortcutIconSlot} aria-hidden="true"><MobileToolIcon tool={option} /></span>
                     <span className={styles.shortcutLabel}>{shortcutLoadingVisible ? i18nT("chargement_01cba1df") : label}</span>
                     <span className={styles.menuArrow} aria-hidden="true">›</span>

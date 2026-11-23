@@ -7,12 +7,12 @@ import css from "./PublishReferencePicker.module.css";
 
 type MediaChoice = { onSelect: () => void; disabled?: boolean; disabledReason?: string; detail?: string };
 type Props = {
-  disabled: boolean; image: MediaChoice; video: MediaChoice; camera?: MediaChoice;
+  disabled: boolean; subscriptionRequired?: boolean; image: MediaChoice; video: MediaChoice; camera?: MediaChoice;
   documentDetail: string; documentCount?: number;
   onPickDocument: () => void; onGenerateMedia: () => void; onOpenMediaLibrary: () => void;
 };
 
-export default function PublishReferencePicker({ disabled, image, video, camera, documentDetail, documentCount = 0, onPickDocument, onGenerateMedia, onOpenMediaLibrary }: Props) {
+export default function PublishReferencePicker({ disabled, subscriptionRequired = false, image, video, camera, documentDetail, documentCount = 0, onPickDocument, onGenerateMedia, onOpenMediaLibrary }: Props) {
   const t = useTranslations("booster");
   const mediaT = useTranslations("media");
   const [view, setView] = useState<"sources" | "media" | null>(null);
@@ -68,7 +68,10 @@ export default function PublishReferencePicker({ disabled, image, video, camera,
             <button type="button" className={css.choice} data-tone="cyan" onClick={() => { setView("media"); dialogRef.current?.focus(); }}>
               <ReferenceGlyph kind="media" /><span className={css.mediaLabel}><strong>{t("wizard_step_media")}</strong><small>{t("wizard_reference_media_detail")}</small></span><span className={css.arrow} aria-hidden="true">→</span>
             </button>
-            <button type="button" className={css.choice} data-tone="violet" onClick={() => choose(onGenerateMedia)}>
+            <button type="button" className={css.choice} data-tone="violet" onClick={() => choose(onGenerateMedia)}
+              title={subscriptionRequired ? t("wizard_preview_subscribe") : undefined}
+              aria-label={subscriptionRequired ? `${t("wizard_generate_media")} — ${t("wizard_preview_subscribe")}` : undefined}
+              style={subscriptionRequired ? { filter: "grayscale(1)", opacity: 0.65 } : undefined}>
               <ReferenceGlyph kind="sparkle" /><span className={css.mediaLabel}><strong>{t("wizard_generate_media")}</strong><small>{t("wizard_reference_generate_detail")}</small></span><span className={css.arrow} aria-hidden="true">↗</span>
             </button>
             <button type="button" className={css.choice} data-tone="pink" onClick={() => choose(onOpenMediaLibrary)}>

@@ -65,7 +65,7 @@
   },
   "app/dashboard/_components/MediaCharacterVoiceInput.tsx": {
     "disposition": "basic",
-    "reason": "Outil manuel ou composant partagé monté par un parcours Basique ; les restrictions locales et validations natives restent applicables.",
+    "reason": "Outil manuel ou composant partagé monté par un parcours Basique ; les restrictions locales et validations natives restent applicables. Revue du mode découverte : les actions payantes sont soumises au verrou d’abonnement et les commandes restantes conservent leurs contrôles natifs.",
     "gateFiles": [
       "lib/dashboardEdition.ts"
     ],
@@ -87,7 +87,7 @@
   },
   "app/dashboard/_components/MediaFreeGenerator.tsx": {
     "disposition": "basic",
-    "reason": "Revue explicite Studio Libre : éditeur Exact par lignes avec locuteur numéroté, liaison stable photo/vocal, préservation du brouillon lors du retour à Automatiques et de la voix off réelle sans photo. Les autres contrôles natifs sont indisponibles derrière le dialogue ouvert. Le sujet Booster conserve son contexte seulement tant qu’il est inchangé ; reset retire ce contexte. Droits, devis, crédits et consentements restent natifs, aucune génération implicite. Ancien textarea global supprimé et setter caché refusé.",
+    "reason": "Revue explicite Studio Libre : éditeur Exact par lignes avec locuteur numéroté, liaison stable photo/vocal, préservation du brouillon lors du retour à Automatiques et de la voix off réelle sans photo. Les autres contrôles natifs sont indisponibles derrière le dialogue ouvert. Le sujet Booster conserve son contexte seulement tant qu’il est inchangé ; reset retire ce contexte. Droits, devis, crédits et consentements restent natifs, aucune génération implicite. Ancien textarea global supprimé et setter caché refusé. Revue du mode découverte : les actions payantes sont soumises au verrou d’abonnement et les commandes restantes conservent leurs contrôles natifs.",
     "gateFiles": [
       "lib/dashboardEdition.ts"
     ],
@@ -95,7 +95,7 @@
   },
   "app/dashboard/_components/MediaGenerationCreationWorkspace.tsx": {
     "disposition": "basic",
-    "reason": "Révision explicite : barre déterminée conservée, pourcentage vidéo marqué approximatif et libellé d’attente neutre ; arrêt, confirmation et récupération gardent leurs actions natives.",
+    "reason": "Révision explicite : barre déterminée conservée, pourcentage vidéo marqué approximatif et libellé d’attente neutre ; arrêt, confirmation et récupération gardent leurs actions natives. Revue du mode découverte : les actions payantes sont soumises au verrou d’abonnement et les commandes restantes conservent leurs contrôles natifs.",
     "gateFiles": [
       "lib/dashboardEdition.ts"
     ],
@@ -103,7 +103,7 @@
   },
   "app/dashboard/_components/MediaGenerator.tsx": {
     "disposition": "basic",
-    "reason": "Revue explicite Kling : parcours partage conserve, validation native du vocal de 5 a 10 secondes et message localise avant generation. Les restrictions du forfait, affectations et consentements restent applicables.",
+    "reason": "Revue explicite Kling : parcours partage conserve, validation native du vocal de 5 a 10 secondes et message localise avant generation. Les restrictions du forfait, affectations et consentements restent applicables. Revue du mode découverte : les actions payantes sont soumises au verrou d’abonnement et les commandes restantes conservent leurs contrôles natifs.",
     "gateFiles": [
       "lib/dashboardEdition.ts"
     ],
@@ -133,7 +133,7 @@
   },
   "app/dashboard/_components/MediaModifier.tsx": {
     "disposition": "basic",
-    "reason": "Révision explicite : après import, Remplacer conserve le choix appareil et la Médiathèque reste disponible ; le bouton appareil redondant est masqué. Import initial, verrous et brouillon inchangés.",
+    "reason": "Après import, Remplacer conserve le choix appareil et la Médiathèque reste disponible ; le bouton appareil redondant est masqué. La génération est verrouillée en découverte et les autres contrôles restent soumis aux droits et validations natifs.",
     "gateFiles": [
       "lib/dashboardEdition.ts"
     ],
@@ -141,7 +141,7 @@
   },
   "app/dashboard/_components/MediaOptimizerModal.tsx": {
     "disposition": "basic",
-    "reason": "Outil manuel ou composant partagé monté par un parcours Basique ; les restrictions locales et validations natives restent applicables.",
+    "reason": "Outil manuel ou composant partagé monté par un parcours Basique ; les restrictions locales et validations natives restent applicables. Revue du mode découverte : les actions payantes sont soumises au verrou d’abonnement et les commandes restantes conservent leurs contrôles natifs.",
     "gateFiles": [
       "lib/dashboardEdition.ts"
     ],
@@ -199,7 +199,7 @@
   },
   "app/dashboard/_components/MediaSubjectVoiceButton.tsx": {
     "disposition": "basic",
-    "reason": "Outil manuel ou composant partagé monté par un parcours Basique ; les restrictions locales et validations natives restent applicables.",
+    "reason": "Outil manuel ou composant partagé monté par un parcours Basique ; les restrictions locales et validations natives restent applicables. Revue du mode découverte : les actions payantes sont soumises au verrou d’abonnement et les commandes restantes conservent leurs contrôles natifs.",
     "gateFiles": [
       "lib/dashboardEdition.ts"
     ],
@@ -223,7 +223,7 @@
   },
   "app/dashboard/_components/PublishExecutionResultModal.tsx": {
     "disposition": "basic",
-    "reason": "Outil manuel ou composant partagé monté par un parcours Basique ; les restrictions locales et validations natives restent applicables.",
+    "reason": "Outil manuel ou composant partagé monté par un parcours Basique ; les restrictions locales et validations natives restent applicables. Revue du mode découverte : les actions payantes sont soumises au verrou d’abonnement et les commandes restantes conservent leurs contrôles natifs.",
     "gateFiles": [
       "lib/dashboardEdition.ts"
     ],
@@ -353,7 +353,7 @@
   },
   "app/dashboard/booster/publier/components/PublishContentAdjustmentModal.tsx": {
     "disposition": "basic",
-    "reason": "Outil manuel ou composant partagé monté par un parcours Basique ; les restrictions locales et validations natives restent applicables.",
+    "reason": "Outil manuel ou composant partagé monté par un parcours Basique ; les restrictions locales et validations natives restent applicables. Revue du mode découverte : les actions payantes sont soumises au verrou d’abonnement et les commandes restantes conservent leurs contrôles natifs.",
     "gateFiles": [
       "lib/dashboardEdition.ts"
     ],
@@ -393,7 +393,7 @@
   },
   "app/dashboard/booster/publier/components/PublishFooterActions.tsx": {
     "disposition": "basic",
-    "reason": "Outil manuel ou composant partagé monté par un parcours Basique ; les restrictions locales et validations natives restent applicables.",
+    "reason": "Outil manuel ou composant partagé monté par un parcours Basique ; les restrictions locales et validations natives restent applicables. Revue du mode découverte : les actions payantes sont soumises au verrou d’abonnement et les commandes restantes conservent leurs contrôles natifs.",
     "gateFiles": [
       "lib/dashboardEdition.ts"
     ],
@@ -401,7 +401,7 @@
   },
   "app/dashboard/booster/publier/components/PublishIntentPanel.tsx": {
     "disposition": "basic",
-    "reason": "Outil manuel ou composant partagé monté par un parcours Basique ; les restrictions locales et validations natives restent applicables.",
+    "reason": "Outil manuel ou composant partagé monté par un parcours Basique ; les restrictions locales et validations natives restent applicables. Revue du mode découverte : les actions payantes sont soumises au verrou d’abonnement et les commandes restantes conservent leurs contrôles natifs.",
     "gateFiles": [
       "lib/dashboardEdition.ts"
     ],
@@ -409,7 +409,7 @@
   },
   "app/dashboard/booster/publier/components/PublishMediaPoolPanel.tsx": {
     "disposition": "basic",
-    "reason": "Pool médias du parcours Basique : mêmes imports, outils et limites natives. Les en-têtes Images et Vidéo sont renforcés sans modifier les effets ni droits des commandes.",
+    "reason": "Pool médias du parcours Basique : imports, outils et limites natives. En découverte le bouton de génération ouvre l’abonnement ; le test navigateur associé simule contexte, routage et absence d’appel fournisseur.",
     "gateFiles": [
       "lib/dashboardEdition.ts"
     ],
@@ -417,7 +417,7 @@
   },
   "app/dashboard/booster/publier/components/PublishReferencePicker.tsx": {
     "disposition": "basic",
-    "reason": "Outil manuel ou composant partagé monté par un parcours Basique ; les restrictions locales et validations natives restent applicables.",
+    "reason": "Outil manuel ou composant partagé monté par un parcours Basique ; les restrictions locales et validations natives restent applicables. Revue du mode découverte : les actions payantes sont soumises au verrou d’abonnement et les commandes restantes conservent leurs contrôles natifs.",
     "gateFiles": [
       "lib/dashboardEdition.ts"
     ],
@@ -515,7 +515,7 @@
   },
   "app/dashboard/e-reputation/EReputationReviewsClient.tsx": {
     "disposition": "basic",
-    "reason": "Outil manuel ou composant partagé monté par un parcours Basique ; les restrictions locales et validations natives restent applicables.",
+    "reason": "Outil manuel ou composant partagé monté par un parcours Basique ; les restrictions locales et validations natives restent applicables. Revue du mode découverte : les actions payantes sont soumises au verrou d’abonnement et les commandes restantes conservent leurs contrôles natifs.",
     "gateFiles": [
       "lib/dashboardEdition.ts"
     ],

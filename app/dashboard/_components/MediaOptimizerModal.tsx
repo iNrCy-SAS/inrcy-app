@@ -2,6 +2,7 @@
 import { getClientUserFacingErrorMessage as getSafeClientErrorMessage } from "@/lib/userFacingErrors";
 
 import { useLocale, useTranslations } from "next-intl";
+import usePaidMediaAction from "../_hooks/usePaidMediaAction";
 
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
@@ -383,6 +384,7 @@ export default function MediaOptimizerModal({
   onLibraryChanged,
 }: Props) {
   const i18nT = useTranslations("media");
+  const { paidActionsLocked, subscriptionLabel, openSubscription } = usePaidMediaAction();
   const locale = useLocale();
   const unitKilobytes = i18nT("unit_kilobytes");
   const unitMegabytes = i18nT("unit_megabytes");
@@ -526,6 +528,7 @@ export default function MediaOptimizerModal({
   };
 
   const handleOptimize = async () => {
+    if (paidActionsLocked) { openSubscription(); return; }
     if (busy || !mediaType) return;
     setBusy(true);
     setError("");
@@ -916,7 +919,8 @@ export default function MediaOptimizerModal({
             <button
               type="button"
               onClick={() => void handleOptimize()}
-              disabled={busy || !mediaType || !currentSize || !requirements?.needsOptimization || sourceTooLarge}
+              disabled={!paidActionsLocked && (busy || !mediaType || !currentSize || !requirements?.needsOptimization || sourceTooLarge)}
+              title={paidActionsLocked ? subscriptionLabel : undefined}
               style={{
                 borderRadius: 999,
                 padding: "10px 16px",
@@ -925,7 +929,8 @@ export default function MediaOptimizerModal({
                 color: "#fff",
                 fontWeight: 950,
                 cursor: busy ? "wait" : sourceTooLarge ? "not-allowed" : "pointer",
-                opacity: busy || sourceTooLarge ? 0.65 : 1,
+                opacity: paidActionsLocked || busy || sourceTooLarge ? 0.65 : 1,
+                filter: paidActionsLocked ? "grayscale(1)" : undefined,
               }}
             >
               {busy ? i18nT("optimisation_en_cours_def4a3cc") : i18nT("optimiser_le_media_1bc4fc40")}

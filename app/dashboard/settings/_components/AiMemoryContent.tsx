@@ -2,6 +2,7 @@
 import { getClientUserFacingErrorMessage as getSafeClientErrorMessage } from "@/lib/userFacingErrors";
 
 import { useDashboardViewerAccess } from "../../_components/DashboardViewerAccessProvider";
+import usePaidMediaAction from "../../_hooks/usePaidMediaAction";
 import DrawerHeaderTabs from "../../DrawerHeaderTabs";
 import DashboardMobileSelect from "../../_components/DashboardMobileSelect";
 import { useInrAssistantBusinessFormCommands, type BusinessFormActionScope } from "../../_hooks/useInrAssistantBusinessFormCommands";
@@ -250,6 +251,7 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
   onAnalysisCompleted,
 }: Props, ref) {
   const { metaPilotEnabled, actorUserId, activeAccountId } = useDashboardViewerAccess();
+  const { paidActionsLocked, subscriptionLabel, openSubscription } = usePaidMediaAction();
   const resetViewerRef = useRef({ actorUserId, activeAccountId });
   useLayoutEffect(() => { resetViewerRef.current = { actorUserId, activeAccountId }; });
   const [resetDialogTab, setResetDialogTab] = useState<AiMemoryWorkspaceTab | "all" | null>(null);
@@ -762,6 +764,7 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
   );
 
   const uploadReferenceDocuments = async (files: File[]) => {
+    if (paidActionsLocked) { openSubscription(); return; }
     if (!files.length || documentUploadState !== "idle") return;
     if (!documentAnalysisConsent) {
       const approved = await confirmInrcy({
@@ -1653,9 +1656,10 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
                   icon="📎"
                   title={t("tabDocuments")}
                   description=""
-                  onIconClick={() => documentInputRef.current?.click()}
-                  iconLabel={t("documentsUploadButton")}
-                  iconDisabled={documentUploadState !== "idle" || documentStorage.status === "reached" || memory.referenceDocuments.length >= AI_MEMORY_REFERENCE_DOCUMENT_MAX_ITEMS}
+                  onIconClick={() => paidActionsLocked ? openSubscription() : documentInputRef.current?.click()}
+                  iconLabel={paidActionsLocked ? `${t("documentsUploadButton")} — ${subscriptionLabel}` : t("documentsUploadButton")}
+                  iconLocked={paidActionsLocked}
+                  iconDisabled={!paidActionsLocked && (documentUploadState !== "idle" || documentStorage.status === "reached" || memory.referenceDocuments.length >= AI_MEMORY_REFERENCE_DOCUMENT_MAX_ITEMS)}
                   trailing={(
                     <span data-reference-document-count style={documentsCountStyle}>
                       {t("documentsCount", {
@@ -2649,10 +2653,10 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
 
 export default AiMemoryContent;
 
-function SectionHeader({ icon, title, description, trailing, onIconClick, iconLabel, iconDisabled }: { icon: string; title: string; description: string; trailing?: ReactNode; onIconClick?: () => void; iconLabel?: string; iconDisabled?: boolean }) {
+function SectionHeader({ icon, title, description, trailing, onIconClick, iconLabel, iconDisabled, iconLocked }: { icon: string; title: string; description: string; trailing?: ReactNode; onIconClick?: () => void; iconLabel?: string; iconDisabled?: boolean; iconLocked?: boolean }) {
   return (
     <header data-memory-section-heading style={sectionHeaderStyle}>
-      {onIconClick ? <button type="button" onClick={onIconClick} disabled={iconDisabled} aria-label={iconLabel} title={iconLabel} style={{ ...sectionIconStyle, color: "inherit", cursor: iconDisabled ? "default" : "pointer", padding: 0, font: "inherit", opacity: iconDisabled ? .5 : 1 }}>{icon}</button> : <span aria-hidden style={sectionIconStyle}>{icon}</span>}
+      {onIconClick ? <button type="button" onClick={onIconClick} disabled={iconDisabled} aria-label={iconLabel} title={iconLabel} style={{ ...sectionIconStyle, color: "inherit", cursor: iconDisabled ? "default" : "pointer", padding: 0, font: "inherit", opacity: iconDisabled || iconLocked ? .5 : 1, filter: iconLocked ? "grayscale(1)" : undefined }}>{icon}</button> : <span aria-hidden style={sectionIconStyle}>{icon}</span>}
       <span style={{ display: "grid", gap: 3, minWidth: 0 }}>
         <strong style={{ color: "white", fontSize: 15 }}>{title}</strong>
         {description ? <span style={hintStyle}>{description}</span> : null}

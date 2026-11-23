@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import ts from "typescript";
 import { invoiceSubscriptionId } from "../../lib/stripeWebhookPayload.ts";
+import * as directSignupPolicy from "../../lib/directSignupPolicy.ts";
 
 type Row = Record<string, unknown>;
 function load<T>(file: string, modules: Record<string, unknown>): T {
@@ -36,6 +37,7 @@ function fixture(options: { approved?: boolean; authenticated?: boolean; badStri
     "@/lib/userFacingErrors": { getSimpleFrenchErrorMessage: (_: unknown, fallback: string) => fallback },
     "@/lib/stripeWebhookPayload": { invoiceSubscriptionId },
     "@/lib/stripeCheckoutPreflight": {}, "@/lib/accountSubscriptionPolicy": {},
+    "@/lib/directSignupPolicy": directSignupPolicy,
     "@/lib/stripeRest": {
       getAppUrl: () => "https://app.invalid",
       stripeGet: async (path: string) => {

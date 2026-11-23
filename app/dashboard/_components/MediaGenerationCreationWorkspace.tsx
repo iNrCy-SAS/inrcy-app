@@ -1,4 +1,5 @@
 "use client";
+import usePaidMediaAction from "../_hooks/usePaidMediaAction";
 
 import Image from "next/image";
 import { useTranslations } from "next-intl";
@@ -195,6 +196,7 @@ export default function MediaGenerationCreationWorkspace({
   overlay,
   regenerationConsents,
 }: Props) {
+  const { paidActionsLocked, subscriptionLabel, openSubscription } = usePaidMediaAction();
   const t = useTranslations("media");
   const instanceId = useId();
   const [expandedResult, setExpandedResult] = useState<string | null>(null);
@@ -516,8 +518,10 @@ export default function MediaGenerationCreationWorkspace({
             <button
               type="button"
               className={styles.regenerateButton}
-              onClick={() => void handleGenerate()}
-              disabled={disabled || operationLocked}
+              onClick={() => { if (paidActionsLocked) openSubscription(); else void handleGenerate(); }}
+              disabled={paidActionsLocked ? operationLocked : disabled || operationLocked}
+              style={paidActionsLocked ? { filter: "grayscale(1)", opacity: 0.55 } : undefined}
+              title={paidActionsLocked ? subscriptionLabel : undefined}
               data-media-regenerate
             >
               ↻ {t("ai_generator_regenerate")}
@@ -545,8 +549,10 @@ export default function MediaGenerationCreationWorkspace({
             {creditSummary}
             <button
               type="button"
-              onClick={() => void handleGenerate()}
-              disabled={disabled}
+              onClick={() => { if (paidActionsLocked) openSubscription(); else void handleGenerate(); }}
+              disabled={paidActionsLocked ? operationLocked : disabled}
+              style={paidActionsLocked ? { filter: "grayscale(1)", opacity: 0.55 } : undefined}
+              title={paidActionsLocked ? subscriptionLabel : undefined}
             >
               {t("ai_generator_retry")}
             </button>

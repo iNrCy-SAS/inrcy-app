@@ -1,5 +1,6 @@
 import { useCallback, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
+import usePaidMediaAction from "../../../_hooks/usePaidMediaAction";
 import { BOOSTER_MAX_IMAGE_COUNT, makeImageKey, getLocalizedBoosterImageLimits, getLocalizedBoosterImageFormats, getLocalizedBoosterVideoLimits, getLocalizedBoosterVideoFormats, getLocalizedBoosterRecommendedVideoDuration } from "../publishModal.shared";
 import MediaPoolImagePreview from "./MediaPoolImagePreview";
 import css from "./PublishMediaPoolPanel.module.css";
@@ -23,6 +24,7 @@ export default function PublishMediaPoolPanel({
   onRetouchVideo,
 }: Props) {
   const t = useTranslations("booster");
+  const { paidActionsLocked, subscriptionLabel, openSubscription } = usePaidMediaAction();
   const shellT = useTranslations("shell");
   const runtimeT = t as unknown as (key: string, values?: Record<string, string | number>) => string;
   const [expandedSlot, setExpandedSlot] = useState(0);
@@ -55,7 +57,10 @@ export default function PublishMediaPoolPanel({
 
   const actions = (kind: MediaKind) => <div className={css.slotActions}>
     <button type="button" className={css.add} onClick={kind === "image" ? onPickImages : onPickVideo} title={kind === "image" ? imageHelp : videoHelp}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>{t("wizard_add_media")}</button>
-    <button type="button" className={css.generate} onClick={() => onGenerate(kind)}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true"><path d="m12 3 2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5L12 3Z" /></svg>{t("wizard_generate_media")}</button>
+    <button type="button" className={css.generate} onClick={() => paidActionsLocked ? openSubscription() : onGenerate(kind)}
+      title={paidActionsLocked ? subscriptionLabel : undefined}
+      aria-label={paidActionsLocked ? `${t("wizard_generate_media")} — ${subscriptionLabel}` : undefined}
+      style={paidActionsLocked ? { filter: "grayscale(1)", opacity: 0.65 } : undefined}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true"><path d="m12 3 2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5L12 3Z" /></svg>{t("wizard_generate_media")}</button>
     <button type="button" className={css.library} onClick={() => onLibrary(kind)}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true"><rect x="5" y="3" width="16" height="16" rx="3"/><path d="M3 7v12a2 2 0 0 0 2 2h12m-11-8 4-4 3 3 2-2 5 5"/><circle cx="16" cy="7" r="1"/></svg>{t("wizard_media_library")}</button>
     {isMobile && kind === "image" ? <button type="button" className={css.camera} onClick={onCamera}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true"><path d="m8 5 1-2h6l1 2h3a2 2 0 0 1 2 2v12H3V7a2 2 0 0 1 2-2h3Z"/><circle cx="12" cy="12" r="4"/></svg>{t("wizard_camera")}</button> : null}
   </div>;

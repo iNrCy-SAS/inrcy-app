@@ -1,6 +1,7 @@
 import { type PublishContentAdjustmentInput } from "./components/PublishContentAdjustmentModal";
 import { mergeBoosterContentAdjustment, normalizeBoosterContentAdjustment } from "@/lib/boosterContentAdjustment";
 import { useCallback, useEffect, useRef, useState } from "react";
+import usePaidMediaAction from "../../_hooks/usePaidMediaAction";
 import { getActiveBrowserUserId, resolveActiveBrowserUserId } from "@/lib/browserAccountCache";
 import { createClient } from "@/lib/supabaseClient";
 import { buildBoosterGenerationRequest } from "@/lib/boosterGenerationTransportClient";
@@ -46,6 +47,7 @@ export function useBoosterGeneration({ i18nT, runtimeT, readContext }: {
   runtimeT: (key: string, values?: Record<string, string | number>) => string;
   readContext: () => BoosterGenerationContext;
 }) {
+  const { paidActionsLocked, openSubscription } = usePaidMediaAction();
   const generationInFlightRef = useRef(false);
   const [generating, setGenerating] = useState(false);
   const [generationProgress, setGenerationProgress] = useState(0);
@@ -145,6 +147,7 @@ export function useBoosterGeneration({ i18nT, runtimeT, readContext }: {
   }, []);
 
   const onGenerate = async (adjustmentInput?: PublishContentAdjustmentInput & { previousIdea: string; previousInstruction: string }) => {
+    if (paidActionsLocked) { openSubscription(); return; }
     const context = readContext();
     const { creationMode, idea, publicationInstruction, selectedForGeneration, selectedChannels, selectedAiPreferredEngine, hasWrittenChannelContent, theme, contentStyle } = context.intent;
     const { videoFile, videoPreviewUrl, videoDurationSeconds, videoStorageContext, images, useImagesForAI, documentFiles, videoAiContextRef, getOrPrepareAiImagePayload, getOrPrepareVideoFramesForAI } = context.media;

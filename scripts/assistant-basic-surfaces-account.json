@@ -10622,7 +10622,7 @@
     ],
     "sourceAnchor": "onClick={onIconClick}",
     "controlIds": [
-      "app/dashboard/settings/_components/AiMemoryContent.tsx#button:c9565ff37dc46923:1"
+      "app/dashboard/settings/_components/AiMemoryContent.tsx#button:ecdee5a334f4b4c6:1"
     ],
     "capabilityId": "business.write",
     "toolNames": [
@@ -10641,7 +10641,7 @@
     },
     "coverageStatus": "server_equivalent",
     "status": "domain_contract_only",
-    "notes": "Un contrôle AST par ligne. Les options issues d’une boucle conservent leurs validations natives ; une preuve de contrat du domaine ne certifie pas l’exécution de ce bouton au navigateur.",
+    "notes": "Un contrôle AST par ligne. Les options issues d’une boucle conservent leurs validations natives ; une preuve de contrat du domaine ne certifie pas l’exécution de ce bouton au navigateur. Revue du mode découverte : les opérations payantes de ce parcours nécessitent un abonnement ; les preuves existantes portent sur le parcours Basic autorisé et ne certifient pas une transaction fournisseur.",
     "uiConditions": [
       "onIconClick"
     ]
@@ -11585,9 +11585,9 @@
     "sourceFiles": [
       "app/dashboard/settings/_components/BusinessDnaAnalysisWorkspace.tsx"
     ],
-    "sourceAnchor": "onClick={onSchedule}",
+    "sourceAnchor": "<button type=\"button\" className={styles.schedule} disabled={!paidActionsLocked && (busy || analyzing)} onClick={paidActionsLocked ? openSubscription : onSchedule}\n            title={paidActionsLocked ? subscriptionLabel : undefined} style={paidActionsLocked ? { filter: \"grayscale(1)\", opacity: 0.65 } : undefined}>",
     "controlIds": [
-      "app/dashboard/settings/_components/BusinessDnaAnalysisWorkspace.tsx#button:dd73bc72cd3317ee:1"
+      "app/dashboard/settings/_components/BusinessDnaAnalysisWorkspace.tsx#button:a2a4e218a445d2f1:1"
     ],
     "capabilityId": "navigation.local-controls",
     "toolNames": [
@@ -11606,7 +11606,7 @@
     },
     "coverageStatus": "implemented",
     "status": "native_callback_runtime",
-    "notes": "Commande locale finie, montage/compte/acteur/révision vérifiés. Le composant relit son état après rendu ; cette preuve ne certifie pas un appel fournisseur réel."
+    "notes": "Commande locale finie, montage/compte/acteur/révision vérifiés. Le composant relit son état après rendu ; cette preuve ne certifie pas un appel fournisseur réel. Revue du mode découverte : les opérations payantes de ce parcours nécessitent un abonnement ; les preuves existantes portent sur le parcours Basic autorisé et ne certifient pas une transaction fournisseur."
   },
   {
     "id": "account-d6a39ba537ffba21",
@@ -11615,9 +11615,9 @@
     "sourceFiles": [
       "app/dashboard/settings/_components/BusinessDnaAnalysisWorkspace.tsx"
     ],
-    "sourceAnchor": "onClick={onAnalyze}",
+    "sourceAnchor": "<button type=\"button\" className={styles.launch} disabled={!paidActionsLocked && launchDisabled} aria-busy={analyzing} onClick={paidActionsLocked ? openSubscription : onAnalyze}\n            title={paidActionsLocked ? subscriptionLabel : undefined} style={paidActionsLocked ? { filter: \"grayscale(1)\", opacity: 0.65 } : undefined}>",
     "controlIds": [
-      "app/dashboard/settings/_components/BusinessDnaAnalysisWorkspace.tsx#button:a55e488e0d17fdca:1"
+      "app/dashboard/settings/_components/BusinessDnaAnalysisWorkspace.tsx#button:9a3e3a2cbe4faeb6:1"
     ],
     "capabilityId": "business.analysis",
     "toolNames": [
@@ -11637,7 +11637,7 @@
     },
     "coverageStatus": "server_equivalent",
     "status": "domain_contract_only",
-    "notes": "Un contrôle AST par ligne. Les options issues d’une boucle conservent leurs validations natives ; une preuve de contrat du domaine ne certifie pas l’exécution de ce bouton au navigateur."
+    "notes": "Un contrôle AST par ligne. Les options issues d’une boucle conservent leurs validations natives ; une preuve de contrat du domaine ne certifie pas l’exécution de ce bouton au navigateur. Revue du mode découverte : les opérations payantes de ce parcours nécessitent un abonnement ; les preuves existantes portent sur le parcours Basic autorisé et ne certifient pas une transaction fournisseur."
   },
   {
     "id": "account-114988282756f9c2",

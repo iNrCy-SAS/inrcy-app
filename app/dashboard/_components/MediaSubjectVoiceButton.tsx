@@ -3,6 +3,7 @@ import { getClientUserFacingErrorMessage as getSafeClientErrorMessage } from "@/
 
 import { useLocale, useTranslations } from "next-intl";
 import { useEffect, useEffectEvent, useRef, useState } from "react";
+import usePaidMediaAction from "../_hooks/usePaidMediaAction";
 
 import styles from "./MediaGenerator.module.css";
 
@@ -241,6 +242,7 @@ export default function MediaSubjectVoiceButton({
   maxLength,
 }: Props) {
   const t = useTranslations("booster");
+  const { paidActionsLocked, subscriptionLabel, openSubscription } = usePaidMediaAction();
   const locale = useLocale();
   const [state, setState] = useState<VoiceState>("idle");
   const [seconds, setSeconds] = useState(0);
@@ -760,12 +762,16 @@ export default function MediaSubjectVoiceButton({
       type="button"
       className={styles.voiceButton}
       data-recording={recording ? "true" : undefined}
-      disabled={disabled || state === "requesting" || state === "transcribing"}
-      aria-label={accessibleLabel}
+      disabled={!paidActionsLocked && (disabled || state === "requesting" || state === "transcribing")}
+      aria-label={paidActionsLocked ? `${accessibleLabel} — ${subscriptionLabel}` : accessibleLabel}
       aria-busy={state === "requesting" || state === "transcribing"}
       aria-pressed={recording}
-      title={contextLabel ? `${t(titleKey)} — ${contextLabel}` : t(titleKey)}
-      onClick={() => (recording ? stopRecording() : void startRecording())}
+      title={paidActionsLocked ? subscriptionLabel : contextLabel ? `${t(titleKey)} — ${contextLabel}` : t(titleKey)}
+      style={paidActionsLocked ? { filter: "grayscale(1)", opacity: 0.65 } : undefined}
+      onClick={() => {
+        if (paidActionsLocked) { openSubscription(); return; }
+        if (recording) stopRecording(); else void startRecording();
+      }}
     >
       {recording ? `■ ${formatDuration(seconds)}` : state === "idle" ? "🎙️" : "…"}
     </button>

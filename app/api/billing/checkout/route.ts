@@ -251,7 +251,8 @@ export async function POST(req: Request) {
             // Collect an existing debt or manage the existing trial. Never create
             // a second subscription, extend access, or change its plan here.
             await guard.assertOwned();
-            const params = new URLSearchParams({ customer: recovered.customerId, return_url: `${getAppUrl(req)}/compte-bloque` });
+            const recoveryPath = directSignup && ["incomplete", "incomplete_expired"].includes(currentStatus) ? "/dashboard?panel=abonnement" : "/compte-bloque";
+            const params = new URLSearchParams({ customer: recovered.customerId, return_url: `${getAppUrl(req)}${recoveryPath}` });
             const portal = await stripePost("/billing_portal/sessions", params);
             if (!portal?.url) throw new Error("Le portail de facturation n’a pas pu être ouvert.");
             return NextResponse.json({ url: portal.url }, { headers: { "Cache-Control": "no-store" } });
@@ -355,7 +356,7 @@ export async function POST(req: Request) {
         "success_url",
         `${appUrl}${returnPath}${returnSeparator}checkout=success&billing=${billingCycle}&checkout_plan=${requestedPlan}`,
       );
-      sessionParams.set("cancel_url", `${appUrl}${returnPath}${returnSeparator}checkout=cancel`);
+      sessionParams.set("cancel_url", `${appUrl}/dashboard?panel=abonnement&checkout=cancel`);
       sessionParams.set("client_reference_id", userId);
       sessionParams.set("metadata[user_id]", userId);
       sessionParams.set("metadata[plan]", requestedPlan);

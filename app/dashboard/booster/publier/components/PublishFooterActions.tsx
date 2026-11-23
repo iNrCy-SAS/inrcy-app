@@ -1,5 +1,6 @@
 import { useTranslations } from "next-intl";
 import type { MutableRefObject, ReactNode } from "react";
+import usePaidMediaAction from "../../../_hooks/usePaidMediaAction";
 import StatusMessage from "../../../_components/StatusMessage";
 import PublishExecutionProgress, { type PublicationProgressDestination } from "../../../_components/PublishExecutionProgress";
 
@@ -49,6 +50,10 @@ export default function PublishFooterActions({
   reviewControl,
 }: PublishFooterActionsProps) {
   const i18nT = useTranslations("booster");
+  const { paidActionsLocked, openSubscription } = usePaidMediaAction();
+  const subscriptionOr = (action: () => void) => paidActionsLocked
+    ? openSubscription()
+    : action();
   const busy = saving || scheduling;
   return (
     <div ref={publishAreaRef} className={styles.publishFooterRoot}>
@@ -73,12 +78,13 @@ export default function PublishFooterActions({
               className={`${styles.secondaryBtn} ${styles.publishScheduleButton}`}
               data-publish-schedule-action
               aria-label={i18nT("programmer_ad97007f")}
-              title={i18nT("programmer_ad97007f")}
-              onClick={onSchedule}
-              disabled={draftSaving || voiceBusy || Boolean(scheduleMediaPreparationIssue)}
+              title={paidActionsLocked ? i18nT("wizard_preview_subscribe") : i18nT("programmer_ad97007f")}
+              onClick={() => subscriptionOr(onSchedule)}
+              disabled={!paidActionsLocked && (draftSaving || voiceBusy || Boolean(scheduleMediaPreparationIssue))}
               style={{
-                opacity: draftSaving || voiceBusy || scheduleMediaPreparationIssue ? 0.64 : 1,
-                cursor: draftSaving || voiceBusy || scheduleMediaPreparationIssue ? "wait" : "pointer",
+                opacity: paidActionsLocked || draftSaving || voiceBusy || scheduleMediaPreparationIssue ? 0.64 : 1,
+                filter: paidActionsLocked ? "grayscale(1)" : undefined,
+                cursor: !paidActionsLocked && (draftSaving || voiceBusy || scheduleMediaPreparationIssue) ? "wait" : "pointer",
               }}
             >
               <span data-publish-schedule-icon aria-hidden="true">🕒</span>
@@ -87,11 +93,13 @@ export default function PublishFooterActions({
             <button
               type="button"
               className={`${styles.primaryBtn} ${styles.publishConfirmButton}`}
-              onClick={onPublish}
-              disabled={draftSaving || voiceBusy || Boolean(mediaPreparationIssue)}
+              onClick={() => subscriptionOr(onPublish)}
+              title={paidActionsLocked ? i18nT("wizard_preview_subscribe") : undefined}
+              disabled={!paidActionsLocked && (draftSaving || voiceBusy || Boolean(mediaPreparationIssue))}
               style={{
-                opacity: draftSaving || voiceBusy || mediaPreparationIssue ? 0.64 : 1,
-                cursor: draftSaving || voiceBusy || mediaPreparationIssue ? "wait" : "pointer",
+                opacity: paidActionsLocked || draftSaving || voiceBusy || mediaPreparationIssue ? 0.64 : 1,
+                filter: paidActionsLocked ? "grayscale(1)" : undefined,
+                cursor: !paidActionsLocked && (draftSaving || voiceBusy || mediaPreparationIssue) ? "wait" : "pointer",
               }}
             >
               <span className={styles.publishActionIcon} aria-hidden="true">

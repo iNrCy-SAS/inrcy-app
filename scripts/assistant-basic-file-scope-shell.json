@@ -121,7 +121,7 @@
   },
   "app/dashboard/_components/DashboardAssistantSession.tsx": {
     "disposition": "basic",
-    "reason": "Revue explicite de l’icône iNr’Assistant v3 approuvée : un seul point d’interrogation au-dessus du robot, fond transparent et ratio contenu dans les dimensions existantes. Seule la référence de l’image change ; labels accessibles, handlers, session partagée, menus, droits et confirmations de navigation sont conservés. Cadrage visuel compensé pour garder la présence du robot antérieur malgré le point d’interrogation ajouté au-dessus, sans changer la place des commandes ni leurs actions.",
+    "reason": "Surface du canal de conversation et de ses commandes métier. Le bouton d’envoi ouvre l’abonnement en découverte ; les pièces jointes, navigation et confirmations conservent leurs contrôles de portée. La preuve navigateur synthétique d’un autre bouton média ne certifie pas ce canal.",
     "gateFiles": [
       "app/dashboard/_components/DashboardAssistantSession.tsx"
     ],
@@ -191,9 +191,9 @@
         "reason": "Infrastructure du canal de conversation : saisie/envoi ou reprise des instructions, fichiers attachés à cette saisie, dictée et présentation du chat. Ces contrôles ne sont pas des opérations métier Basic ; ils ne peuvent pas fabriquer leur propre autorisation utilisateur. Les décisions média, insertion Studio, contact et navigation métier restent recensées séparément.",
         "gateAnchor": "<button type=\"button\" className={styles.attachButton} aria-label={attachmentCopy.attach} title={attachmentCopy.attach} aria-expanded={files.menuOpen} disabled={pending || files.busy || files.attachments.length >= ASSISTA"
       },
-      "app/dashboard/_components/DashboardAssistantSession.tsx#button:a1053b5d4c957fa9:1": {
+      "app/dashboard/_components/DashboardAssistantSession.tsx#button:a2e23caa2146edf8:1": {
         "reason": "Infrastructure du canal de conversation : saisie/envoi ou reprise des instructions, fichiers attachés à cette saisie, dictée et présentation du chat. Ces contrôles ne sont pas des opérations métier Basic ; ils ne peuvent pas fabriquer leur propre autorisation utilisateur. Les décisions média, insertion Studio, contact et navigation métier restent recensées séparément.",
-        "gateAnchor": "<button type=\"submit\" className={styles.sendButton} aria-label={copy.send} title={copy.send} disabled={pending || files.busy || (!draft.trim() && !files.attachments.length)}>\n            <svg viewBox=\"0 0 24 24\" aria-hid"
+        "gateAnchor": "<button type=\"submit\" className={styles.sendButton} aria-label={paidActionsLocked ? `${copy.send} — ${boosterT(\"wizard_preview_subscribe\")}` : copy.send} title={paidActionsLocked ? boosterT(\"wizard_preview_subscribe\") : copy.send} disabled={!paidActionsLocked && (pending || files.busy || (!draft.trim() && !files.attachments.length))} style={paidActionsLocked ? { filter: \"grayscale(1)\", opacity: 0.65 } : undefined}>"
       }
     }
   },
@@ -237,7 +237,7 @@
   },
   "app/dashboard/_components/DashboardModulesCard.tsx": {
     "disposition": "basic",
-    "reason": "Surface partagée accessible au professionnel Basique. Chaque contrôle est lié à son contrat effectif ; form signifie préparation/guide et non exécution autonome. Les exclusions locales sont seulement des gates payantes ou des conteneurs techniques explicites.",
+    "reason": "Surface partagée accessible au professionnel Basique. Chaque contrôle est lié à son contrat effectif ; form signifie préparation/guide et non exécution autonome. Les exclusions locales sont seulement des gates payantes ou des conteneurs techniques explicites. Revue du mode découverte : les actions payantes sont soumises au verrou d’abonnement et les commandes restantes conservent leurs contrôles natifs.",
     "gateFiles": [
       "app/dashboard/_components/DashboardModulesCard.tsx"
     ],
@@ -354,7 +354,7 @@
   },
   "app/dashboard/_components/ResponsiveBottomNav.tsx": {
     "disposition": "basic",
-    "reason": "Revue explicite de l’icône iNr’Assistant v3 approuvée : un seul point d’interrogation au-dessus du robot, fond transparent et ratio contenu dans les dimensions existantes. Seule la référence de l’image change ; labels accessibles, handlers, session partagée, menus, droits et confirmations de navigation sont conservés. Cadrage visuel compensé pour garder la présence du robot antérieur malgré le point d’interrogation ajouté au-dessus, sans changer la place des commandes ni leurs actions.",
+    "reason": "Navigation mobile et raccourcis du tableau de bord Basic. En découverte le raccourci Publier ouvre l’abonnement ; les autres commandes et leurs restrictions restent recensées séparément.",
     "gateFiles": [
       "app/dashboard/_components/ResponsiveBottomNav.tsx"
     ],

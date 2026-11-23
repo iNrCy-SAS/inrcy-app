@@ -10,6 +10,7 @@ import { useLocale, useTranslations } from "next-intl";
 import React from "react";
 import { useRouter } from "next/navigation";
 import { useInrAssistantSendDetailsControls } from "../../_hooks/useInrAssistantSendDetailsControls";
+import usePaidMediaAction from "../../_hooks/usePaidMediaAction";
 import { useInrAssistantSendNativeLinks } from "../../_hooks/useInrAssistantSendNativeLinks";
 import { useInrAssistantSendEditorControls } from "../../_hooks/useInrAssistantSendEditorControls";
 import { readSanitizedElementHtml, sanitizeHtml } from "@/lib/sanitizeHtml";
@@ -484,6 +485,7 @@ function isAccountingDashboardHref(value: unknown) {
 
 export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
   const { metaPilotEnabled, activeAccountId } = useDashboardViewerAccess();
+  const { paidActionsLocked, subscriptionLabel, openSubscription } = usePaidMediaAction();
   const i18nT = useTranslations("mails");
   const boosterT = useTranslations("booster");
   const mediaT = useTranslations("media");
@@ -949,6 +951,7 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
   }
 
   async function retryTiktokPublication(publicationId: string, statusMeta?: ReturnType<typeof getTiktokStatusMeta> | null) {
+    if (paidActionsLocked) { openSubscription(); return; }
     if (!publicationId || tiktokRetrying) return;
     const isPending = Boolean(statusMeta?.pending);
     const ok = await confirmInrcy({
@@ -1152,6 +1155,7 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
   );
 
   const openPublicationMediaGenerator = React.useCallback(async (_event?: unknown, stillCurrent: () => boolean = () => true) => {
+    if (paidActionsLocked) { openSubscription(); return; }
     if (!stillCurrent()) return;
     preserveDetailsModalScroll();
     try {
@@ -1164,6 +1168,8 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
     preserveDetailsModalScroll,
     publicationMediaGeneratorBrief,
     restoreDetailsModalScroll,
+    paidActionsLocked,
+    openSubscription,
   ]);
 
   const acceptGeneratedPublicationMedia = React.useCallback(
@@ -1579,7 +1585,9 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
       className={styles.btnAttach}
       onClick={openPublicationMediaGenerator}
       ref={bindNativeEditor("generate")}
-      disabled={detailsActionBusy}
+      disabled={!paidActionsLocked && detailsActionBusy}
+      title={paidActionsLocked ? subscriptionLabel : undefined}
+      style={paidActionsLocked ? { filter: "grayscale(1)", opacity: 0.65 } : undefined}
     >
       <span aria-hidden="true">✦</span>{" "}
       {mediaT("ai_generator_generate_media")}
@@ -2024,8 +2032,10 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
                                   <button
                                     type="button"
                                     className={styles.btnPrimary}
-                                    onClick={() => void retryCampaignFailedRecipients(detailsItem.id)}
-                                    disabled={campaignActionBusyId === detailsItem.id}
+                                    onClick={() => paidActionsLocked ? openSubscription() : void retryCampaignFailedRecipients(detailsItem.id)}
+                                    disabled={!paidActionsLocked && campaignActionBusyId === detailsItem.id}
+                                    title={paidActionsLocked ? subscriptionLabel : undefined}
+                                    style={paidActionsLocked ? { filter: "grayscale(1)", opacity: 0.65 } : undefined}
                                   >
                                     {campaignActionBusyId === detailsItem.id
                                       ? i18nT("relance_428b7ac0")
@@ -2220,8 +2230,9 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
                                           type="button"
                                           className={tiktokStatusMeta?.failed ? styles.btnPrimary : styles.btnGhost}
                                           onClick={() => void retryTiktokPublication(publicationId, tiktokStatusMeta)}
-                                          disabled={detailsActionBusy || tiktokStatusChecking || tiktokRetrying || tiktokCancelling}
-                                          title={tiktokStatusMeta?.pending ? i18nT("retenter_avec_confirmation_pour_eviter_les_da7baec2") : i18nT("retenter_l_envoi_tiktok_a2580c30")}
+                                          disabled={!paidActionsLocked && (detailsActionBusy || tiktokStatusChecking || tiktokRetrying || tiktokCancelling)}
+                                          title={paidActionsLocked ? subscriptionLabel : tiktokStatusMeta?.pending ? i18nT("retenter_avec_confirmation_pour_eviter_les_da7baec2") : i18nT("retenter_l_envoi_tiktok_a2580c30")}
+                                          style={paidActionsLocked ? { filter: "grayscale(1)", opacity: 0.65 } : undefined}
                                         >
                                           {tiktokRetrying ? i18nT("relance_428b7ac0") : i18nT("retenter_l_envoi_d90d38d2")}
                                         </button>
@@ -2277,13 +2288,15 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
                                     <button
                                       type="button"
                                       className={styles.btnPrimary}
-                                      onClick={saveChannelPublication}
-                                      disabled={
+                                      onClick={paidActionsLocked ? openSubscription : saveChannelPublication}
+                                      title={paidActionsLocked ? subscriptionLabel : undefined}
+                                      style={paidActionsLocked ? { filter: "grayscale(1)", opacity: 0.65 } : undefined}
+                                      disabled={!paidActionsLocked && (
                                         detailsActionBusy ||
                                         publicationEditHasForbiddenXUrl ||
                                         Boolean(pinterestPublicationText?.issues.length) ||
                                         Boolean(instagramPublicationText?.issue)
-                                      }
+                                      )}
                                     >
                                       {detailsActionBusy ? i18nT("enregistrement_e7d5f232") : i18nT("enregistrer_f7c8bcd8")}
                                     </button>

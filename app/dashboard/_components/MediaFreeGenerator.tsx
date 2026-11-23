@@ -1,4 +1,5 @@
 "use client";
+import usePaidMediaAction from "../_hooks/usePaidMediaAction";
 import { getClientUserFacingErrorMessage as getSafeClientErrorMessage } from "@/lib/userFacingErrors";
 import { getClientAiMediaGenerationErrorMessage } from "@/lib/aiMediaGenerationPublicErrorI18n";
 
@@ -182,6 +183,7 @@ export default function MediaFreeGenerator({
   onRecoveryKind,
   onReset,
 }: Props) {
+  const { paidActionsLocked, subscriptionLabel, subscriptionMessage, openSubscription } = usePaidMediaAction();
   const i18nT = useTranslations("shell");
   const t = useTranslations("media");
   const locale = useLocale();
@@ -518,7 +520,7 @@ export default function MediaFreeGenerator({
       inspirationImages: referencesForRequest(generationReferences, exactSpeechEditorVisible ? exactHasCharacters : speechMode === "characters", exactSpeechEditorVisible ? exactCharacters : undefined)
         .map(reference => ({ role: reference.role, characterIndex: reference.characterIndex, characterName: reference.characterName })) } : {}),
     ...(exactSpeechActive && !serializedExact.issue ? { exactDialogue: serializedExact.turns, inspirationImages: exactCharacters.map(character => ({ role: "character" as const, characterIndex: character.characterIndex })) } : {}),
-  }, quota, !exactInvalid && !characterNameInvalid && !durationUnavailable && !referenceDurationUnsupported && referenceCompatible && briefCompatible && !realVoiceNeedsPerson && !characterVoiceSelection.missingSample && !providedVoiceWithEmptyScript && !characterVoiceTooShort && !narrationVoiceMissing && !narrationVoiceTooShort && !narrationVoiceUnauthorized && (kind !== "video" || !speechInvalid && !misplacedSpeechBlocking && promptReady));
+  }, quota, !paidActionsLocked && !exactInvalid && !characterNameInvalid && !durationUnavailable && !referenceDurationUnsupported && referenceCompatible && briefCompatible && !realVoiceNeedsPerson && !characterVoiceSelection.missingSample && !providedVoiceWithEmptyScript && !characterVoiceTooShort && !narrationVoiceMissing && !narrationVoiceTooShort && !narrationVoiceUnauthorized && (kind !== "video" || !speechInvalid && !misplacedSpeechBlocking && promptReady));
   const creditInsufficient = creditQuote.insufficient;
   const modelRecommendation = recommendAiMediaModel({ kind, format: fixedFormat || format, operation: "generate", brief: effectivePrompt,
     ...(source === "studio" ? { recommendationContext: "studio-free" as const } : {}),
@@ -563,8 +565,8 @@ export default function MediaFreeGenerator({
       : "";
 
   useEffect(() => {
-    void loadQuota();
-  }, [loadQuota]);
+    if (!paidActionsLocked) void loadQuota();
+  }, [loadQuota, paidActionsLocked]);
 
   useEffect(() => {
     // Account preferences may load a different provider without a selector event.
@@ -609,7 +611,7 @@ export default function MediaFreeGenerator({
     if (quota?.accountId && !quotaLoading) setRecoveryAccountChecked(quota.accountId);
   }, [quota?.accountId, quotaLoading]);
 
-  const recoveryGuardPending = !quota?.accountId || quotaLoading ||
+  const recoveryGuardPending = paidActionsLocked ? recoveryPending : !quota?.accountId || quotaLoading ||
     recoveryAccountChecked !== quota.accountId || recoveryPending;
   useLayoutEffect(() => {
     onPendingRecoveryChange?.(recoveryGuardPending);
@@ -990,6 +992,7 @@ export default function MediaFreeGenerator({
   };
 
   const handleGenerate = async () => {
+    if (paidActionsLocked) { openSubscription(); return; }
     if (!canGenerate || operationInFlight.current) return;
     operationInFlight.current = true;
     const currentSequence = sequence.current;
@@ -1526,15 +1529,17 @@ export default function MediaFreeGenerator({
             onImageEngineChange={(imageEngine) => { resetConsent(); enginePreference.update({ imageEngine }); }}
             onResolutionChange={(resolution) => { resetConsent(); enginePreference.update({ videoEngine: selectedVideoEngine, videoResolution: resolution }); }} />
   );
-  const creditSummary = reviewingRecovery
+  const creditSummary = paidActionsLocked && !recoveryPending ? null : reviewingRecovery
     ? <MediaRecoveredCreditSummary creditsUsed={result?.creditsUsed} />
     : <MediaCreditQuoteSummary status={creditQuote} quota={quota} />;
 
   const generationAction = <button
     type="button" className={styles.primaryButton} data-media-primary-action
-    disabled={recoveryIncompatible || (recoveryPending ? recovering || operationLocked : busy ? !cancellable : Boolean(result) || !canGenerate)}
-    title={recoveryPending ? t("ai_generator_recovery_generation_blocked") : busy && !cancellable ? t("ai_generator_editor_stop_locked") : undefined}
-    onClick={() => { if (recoveryPending) void handleRecoverResult(); else if (busy) setStopConfirmOpen(true); else if (!result) void handleGenerate(); }}
+    disabled={paidActionsLocked && !recoveryPending && !busy ? false : recoveryIncompatible || (recoveryPending ? recovering || operationLocked : busy ? !cancellable : Boolean(result) || !canGenerate)}
+    style={paidActionsLocked && !recoveryPending && !busy ? { filter: "grayscale(1)", opacity: 0.55 } : undefined}
+    aria-label={paidActionsLocked && !recoveryPending && !busy ? `${t(kind === "video" ? "ai_generator_generate_video" : "ai_generator_generate_image")} — ${subscriptionLabel}` : undefined}
+    title={paidActionsLocked && !recoveryPending && !busy ? subscriptionLabel : recoveryPending ? t("ai_generator_recovery_generation_blocked") : busy && !cancellable ? t("ai_generator_editor_stop_locked") : undefined}
+    onClick={() => { if (recoveryPending) void handleRecoverResult(); else if (busy) setStopConfirmOpen(true); else if (paidActionsLocked) openSubscription(); else if (!result) void handleGenerate(); }}
   >
     <span aria-hidden="true">{busy && !recoveryPending ? "■" : "✦"}</span>
     {t(recoveryPending ? recovering ? "ai_generator_recovery_checking" : "ai_generator_recovery_check" : busy ? "ai_generator_editor_stop" : kind === "video" ? "ai_generator_generate_video" : "ai_generator_generate_image")}
@@ -1578,7 +1583,7 @@ export default function MediaFreeGenerator({
         acceptMode={acceptMode}
         savingToLibrary={savingToLibrary}
         actionError={actionError}
-        error={error}
+        error={paidActionsLocked && !recoveryPending ? "" : error}
         originChangedNotice={originChangedNotice}
         identityTeam={personReferences.length > 1}
         referenceCinematicRequested={kind === "video" && references.length > 0}
@@ -1844,8 +1849,8 @@ export default function MediaFreeGenerator({
         <div className={editorStyles.previewPane}>{preview}</div>
       </div>
       <div className={styles.footer} data-media-footer>
-        <MediaQuotaSummary kind={kind} counter={counter} unlimited={quota?.unlimited} creditsReady={quota?.creditsReady}
-          resetDate={resetDate} locked={locked} onRefresh={() => { void loadQuota({ force: true }); }} />
+        {paidActionsLocked ? <p role="status">{subscriptionMessage}</p> : <MediaQuotaSummary kind={kind} counter={counter} unlimited={quota?.unlimited} creditsReady={quota?.creditsReady}
+          resetDate={resetDate} locked={locked} onRefresh={() => { void loadQuota({ force: true }); }} />}
         <MediaGenerationActions>
           {engineControls}
           {creditSummary}
@@ -1883,7 +1888,7 @@ export default function MediaFreeGenerator({
           {t("ai_generator_model_duration_unavailable", { seconds: duration })}
         </p>
       ) : null}
-      {!quota && !quotaLoading ? (
+      {!paidActionsLocked && !quota && !quotaLoading ? (
         <button
           className={styles.secondaryButton}
           type="button"

@@ -10,6 +10,8 @@ type DashboardViewerAccess = {
   actorUserId: string;
   activeAccountId: string;
   metaPilotEnabled: boolean;
+  /** The current account may browse, but may not use paid actions. */
+  paidActionsLocked: boolean;
 };
 
 const DashboardViewerAccessContext = createContext<DashboardViewerAccess>({
@@ -17,15 +19,17 @@ const DashboardViewerAccessContext = createContext<DashboardViewerAccess>({
   actorUserId: "",
   activeAccountId: "",
   metaPilotEnabled: false,
+  paidActionsLocked: true,
 });
 
-export default function DashboardViewerAccessProvider({ viewerIsAdmin, viewerMetaPilotEnabled, actorUserId, activeAccountId, children }: {
+export default function DashboardViewerAccessProvider({ viewerIsAdmin, viewerMetaPilotEnabled, actorUserId, activeAccountId, paidActionsLocked, children }: {
   viewerIsAdmin: boolean;
   /** Authenticated actor, distinct from the selected establishment/account. */
   actorUserId: string;
   /** Trusted server rollout availability for the resolved active account. */
   viewerMetaPilotEnabled: boolean;
   activeAccountId: string;
+  paidActionsLocked: boolean;
   children: ReactNode;
 }) {
   const [browserAccountId, setBrowserAccountId] = useState(activeAccountId);
@@ -40,7 +44,8 @@ export default function DashboardViewerAccessProvider({ viewerIsAdmin, viewerMet
     activeAccountId,
     viewerIsAdmin: viewerIsAdmin && browserAccountId === activeAccountId,
     metaPilotEnabled: viewerMetaPilotEnabled && browserAccountId === activeAccountId,
-  }), [actorUserId, activeAccountId, browserAccountId, viewerIsAdmin, viewerMetaPilotEnabled]);
+    paidActionsLocked: paidActionsLocked || browserAccountId !== activeAccountId,
+  }), [actorUserId, activeAccountId, browserAccountId, viewerIsAdmin, viewerMetaPilotEnabled, paidActionsLocked]);
   return <DashboardViewerAccessContext.Provider value={access}>{children}</DashboardViewerAccessContext.Provider>;
 }
 

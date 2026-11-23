@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import { useTranslations } from "next-intl";
+import usePaidMediaAction from "../../_hooks/usePaidMediaAction";
 import type { BusinessDnaDashboardChannelAvailability } from "@/lib/businessDnaChannelAvailability";
 import { PUBLISH_CHANNEL_IDENTITY } from "../../booster/publier/components/publishChannelIdentity";
 import styles from "./BusinessDnaAnalysisWorkspace.module.css";
@@ -32,6 +33,7 @@ export default function BusinessDnaAnalysisWorkspace({
   onAnalyze, onSchedule, onReset,
 }: Props) {
   const t = useTranslations("dashboard.aiMemory");
+  const { paidActionsLocked, subscriptionLabel, openSubscription } = usePaidMediaAction();
   const moduleT = useTranslations("dashboard.moduleCards");
   const reportReady = Boolean(summary?.analyzedAt);
   const launchDisabled = busy || analyzing || !hasSources || quota?.remaining === 0;
@@ -89,8 +91,10 @@ export default function BusinessDnaAnalysisWorkspace({
           <div><strong>{quota ? t("analysisQuota", { remaining: quota.remaining, limit: quota.limit }) : t("analysisQuotaLoading")}</strong></div>
         </div>
         <div className={styles.actions}>
-          <button type="button" className={styles.schedule} disabled={busy || analyzing} onClick={onSchedule}>{t("analysisScheduleButton")}</button>
-          <button type="button" className={styles.launch} disabled={launchDisabled} aria-busy={analyzing} onClick={onAnalyze}>{analyzing ? t("analysisRunning") : quota?.remaining === 0 ? t("analysisQuotaReachedButton") : t("analysisButton")}</button>
+          <button type="button" className={styles.schedule} disabled={!paidActionsLocked && (busy || analyzing)} onClick={paidActionsLocked ? openSubscription : onSchedule}
+            title={paidActionsLocked ? subscriptionLabel : undefined} style={paidActionsLocked ? { filter: "grayscale(1)", opacity: 0.65 } : undefined}>{t("analysisScheduleButton")}</button>
+          <button type="button" className={styles.launch} disabled={!paidActionsLocked && launchDisabled} aria-busy={analyzing} onClick={paidActionsLocked ? openSubscription : onAnalyze}
+            title={paidActionsLocked ? subscriptionLabel : undefined} style={paidActionsLocked ? { filter: "grayscale(1)", opacity: 0.65 } : undefined}>{analyzing ? t("analysisRunning") : quota?.remaining === 0 ? t("analysisQuotaReachedButton") : t("analysisButton")}</button>
         </div>
         <div className={styles.footerMeta}>
           {!hasSources && !analyzing ? <small className={styles.emptyHint}>{t("analysisNoSourcesHint")}</small> : null}

@@ -21,11 +21,12 @@ type Quote = {
   scheduled?: boolean;
 };
 
-export default function BasicSubscriptionCard({ subscription, platform, onRefresh, onManageBilling, onApplied, management }: {
+export default function BasicSubscriptionCard({ subscription, platform, onRefresh, onManageBilling, onApplied, management, discovery = false }: {
   subscription: Subscription; platform: ClientBillingPlatform | null; onRefresh: () => void;
   onManageBilling: () => void;
   onApplied: (cycle: BillingCycle, priceId: string) => Promise<void>;
   management?: ReactNode;
+  discovery?: boolean;
 }) {
   const t = useTranslations("settings"), locale = useLocale();
   const [cycle, setCycle] = useState<BillingCycle>("monthly");
@@ -36,12 +37,12 @@ export default function BasicSubscriptionCard({ subscription, platform, onRefres
   const [notice, setNotice] = useState("");
   const offer = currentSubscriptionOffer("Basic");
   const current = currentSubscriptionBillingPlan(subscription);
-  const isCurrent = current === "Basic";
+  const isCurrent = current === "Basic" && !discovery;
   const status = subscription?.status?.toLowerCase();
   const hasContract = Boolean(subscription?.stripe_subscription_id) && !subscription?.native_product_id &&
     (!subscription?.billing_provider || subscription.billing_provider === "stripe");
   const eligible = platform === "web" && hasContract && ["active", "trialing"].includes(status ?? "") && !subscription?.cancel_requested_at;
-  const canSubscribe = platform === "web" && canStartSubscriptionCheckout(subscription, "Basic");
+  const canSubscribe = platform === "web" && (discovery && status === "incomplete" && !hasContract || canStartSubscriptionCheckout(subscription, "Basic"));
   const money = (value: number) => new Intl.NumberFormat(locale, { style: "currency", currency: "EUR", minimumFractionDigits: Number.isInteger(value) ? 0 : 2, maximumFractionDigits: 2 }).format(value);
   const date = (value: string) => new Intl.DateTimeFormat(locale, { dateStyle: "long" }).format(new Date(value));
   const price = `${money(cycle === "yearly" ? offer.yearlyPriceEur : offer.monthlyPriceEur)} ${t("standard_tax_exclusive_short")} / ${t(cycle === "yearly" ? "standard_per_year" : "standard_per_month")}`;
@@ -139,7 +140,7 @@ export default function BasicSubscriptionCard({ subscription, platform, onRefres
           <button type="button" className={styles.standardCta} disabled={busy} onClick={confirm}>{t("subscription_confirm_change")}</button>
           <button type="button" className={styles.quoteRefresh} disabled={busy} onClick={() => setQuote(null)}>{t("video_credit_close")}</button>
         </div> : canSubscribe || eligible && (!isCurrent || cycle !== subscription?.billing_cycle) ? <button type="button" className={styles.standardCta} disabled={busy} onClick={choose}>{busy ? t("premium_quote_loading") : canSubscribe ? t("standard_subscribe_price", { price }) : t("subscription_basic_change")} <span aria-hidden="true">→</span></button>
-        : isCurrent && hasContract ? <button type="button" className={styles.quoteRefresh} onClick={onManageBilling}>{t("gerer_ma_facturation_dc5027ac")}</button> : null}
+        : current === "Basic" && hasContract ? <button type="button" className={styles.quoteRefresh} onClick={onManageBilling}>{t("gerer_ma_facturation_dc5027ac")}</button> : null}
         {status === "trialing" ? <p className={styles.finePrint}>{t("subscription_trial_change_notice", { date: subscription?.trial_end_at ? date(subscription.trial_end_at) : "—" })}</p> : null}
       </> : platform ? <p className={styles.finePrint}>{t("subscription_basic_native_unavailable")}</p> : null}
       {error ? <p role="alert">{error}</p> : null}

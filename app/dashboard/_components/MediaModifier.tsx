@@ -1,4 +1,5 @@
 "use client";
+import usePaidMediaAction from "../_hooks/usePaidMediaAction";
 import { getClientUserFacingErrorMessage as getSafeClientErrorMessage } from "@/lib/userFacingErrors";
 
 import { useLocale, useTranslations } from "next-intl";
@@ -155,6 +156,7 @@ export default function MediaModifier({
   onBusyChange,
   onReset,
 }: MediaModifierProps) {
+  const { paidActionsLocked, subscriptionLabel, subscriptionMessage, openSubscription } = usePaidMediaAction();
   const t = useTranslations("media");
   const locale = useLocale();
   const fileInputId = useId();
@@ -213,7 +215,7 @@ export default function MediaModifier({
   const creditQuote = useMediaCreditQuote({ kind: "image", format: sourceFormat, operation: "modify", creationMode: "guided",
     inputMode: "essential", identityMode: "auto",
     imageEngine: enginePreference.imageEngine, inspirationImagesCount: sourceImage ? 1 : 0,
-  }, quota, imageEngineCompatible);
+  }, quota, !paidActionsLocked && imageEngineCompatible);
   const imageCounter = quota?.credits || null;
   const imageQuotaExhausted = quota?.unlimited
     ? false
@@ -230,8 +232,8 @@ export default function MediaModifier({
   }, [locale, quota?.resetAt]);
 
   useEffect(() => {
-    void loadQuota();
-  }, [loadQuota]);
+    if (!paidActionsLocked) void loadQuota();
+  }, [loadQuota, paidActionsLocked]);
 
   useEffect(
     () => () => {
@@ -347,6 +349,7 @@ export default function MediaModifier({
   };
 
   const handleGenerate = async () => {
+    if (paidActionsLocked) { openSubscription(); return; }
     if (operationLocked || recoveryPending || !creditQuote.ready || creditQuote.insufficient) return;
     setActionError("");
     if (!sourceImage) {
@@ -626,7 +629,7 @@ export default function MediaModifier({
                 <strong>{t("ai_modifier_preparing")}</strong>
               </div>
             </div>
-          ) : result || generationBusy || cancellationPending || canRecover || actionError || error ? (
+          ) : result || generationBusy || cancellationPending || canRecover || actionError || (!paidActionsLocked && error) ? (
             <div className={styles.mediaStage} data-modifier-preview>
               <MediaGenerationCreationWorkspace
                 accountId={quota?.accountId}
@@ -661,7 +664,7 @@ export default function MediaModifier({
                 acceptMode={acceptMode}
                 savingToLibrary={savingToLibrary}
                 actionError={actionError}
-                error={error}
+                error={paidActionsLocked && !recoveryPending ? "" : error}
               />
             </div>
           ) : sourceImage ? (
@@ -749,12 +752,12 @@ export default function MediaModifier({
       </main>
 
       <footer className={styles.actionBar} data-media-footer>
-        <MediaQuotaSummary kind="image" counter={imageCounter} unlimited={quota?.unlimited}
+        {paidActionsLocked ? <p role="status">{subscriptionMessage}</p> : <MediaQuotaSummary kind="image" counter={imageCounter} unlimited={quota?.unlimited}
           creditsReady={quota?.creditsReady} resetDate={resetDate} locked={operationLocked}
-          onRefresh={() => { void loadQuota({ force: true }); }} />
+          onRefresh={() => { void loadQuota({ force: true }); }} />}
         <MediaGenerationActions>
           {engineControls}
-          <MediaCreditQuoteSummary status={creditQuote} quota={quota} />
+          {!paidActionsLocked ? <MediaCreditQuoteSummary status={creditQuote} quota={quota} /> : null}
           {canRecover && !generationBusy ? <button type="button" className={styles.secondaryButton} onClick={handleRequestGenerationStop} disabled={operationLocked}>{t("ai_generator_recovery_cancel")}</button> : null}
           <button
             type="button"
@@ -763,10 +766,13 @@ export default function MediaModifier({
             onClick={() => {
               if (recoveryPending) void handleRecovery();
               else if (generationBusy) handleRequestGenerationStop();
+              else if (paidActionsLocked) openSubscription();
               else if (!result) void handleGenerate();
             }}
-            title={recoveryPending ? t("ai_generator_recovery_generation_blocked") : generationBusy && !generationCancellable ? t("ai_generator_editor_stop_locked") : undefined}
-            disabled={recoveryPending ? recovering || operationLocked : generationBusy ? !generationCancellable :
+            style={paidActionsLocked && !recoveryPending && !generationBusy ? { filter: "grayscale(1)", opacity: 0.55 } : undefined}
+            aria-label={paidActionsLocked && !recoveryPending && !generationBusy ? `${t("ai_modifier_action")} — ${subscriptionLabel}` : undefined}
+            title={paidActionsLocked && !recoveryPending && !generationBusy ? subscriptionLabel : recoveryPending ? t("ai_generator_recovery_generation_blocked") : generationBusy && !generationCancellable ? t("ai_generator_editor_stop_locked") : undefined}
+            disabled={paidActionsLocked && !recoveryPending && !generationBusy ? false : recoveryPending ? recovering || operationLocked : generationBusy ? !generationCancellable :
               Boolean(result) || operationLocked ||
               !sourceImage ||
               instruction.trim().length < 3 ||

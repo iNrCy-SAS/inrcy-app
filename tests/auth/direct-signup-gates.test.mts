@@ -12,7 +12,7 @@ import * as normalize from "../../lib/multicompte/normalize.ts";
 const USER = "11111111-1111-4111-8111-111111111111", SECONDARY = "22222222-2222-4222-8222-222222222222";
 const marker = { [policy.DIRECT_SIGNUP_METADATA_KEY]: { version: 1, entry: "basique", created_at: "2026-11-19T12:00:00.000Z" } };
 const compiled = ts.transpileModule(readFileSync("proxy.ts", "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
-type Options = { legacyTrial?: boolean; paid?: boolean; activeWithoutContract?: boolean; secondary?: boolean };
+type Options = { legacyTrial?: boolean; paid?: boolean; activeWithoutContract?: boolean; secondary?: boolean; status?: string; contract?: boolean };
 
 async function request(path: string, method = "POST", options: Options = {}) {
   const dependencies = {
@@ -40,9 +40,9 @@ async function request(path: string, method = "POST", options: Options = {}) {
     }
     assert.ok(url.pathname.endsWith("/subscriptions"), `Unexpected proxy read ${url.pathname}`);
     assert.equal(url.searchParams.get("user_id"), `eq.${USER}`);
-    return Response.json([{ status: options.legacyTrial ? "trialing" : options.paid || options.activeWithoutContract ? "active" : "incomplete",
+    return Response.json([{ status: options.status || (options.legacyTrial ? "trialing" : options.paid || options.activeWithoutContract ? "active" : "incomplete"),
       plan: options.legacyTrial ? "Trial" : "Basic", app_edition: options.legacyTrial ? "standard" : "basic",
-      trial_end_at: options.legacyTrial ? new Date(Date.now() + 21 * 86400_000).toISOString() : null, stripe_subscription_id: options.paid ? "sub_verified" : null }]);
+      trial_end_at: options.legacyTrial ? new Date(Date.now() + 21 * 86400_000).toISOString() : null, stripe_subscription_id: options.paid || options.contract ? "sub_verified" : null }]);
   };
   const output = { exports: {} as { proxy(value: NextRequest): Promise<NextResponse> } };
   new Function("module", "exports", "require", "fetch", "process", compiled)(output, output.exports, (name: string) => {
@@ -52,16 +52,48 @@ async function request(path: string, method = "POST", options: Options = {}) {
     headers: { cookie: `inrcy_uid=${options.secondary ? SECONDARY : USER}`, accept: "text/html" } }));
 }
 
-test("direct pending blocks all private APIs by default, including assistant and future expensive routes", async () => {
-  for (const path of ["/api/assistant/chat", "/api/assistant/attachments", "/api/voice/transcribe", "/api/ai-memory/read", "/api/e-reputation/reviews", "/api/future-paid-operation"]) {
+test("discovery permits only reviewed reads and specific settings writes", async () => {
+  const dashboard = await request("/dashboard", "GET");
+  assert.equal(dashboard.status, 200); assert.equal(dashboard.headers.get("x-middleware-next"), "1");
+  const incompleteContract = await request("/dashboard", "GET", { status: "incomplete", contract: true });
+  assert.equal(incompleteContract.status, 200); assert.equal(incompleteContract.headers.get("x-middleware-next"), "1");
+  assert.equal((await request("/api/media-generation/generate", "POST", { status: "incomplete", contract: true })).status, 403);
+  for (const contract of [false, true]) {
+    const expired = await request("/dashboard", "GET", { status: "incomplete_expired", contract });
+    assert.equal(expired.status, 200); assert.equal(expired.headers.get("x-middleware-next"), "1");
+    assert.equal((await request("/api/booster/generate", "POST", { status: "incomplete_expired", contract })).status, 403);
+  }
+  for (const path of ["/api/ai-memory", "/api/billing/account-subscription", "/api/booster/cta-defaults", "/api/booster/metrics", "/api/business-location", "/api/dashboard/cache-status", "/api/integrations/channel-states", "/api/integrations/status", "/api/media-generation/preferences", "/api/media-library/items", "/api/me/role", "/api/multicompte/accounts", "/api/notifications/feed", "/api/notifications/preferences", "/api/profile/versions"]) {
+    const read = await request(path, "GET"); assert.equal(read.status, 200, path);
+    const write = await request(path, "POST"); assert.equal(write.status, 403, path);
+  }
+  for (const [path, method] of [["/api/ai-memory", "PUT"], ["/api/business-location", "PUT"], ["/api/media-generation/preferences", "PATCH"]] as const) {
+    const response = await request(path, method); assert.equal(response.status, 200, `${method} ${path}`);
+  }
+  for (const [path, method] of [["/api/ai-memory/analyze-channels", "POST"], ["/api/business-location", "POST"], ["/api/media-generation/generate", "POST"], ["/api/notifications/preferences", "PUT"]] as const) {
+    const response = await request(path, method); assert.equal(response.status, 403, `${method} ${path}`);
+  }
+});
+
+test("direct discovery blocks unreviewed APIs by default, including assistant and future expensive routes", async () => {
+  for (const path of ["/api/assistant/chat", "/api/assistant/attachments", "/api/voice/transcribe", "/api/ai-memory/read", "/api/e-reputation/reviews", "/api/agent/actions/prepare-publish", "/api/agent/actions/regenerate-channel", "/api/media-generation/generate", "/api/boutique/order", "/api/loyalty/weekly-summary", "/api/stats/dashboard-bulk", "/api/integrations/pinterest/status", "/api/future-paid-operation"]) {
     for (const method of ["GET", "POST"]) {
       const response = await request(path, method); assert.equal(response.status, 403, `${method} ${path}`);
-      const body = await response.json(); assert.equal(body.code, "DIRECT_SIGNUP_PAYMENT_REQUIRED"); assert.equal(body.redirectTo, policy.DIRECT_SIGNUP_ACTIVATION_PATH);
+      const body = await response.json(); assert.equal(body.code, "DIRECT_SIGNUP_PAYMENT_REQUIRED"); assert.equal(body.redirectTo, "/dashboard?panel=abonnement");
       assert.equal(response.headers.get("x-middleware-next"), null);
     }
   }
   const forged = await request("/dashboard?checkout=success&paid=true&status=active", "GET", { activeWithoutContract: true });
   assert.equal(new URL(forged.headers.get("location")!).pathname, policy.DIRECT_SIGNUP_ACTIVATION_PATH);
+});
+
+test("contract recovery and forged active statuses cannot acquire discovery access", async () => {
+  for (const options of [{ status: "past_due", contract: true }, { activeWithoutContract: true }, { status: "canceled" }]) {
+    const response = await request("/dashboard", "GET", options);
+    assert.equal(new URL(response.headers.get("location")!).pathname, policy.DIRECT_SIGNUP_ACTIVATION_PATH, JSON.stringify(options));
+    const api = await request("/api/media-generation/generate", "POST", options);
+    assert.equal((await api.json()).redirectTo, policy.DIRECT_SIGNUP_ACTIVATION_PATH);
+  }
 });
 
 test("authentication, subscription status and payment recovery remain reachable without allowing paid tools", async () => {

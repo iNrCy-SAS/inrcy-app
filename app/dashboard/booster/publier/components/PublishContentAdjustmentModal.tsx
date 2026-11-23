@@ -4,6 +4,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useTranslations } from "next-intl";
 import { useInrAssistantLocalClose } from "../../../_hooks/useInrAssistantLocalClose";
+import usePaidMediaAction from "../../../_hooks/usePaidMediaAction";
 import type { ChannelKey } from "../publishModal.shared";
 import { PUBLISH_CHANNEL_IDENTITY } from "./publishChannelIdentity";
 import css from "./PublishContentAdjustmentModal.module.css";
@@ -24,6 +25,7 @@ type Props = {
 
 export default function PublishContentAdjustmentModal({ idea, instruction, channels, busy, progress, progressLabel, error, onClose, onApply }: Props) {
   const t = useTranslations("booster");
+  const { paidActionsLocked, subscriptionLabel, openSubscription } = usePaidMediaAction();
   const [subject, setSubject] = useState(idea);
   const [guidance, setGuidance] = useState(instruction);
   const [selected, setSelected] = useState(() => channels.map(channel => channel.key));
@@ -71,7 +73,9 @@ export default function PublishContentAdjustmentModal({ idea, instruction, chann
     </div>
     <footer className={css.footer}>
       <button type="button" disabled={busy} onClick={onClose}>{t("adjust_cancel")}</button>
-      <button type="button" className={css.primary} disabled={busy || !subject.trim() || !changed || !chosen.length} onClick={() => { if (!busy && subject.trim() && changed && chosen.length) onApply({ idea: subject.trim(), instruction: guidance.trim(), channels: chosen }); }}>{t(busy ? "adjust_progress" : "adjust_apply")}</button>
+      <button type="button" className={css.primary} disabled={!paidActionsLocked && (busy || !subject.trim() || !changed || !chosen.length)}
+        title={paidActionsLocked ? subscriptionLabel : undefined} style={paidActionsLocked ? { filter: "grayscale(1)", opacity: 0.65 } : undefined}
+        onClick={() => { if (paidActionsLocked) { openSubscription(); return; } if (!busy && subject.trim() && changed && chosen.length) onApply({ idea: subject.trim(), instruction: guidance.trim(), channels: chosen }); }}>{t(busy ? "adjust_progress" : "adjust_apply")}</button>
     </footer>
   </dialog>, document.body);
 }

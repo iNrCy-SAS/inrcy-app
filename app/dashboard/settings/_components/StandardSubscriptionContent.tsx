@@ -4,6 +4,7 @@ import { getClientUserFacingApiError } from "@/lib/userFacingErrors";
 
 import { useLocale, useTranslations } from "next-intl";
 import { useInrAssistantLocalInterface } from "../../_hooks/useInrAssistantLocalInterface";
+import { useDashboardViewerAccess } from "../../_components/DashboardViewerAccessProvider";
 
 
 import { useCallback, useEffect, useEffectEvent, useId, useMemo, useRef, useState } from "react";
@@ -115,6 +116,8 @@ async function responseError(response: Response, fallback: string): Promise<stri
 
 export default function StandardSubscriptionContent({ onOpenContact }: Props) {
   const i18nT = useTranslations("settings");
+  const directSignupT = useTranslations("auth.directSignup");
+  const { paidActionsLocked } = useDashboardViewerAccess();
   const locale = useLocale();
   const searchParams = useSearchParams();
   const checkoutState = searchParams.get("checkout");
@@ -275,9 +278,11 @@ export default function StandardSubscriptionContent({ onOpenContact }: Props) {
       !reusableStatuses.includes(status);
     const billingPresentation = getSubscriptionBillingPresentation(subscription);
     const cancellationScheduled = billingPresentation.cancellationScheduled;
-    const canStartCheckout = canStartSubscriptionCheckout(subscription, "Standard");
-    const canStartPremiumCheckout = canStartSubscriptionCheckout(subscription, "Premium");
-    const needsBillingRecovery = ["past_due", "unpaid", "incomplete"].includes(status);
+    const discovery = Boolean(paidActionsLocked && subscription);
+    const newDiscoveryCheckout = discovery && status === "incomplete" && !subscription?.stripe_subscription_id && !subscription?.native_product_id;
+    const canStartCheckout = newDiscoveryCheckout || canStartSubscriptionCheckout(subscription, "Standard");
+    const canStartPremiumCheckout = newDiscoveryCheckout || canStartSubscriptionCheckout(subscription, "Premium");
+    const needsBillingRecovery = !newDiscoveryCheckout && ["past_due", "unpaid", "incomplete"].includes(status);
     return {
       edition: currentSubscriptionBillingPlan(subscription)?.toLowerCase() ?? "standard",
       status,
@@ -289,6 +294,7 @@ export default function StandardSubscriptionContent({ onOpenContact }: Props) {
       noFurtherRenewal: billingPresentation.noFurtherRenewal,
       canStartCheckout,
       canStartPremiumCheckout,
+      discovery,
       needsBillingRecovery,
       trialEndLabel: formatDate(subscription?.trial_end_at, locale),
       renewalLabel: formatDate(billingPresentation.nextChargeDate, locale),
@@ -296,7 +302,7 @@ export default function StandardSubscriptionContent({ onOpenContact }: Props) {
       billingCycle: subscription?.billing_cycle,
       presentation: statusPresentation(subscription, i18nT),
     };
-  }, [subscription, locale, i18nT]);
+  }, [subscription, locale, i18nT, paidActionsLocked]);
 
   useEffect(() => {
     if (view.edition !== "premium" || !view.hasStripeSubscription || view.status !== "active") {
@@ -722,6 +728,7 @@ export default function StandardSubscriptionContent({ onOpenContact }: Props) {
   const selectedCycleDiffers = (plan: "Standard" | "Premium") => billingCycles[plan] !== (view.billingCycle === "yearly" ? "yearly" : "monthly");
 
   return <><SubscriptionWorkspace layout="offers" notice={<div role="status" aria-live="polite">
+    {view.discovery ? <p>{directSignupT("body")}</p> : null}
     {checkoutState === "cancel" ? <p style={{ color: "#ffd38f", margin: "0 0 12px" }}>{i18nT("paiement_annule_aucun_changement_n_a_c603ca12")}</p> : null}
     {message ? <p style={{ color: "#8ff7d0", margin: "0 0 12px" }}>{message}</p> : null}
     {error ? <p style={{ color: "#ff9bbd", margin: "0 0 12px" }}>{error}</p> : null}
@@ -729,7 +736,7 @@ export default function StandardSubscriptionContent({ onOpenContact }: Props) {
 
 
     <div className={styles.plansGrid}>
-      <BasicSubscriptionCard subscription={subscription} platform={clientBillingPlatform}
+      <BasicSubscriptionCard subscription={subscription} platform={clientBillingPlatform} discovery={view.discovery}
         onRefresh={() => { void loadSubscription(); }} onManageBilling={() => { void openPortal(); }}
         onApplied={refreshBasicPlan}
         management={view.edition === "basic" && (view.hasStripeSubscription || view.hasNativeSubscription) ? management : undefined} />

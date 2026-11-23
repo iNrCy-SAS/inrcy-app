@@ -96,6 +96,15 @@ test("new-tab POST consumes provider OTP, redirects without credentials, sets pr
   assert.deepEqual(await (await f.passwordRoute.GET(new Request("https://app.inrcy.com/api/auth/signup-access/password"))).json(), { required: true, email: f.c.email });
   assert.equal((await f.route.POST(f.request())).status, 400, "provider OTP cannot replay");
 });
+test("direct signup ticket opens discovery dashboard after authentication", async () => {
+  const f = fixture();
+  const fresh = user(f.c);
+  const metadata = { ...fresh.app_metadata, [directSignupPolicy.DIRECT_SIGNUP_METADATA_KEY]: { version: 1, entry: "basique", created_at: "2026-11-19T12:00:00.000Z" } };
+  f.setFreshUser({ ...fresh, app_metadata: metadata });
+  const result = await f.route.POST(f.request());
+  assert.equal(result.status, 303);
+  assert.equal(result.headers.get("location"), "https://app.inrcy.com/dashboard?lang=fr");
+});
 test("untrusted or absent origins and forged tickets cannot reach OTP verification", async () => {
   for (const origin of ["https://evil.invalid", "null", ""]) {
     const f = fixture(); assert.equal((await f.route.POST(f.request(origin))).status, 403); assert.equal(f.otpCalls(), 0);

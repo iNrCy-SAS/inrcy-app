@@ -2042,7 +2042,7 @@
     "sourceFiles": [
       "app/dashboard/mails/_components/MailboxDetailsModal.tsx"
     ],
-    "sourceAnchor": "<button\n      type=\"button\"\n      className={styles.btnAttach}\n      onClick={openPublicationMediaGenerator}\n      ref={bindNativeEditor(\"generate\")}\n      disabled={detailsActionBusy}\n    >\n      <span aria-hidden=\"true\">✦</span>{\" \"}\n    ",
+    "sourceAnchor": "<button\n      type=\"button\"\n      className={styles.btnAttach}\n      onClick={openPublicationMediaGenerator}\n      ref={bindNativeEditor(\"generate\")}\n      disabled={!paidActionsLocked && detailsActionBusy}\n      title={paidActionsLocked ? subscriptionLabel : undefined}\n      style={paidActionsLocked ? { filter: \"grayscale(1)\", opacity: 0.65 } : undefined}\n    >",
     "capabilityId": "navigation.local-controls",
     "toolNames": [
       "controlLocalInterface"
@@ -2054,9 +2054,9 @@
     ],
     "testAnchor": "Basic Send editor controls require visible buttons real native commits and reject a late Studio handoff",
     "controlIds": [
-      "app/dashboard/mails/_components/MailboxDetailsModal.tsx#button:2c21cdb4246c7584:1"
+      "app/dashboard/mails/_components/MailboxDetailsModal.tsx#button:16aafe5adee7d673:1"
     ],
-    "notes": "send_editor exige le bouton natif monté et activé. Bibliothèque/édition/Studio réel relu après commit, clés compte/canal/détail et guard après préparation ; transfert tardif nettoyé sans ouvrir le mauvais détail. Close ne concerne que la bibliothèque. Contrôle natif MailboxDetailsModal ; restrictions du compte et de l’offre conservées."
+    "notes": "send_editor exige le bouton natif monté et activé. Bibliothèque/édition/Studio réel relu après commit, clés compte/canal/détail et guard après préparation ; transfert tardif nettoyé sans ouvrir le mauvais détail. Close ne concerne que la bibliothèque. Contrôle natif MailboxDetailsModal ; restrictions du compte et de l’offre conservées. Revue du mode découverte : les opérations payantes de ce parcours nécessitent un abonnement ; les preuves existantes portent sur le parcours Basic autorisé et ne certifient pas une transaction fournisseur."
   },
   {
     "id": "history-plan-5c667b7afc4784bf",
@@ -2315,9 +2315,9 @@
     ],
     "testAnchor": "TikTok retry in Basic requires signed approval and reuses only a confirmed failed native publication",
     "controlIds": [
-      "app/dashboard/mails/_components/MailboxDetailsModal.tsx#button:e3a20472b89e62f4:1"
+      "app/dashboard/mails/_components/MailboxDetailsModal.tsx#button:ef20bb726cdf76e5:1"
     ],
-    "notes": "Équivalent serveur disponible ; il ne prouve pas l’activation de ce contrôle dans l’écran monté. Retry TikTok seulement sur échec confirmé, consentements natifs inchangés, aperçu signé ; état pending/unknown/incertain interdit. Contrôle natif MailboxDetailsModal ; restrictions du compte et de l’offre conservées."
+    "notes": "Équivalent serveur disponible ; il ne prouve pas l’activation de ce contrôle dans l’écran monté. Retry TikTok seulement sur échec confirmé, consentements natifs inchangés, aperçu signé ; état pending/unknown/incertain interdit. Contrôle natif MailboxDetailsModal ; restrictions du compte et de l’offre conservées. Revue du mode découverte : les opérations payantes de ce parcours nécessitent un abonnement ; les preuves existantes portent sur le parcours Basic autorisé et ne certifient pas une transaction fournisseur."
   },
   {
     "id": "history-plan-8866ceb4421aef34",
@@ -2422,7 +2422,7 @@
     "sourceFiles": [
       "app/dashboard/mails/_components/MailboxDetailsModal.tsx"
     ],
-    "sourceAnchor": "<button\n                                      type=\"button\"\n                                      className={styles.btnPrimary}\n                                      onClick={saveChannelPublication}\n                                      disabled={\n                                        detailsActionBusy ||\n                                        publicationEditHasForbiddenXUrl ||\n                                        Boolean(pinterestPublicationText?.issues.length) ||\n                                        Boolean(instagramPublicationText?.issue)\n                                      }\n                                    >\n                                      {detailsActionBusy ? i18nT(\"enregistrement_e7d5f232\") : i18nT(\"enregistrer_f7c8bcd8\")}\n                                    </button>",
+    "sourceAnchor": "<button\n                                      type=\"button\"\n                                      className={styles.btnPrimary}\n                                      onClick={paidActionsLocked ? openSubscription : saveChannelPublication}\n                                      title={paidActionsLocked ? subscriptionLabel : undefined}\n                                      style={paidActionsLocked ? { filter: \"grayscale(1)\", opacity: 0.65 } : undefined}\n                                      disabled={!paidActionsLocked && (\n                                        detailsActionBusy ||\n                                        publicationEditHasForbiddenXUrl ||\n                                        Boolean(pinterestPublicationText?.issues.length) ||\n                                        Boolean(instagramPublicationText?.issue)\n                                      )}\n                                    >",
     "capabilityId": "publication.published-edit",
     "toolNames": [
       "readPublishedPublicationForEdit",
@@ -2436,9 +2436,9 @@
     ],
     "testAnchor": "Basic published edits read an owned delivered channel and require the exact signed CTA/media preview before any external work",
     "controlIds": [
-      "app/dashboard/mails/_components/MailboxDetailsModal.tsx#button:a268aace9ac59a49:1"
+      "app/dashboard/mails/_components/MailboxDetailsModal.tsx#button:13fa657a19ceff53:1"
     ],
-    "notes": "Équivalent serveur disponible ; il ne prouve pas l’activation de ce contrôle dans l’écran monté. CTA/URL/téléphone et texte/média publié disposent du workflow owned/versionné et de son aperçu signé. La sauvegarde distante vérifiée ne prétend pas remplir le formulaire local ; risques de remplacement et limites de canaux natifs conservés. Contrôle natif MailboxDetailsModal ; restrictions du compte et de l’offre conservées. Revue corrective Pinterest : même contrôle et même prise en charge serveur, limites partagées de 100 caractères pour le titre et de 800 pour la description, compteur accessible incluant CTA/hashtags et contrôle du callback avant tout upload/PATCH. Aucun nouveau contrôle ni droit autonome ajouté. Revue corrective Instagram : même contrôle et même parcours serveur, décompte de la légende finale incluant titre, corps, CTA, liens et hashtags, plafond partagé de 2 200 et texte manuel conservé. Refus avant confirmation, upload ou PATCH ; une correction peut reprendre la même version. Aucun contrôle, droit ou périmètre autonome ajouté.",
+    "notes": "Équivalent serveur disponible ; il ne prouve pas l’activation de ce contrôle dans l’écran monté. CTA/URL/téléphone et texte/média publié disposent du workflow owned/versionné et de son aperçu signé. La sauvegarde distante vérifiée ne prétend pas remplir le formulaire local ; risques de remplacement et limites de canaux natifs conservés. Contrôle natif MailboxDetailsModal ; restrictions du compte et de l’offre conservées. Revue corrective Pinterest : même contrôle et même prise en charge serveur, limites partagées de 100 caractères pour le titre et de 800 pour la description, compteur accessible incluant CTA/hashtags et contrôle du callback avant tout upload/PATCH. Aucun nouveau contrôle ni droit autonome ajouté. Revue corrective Instagram : même contrôle et même parcours serveur, décompte de la légende finale incluant titre, corps, CTA, liens et hashtags, plafond partagé de 2 200 et texte manuel conservé. Refus avant confirmation, upload ou PATCH ; une correction peut reprendre la même version. Aucun contrôle, droit ou périmètre autonome ajouté. Revue du mode découverte : les opérations payantes de ce parcours nécessitent un abonnement ; les preuves existantes portent sur le parcours Basic autorisé et ne certifient pas une transaction fournisseur.",
     "additionalProofs": [
       {
         "file": "tests/inrsend/mailbox-pinterest-edit-validation.test.mts",

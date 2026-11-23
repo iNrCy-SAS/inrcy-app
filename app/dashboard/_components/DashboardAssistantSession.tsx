@@ -3,7 +3,7 @@
 import { getInrAssistantContentReportHint } from "@/lib/inrAssistantContentReport";
 import { getInrAssistantLocalInterfaceHints } from "@/lib/inrAssistantLocalInterface";
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
-import { useLocale } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import Image from "next/image";
 import dynamic from "next/dynamic";
 import type { MediaLibraryAudioPickerProps } from "./MediaLibraryPickerModal";
@@ -26,6 +26,7 @@ import { dashboardAssistantCopy } from "./dashboardAssistantCopy";
 import { dashboardAssistantErrorCopy } from "./dashboardAssistantErrorCopy";
 import { dashboardAssistantAttachmentCopy, assistantAttachmentErrorCopy } from "./dashboardAssistantAttachmentCopy";
 import { dashboardAssistantTaskCopy, dashboardAssistantPdfCopy } from "./dashboardAssistantTaskCopy";
+import { useDashboardViewerAccess } from "./DashboardViewerAccessProvider";
 import DashboardAssistantMessageContent from "./DashboardAssistantMessageContent";
 import { TURN_ID_PATTERN, sessionStorageKey, storedMessages, requestMessages, readStoredSession, parseAssistantMedia, type ChatMessage, type StoredSession } from "./dashboardAssistantSessionState";
 import styles from "./DashboardAssistantProvider.module.css";
@@ -52,6 +53,12 @@ export default function AssistantSession({ actorUserId, activeAccountId, allowed
   screen?: InrAssistantClientScreen;
 }) {
   const locale = useLocale();
+  const boosterT = useTranslations("booster");
+  const { paidActionsLocked } = useDashboardViewerAccess();
+  const openSubscription = () => {
+    minimize();
+    onInternalNavigate?.("/dashboard?panel=abonnement");
+  };
   const copy = dashboardAssistantCopy(locale);
   const contextHelp = getInrAssistantContextualHelp(screen, locale);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -235,6 +242,7 @@ export default function AssistantSession({ actorUserId, activeAccountId, allowed
   };
 
   const send = async (conversation: ChatMessage[], taskIntent?: "continue" | "check_status", automatic: {hops:number;startedAt:number;mediaPreview?:{requestId:string;mediaId:string}} = { hops: 0, startedAt: Date.now() }): Promise<void> => {
+    if (paidActionsLocked) { openSubscription(); return; }
     if (controllerRef.current || !allowed) return;
     const accountAtStart = getActiveBrowserUserId() || activeAccountId;
     if (accountAtStart !== activeAccountId) return;
@@ -406,6 +414,7 @@ export default function AssistantSession({ actorUserId, activeAccountId, allowed
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
+    if (paidActionsLocked) { openSubscription(); return; }
     const content = draft.trim() || (files.attachments.length ? attachmentCopy.prompt : "");
     if (!content || pending || files.busy || !allowed) return;
     const conversation: ChatMessage[] = [...messages, { role: "user", content, turnId: crypto.randomUUID(), ...(files.attachments.length ? { attachments: files.attachments } : {}) }];
@@ -418,6 +427,7 @@ export default function AssistantSession({ actorUserId, activeAccountId, allowed
 
   const taskCopy = dashboardAssistantTaskCopy(locale);
   const continueTask = (processing: boolean) => {
+    if (paidActionsLocked) { openSubscription(); return; }
     if (pending || files.busy || !allowed || draft.trim() || files.attachments.length) return;
     const conversation: ChatMessage[] = [...messages, { role: "user", content: processing ? taskCopy.checkRequest : taskCopy.continueRequest, turnId: crypto.randomUUID() }];
     setMessages(conversation);
@@ -544,7 +554,7 @@ export default function AssistantSession({ actorUserId, activeAccountId, allowed
           <button type="button" className={styles.attachButton} aria-label={attachmentCopy.attach} title={attachmentCopy.attach} aria-expanded={files.menuOpen} disabled={pending || files.busy || files.attachments.length >= ASSISTANT_ATTACHMENT_MAX_COUNT} onClick={() => files.setMenuOpen(value => !value)}>
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 13 7-7a3 3 0 0 1 4 4l-9 9a5 5 0 0 1-7-7L13 2m-7 12 9-9" /></svg>
           </button>
-          <button type="submit" className={styles.sendButton} aria-label={copy.send} title={copy.send} disabled={pending || files.busy || (!draft.trim() && !files.attachments.length)}>
+          <button type="submit" className={styles.sendButton} aria-label={paidActionsLocked ? `${copy.send} — ${boosterT("wizard_preview_subscribe")}` : copy.send} title={paidActionsLocked ? boosterT("wizard_preview_subscribe") : copy.send} disabled={!paidActionsLocked && (pending || files.busy || (!draft.trim() && !files.attachments.length))} style={paidActionsLocked ? { filter: "grayscale(1)", opacity: 0.65 } : undefined}>
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 4 17 8-17 8 3-8-3-8Zm3 8h14" /></svg>
           </button>
           </div>

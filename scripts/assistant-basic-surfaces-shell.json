@@ -1079,7 +1079,7 @@
     "sourceFiles": [
       "app/dashboard/_components/DashboardModulesCard.tsx"
     ],
-    "sourceAnchor": "<button\n                  type=\"button\"\n                  className={`${signatureStyles.primaryButton} ${signatureStyles.publishButton}`}\n                  data-testid={standardMode ? \"standard-booster-publish\" : \"premiu",
+    "sourceAnchor": "<button\n                  type=\"button\"\n                  className={`${signatureStyles.primaryButton} ${signatureStyles.publishButton}${paidActionsLocked ? ` ${signatureStyles.subscriptionRequired}` : \"\"}`}\n                  data-testid={standardMode ? \"standard-booster-publish\" : \"premium-booster-publish\"}\n                  onClick={openPublishModal}\n                  disabled={isVisible(\"modal:publish\")}\n                  aria-busy={isVisible(paidActionsLocked ? \"panel:abonnement\" : \"modal:publish\") || undefined}\n                  aria-label={paidActionsLocked ? `${t.modules.publishCta} — ${boosterT(\"wizard_preview_subscribe\")}` : t.modules.publishCta}\n                  title={paidActionsLocked ? boosterT(\"wizard_preview_subscribe\") : undefined}\n                >",
     "capabilityId": "navigation.screen",
     "toolNames": [
       "navigateApplication"
@@ -1090,10 +1090,10 @@
     ],
     "testAnchor": "Basic keeps publication, Stats, Studio, media library and Send history usable through either renderer",
     "controlIds": [
-      "app/dashboard/_components/DashboardModulesCard.tsx#button:8bc2a5a25233646c:1"
+      "app/dashboard/_components/DashboardModulesCard.tsx#button:ec4aa8a56fe97f21:1"
     ],
     "status": "implemented",
-    "notes": "Le template de carte comprend des variantes payantes : seuls Stats/Studio/iNrSend-publications/Booster et planning manuel sont activés en Basique. Les autres variants restent désactivés ; aucune activation d’agent ni publication n’est déduite de cette navigation.",
+    "notes": "Le template de carte comprend des variantes payantes : seuls Stats/Studio/iNrSend-publications/Booster et planning manuel sont activés en Basique. Les autres variants restent désactivés ; aucune activation d’agent ni publication n’est déduite de cette navigation. Revue du mode découverte : les opérations payantes de ce parcours nécessitent un abonnement ; les preuves existantes portent sur le parcours Basic autorisé et ne certifient pas une transaction fournisseur.",
     "verification": {
       "mapping": "source_bound",
       "contract": "named_regression_reference",
@@ -1858,10 +1858,10 @@
     ],
     "testAnchor": "the mobile menu presents current tools once, with Founder-only accounting",
     "controlIds": [
-      "app/dashboard/_components/ResponsiveBottomNav.tsx#button:a3c1f468e05ceed5:1"
+      "app/dashboard/_components/ResponsiveBottomNav.tsx#button:204b231967e866f6:1"
     ],
     "status": "implemented",
-    "notes": "Les choix de raccourci conservent leurs restrictions d’offre ; l’entrée native ne permet jamais Ads/comptabilité/campagnes hors pack. Les saisies non enregistrées restent protégées.",
+    "notes": "Les choix de raccourci conservent leurs restrictions d’offre ; l’entrée native ne permet jamais Ads/comptabilité/campagnes hors pack. Les saisies non enregistrées restent protégées. Revue du mode découverte : les opérations payantes de ce parcours nécessitent un abonnement ; les preuves existantes portent sur le parcours Basic autorisé et ne certifient pas une transaction fournisseur.",
     "verification": {
       "mapping": "source_bound",
       "contract": "named_regression_reference",

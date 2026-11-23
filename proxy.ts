@@ -25,7 +25,7 @@ import { CHECKOUT_RETURN_HEADER, checkoutReturnQuery } from "./lib/checkoutRetur
 import { ACTIVE_INRCY_ACCOUNT_COOKIE } from "./lib/multicompte/constants";
 import { isUuidLike, normalizeAccountSummary, pickDefaultAccount } from "./lib/multicompte/normalize";
 import { hasFullProductReviewerAccess } from "./lib/reviewerAccess";
-import { DIRECT_SIGNUP_ACTIVATION_PATH, getDirectSignupMetadata, isDirectSignupPaid } from "./lib/directSignupPolicy";
+import { DIRECT_SIGNUP_ACTIVATION_PATH, directSignupCanDiscover, getDirectSignupMetadata, isDirectSignupPaid } from "./lib/directSignupPolicy";
 import { basicResetPresentationLanguage, isBasicNavigation } from "./lib/basicNavigation";
 
 const ADMIN_USER_IDS = ["670b527d-5e08-42b4-ba95-e58e812339eb"] as const;
@@ -173,6 +173,40 @@ function isApiBlockBypassPath(pathname: string): boolean {
 function isSensitiveApiPath(pathname: string): boolean {
   if (!pathname.startsWith("/api/") || isApiBlockBypassPath(pathname)) return false;
   return SENSITIVE_API_PREFIXES.some((candidate) => pathMatches(pathname, candidate));
+}
+
+// Explicitly audited read-only endpoints used to render the discovery dashboard
+// and its subscription modal. Unknown endpoints remain blocked.
+const DIRECT_DISCOVERY_READ_PATHS = new Set([
+  "/api/ai-memory",
+  "/api/billing/account-subscription",
+  "/api/booster/cta-defaults",
+  "/api/booster/metrics",
+  "/api/business-location",
+  "/api/dashboard/cache-status",
+  "/api/integrations/channel-states",
+  "/api/integrations/status",
+  "/api/media-generation/preferences",
+  "/api/media-library/items",
+  "/api/me/role",
+  "/api/multicompte/accounts",
+  "/api/notifications/feed",
+  "/api/notifications/preferences",
+  "/api/profile/versions",
+]);
+
+// These writes only save the account's own settings. They do not generate,
+// publish, send messages or start third-party work.
+const DIRECT_DISCOVERY_SETTINGS_WRITES = new Set([
+  "PUT /api/ai-memory",
+  "PUT /api/business-location",
+  "PATCH /api/media-generation/preferences",
+]);
+
+function isDirectDiscoverySafeRequest(pathname: string, method: string): boolean {
+  const normalizedMethod = method.toUpperCase();
+  return normalizedMethod === "GET" && DIRECT_DISCOVERY_READ_PATHS.has(pathname)
+    || DIRECT_DISCOVERY_SETTINGS_WRITES.has(`${normalizedMethod} ${pathname}`);
 }
 
 function blockedAccountApiResponse(subscription?: SubscriptionGateRow | null): NextResponse {
@@ -666,6 +700,7 @@ export async function proxy(req: NextRequest) {
 
   let authenticatedUserId: string | null = null;
   let directSignup = false;
+  let directSignupAppMetadata: unknown = null;
   let invalidAuthSession = false;
   try {
     const { data, error } = await supabase.auth.getClaims();
@@ -674,6 +709,7 @@ export async function proxy(req: NextRequest) {
     if (!error && typeof claimSub === "string" && claimSub) {
       authenticatedUserId = claimSub;
       directSignup = Boolean(getDirectSignupMetadata(data?.claims?.app_metadata));
+      directSignupAppMetadata = data?.claims?.app_metadata;
     } else if (error && hasSupabaseAuthCookie) {
       invalidAuthSession = true;
     }
@@ -868,12 +904,13 @@ export async function proxy(req: NextRequest) {
         getCurrentSubscriptionGate(), getReviewerToolRole(),
       ]);
 
-      if (directSignup && await getCurrentActiveAccountId() === authenticatedUserId && !isDirectSignupPaid(currentSubscriptionGate)) {
+      const canDiscover = directSignup && await getCurrentActiveAccountId() === authenticatedUserId && directSignupCanDiscover(directSignupAppMetadata, currentSubscriptionGate);
+      if (directSignup && !canDiscover && await getCurrentActiveAccountId() === authenticatedUserId && !isDirectSignupPaid(currentSubscriptionGate)) {
         const url = req.nextUrl.clone(); url.pathname = DIRECT_SIGNUP_ACTIVATION_PATH; url.search = "";
         return applyResponseHeaders(NextResponse.redirect(url, 307));
       }
 
-      if (!isAllowedSubscription(currentSubscriptionGate)) {
+      if (!canDiscover && !isAllowedSubscription(currentSubscriptionGate)) {
         const url = req.nextUrl.clone();
         url.pathname = "/compte-bloque";
         url.search = checkoutReturnQuery(req.nextUrl.searchParams);
@@ -908,16 +945,22 @@ export async function proxy(req: NextRequest) {
   // has no private product rights before payment, including unlisted routes
   // called without mounting the activation page or dashboard interface.
   const isSensitiveApi = isSensitiveApiPath(pathname)
+    // This historical billing bypass creates an order and sends email. A
+    // discovery account must not use it before subscribing.
+    || directSignup && pathMatches(pathname, "/api/boutique/order")
     || directSignup && pathname.startsWith("/api/") && !isApiBlockBypassPath(pathname);
 
   if (req.method.toUpperCase() !== "OPTIONS" && isSensitiveApi) {
     const currentUserId = await getCurrentUserId();
     const currentSubscriptionGate = currentUserId ? await getCurrentSubscriptionGate() : null;
 
-    if (currentUserId && directSignup && await getCurrentActiveAccountId() === currentUserId && !isDirectSignupPaid(currentSubscriptionGate)) {
-      return applyResponseHeaders(NextResponse.json({ code: "DIRECT_SIGNUP_PAYMENT_REQUIRED", error: "Paiement requis.", redirectTo: DIRECT_SIGNUP_ACTIVATION_PATH }, { status: 403 }));
+    const canDiscover = Boolean(currentUserId && directSignup && await getCurrentActiveAccountId() === currentUserId
+      && directSignupCanDiscover(directSignupAppMetadata, currentSubscriptionGate));
+    const canDiscoverSafeRequest = canDiscover && isDirectDiscoverySafeRequest(pathname, req.method);
+    if (currentUserId && directSignup && await getCurrentActiveAccountId() === currentUserId && !isDirectSignupPaid(currentSubscriptionGate) && !canDiscoverSafeRequest) {
+      return applyResponseHeaders(NextResponse.json({ code: "DIRECT_SIGNUP_PAYMENT_REQUIRED", error: "Paiement requis.", redirectTo: canDiscover ? "/dashboard?panel=abonnement" : DIRECT_SIGNUP_ACTIVATION_PATH }, { status: 403 }));
     }
-    if (currentUserId && !isAllowedSubscription(currentSubscriptionGate)) {
+    if (currentUserId && !isAllowedSubscription(currentSubscriptionGate) && !canDiscoverSafeRequest) {
       return applyResponseHeaders(blockedAccountApiResponse(currentSubscriptionGate));
     }
   }

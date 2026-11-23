@@ -32,7 +32,7 @@ import DashboardGeneratorStateProvider from "./_components/DashboardGeneratorSta
 import DashboardAssistantProvider from "./_components/DashboardAssistantProvider";
 import TemporaryPasswordWelcomeGate from "./_components/TemporaryPasswordWelcomeGate";
 import { getTemporaryPasswordMetadata } from "@/lib/temporaryPasswordPolicy";
-import { DIRECT_SIGNUP_ACTIVATION_PATH, directSignupNeedsActivation } from "@/lib/directSignupPolicy";
+import { DIRECT_SIGNUP_ACTIVATION_PATH, directSignupCanDiscover, directSignupNeedsActivation } from "@/lib/directSignupPolicy";
 import { ADMIN_USER_IDS, getMyRole, isAdminRole } from "@/lib/roles";
 import { isMetaChannelPilotEnabled } from "@/lib/metaChannelRollout";
 import { hasFullProductReviewerAccess } from "@/lib/reviewerAccess";
@@ -140,10 +140,11 @@ export default async function DashboardLayout({
     subscription = legacy.data as SubscriptionGateRow | null;
   }
 
-  if (accountScope.activeUserId === user.id && directSignupNeedsActivation(user.app_metadata, subscription)) {
+  const paidActionsLocked = accountScope.activeUserId === user.id && directSignupCanDiscover(user.app_metadata, subscription);
+  if (!paidActionsLocked && accountScope.activeUserId === user.id && directSignupNeedsActivation(user.app_metadata, subscription)) {
     redirect(DIRECT_SIGNUP_ACTIVATION_PATH);
   }
-  if (!hasDashboardAccess(subscription)) {
+  if (!paidActionsLocked && !hasDashboardAccess(subscription)) {
     const requestHeaders = await headers();
     redirect(blockedCheckoutReturnUrl(requestHeaders.get(CHECKOUT_RETURN_HEADER) || ""));
   }
@@ -183,7 +184,7 @@ export default async function DashboardLayout({
     <div className={`${styles.shell} inrcy-dashboard-shell`}>
       <DashboardIntlProvider locale={dashboardLocale} messages={dashboardMessages}>
       <DashboardEditionProvider edition={dashboardEdition} subscriptionEdition={subscriptionEdition}>
-      <DashboardViewerAccessProvider viewerIsAdmin={viewerIsAdmin} viewerMetaPilotEnabled={viewerMetaPilotEnabled} actorUserId={user.id} activeAccountId={accountScope.activeUserId}>
+      <DashboardViewerAccessProvider viewerIsAdmin={viewerIsAdmin} viewerMetaPilotEnabled={viewerMetaPilotEnabled} actorUserId={user.id} activeAccountId={accountScope.activeUserId} paidActionsLocked={paidActionsLocked}>
       <DashboardGeneratorStateProvider key={accountScope.activeUserId} accountId={accountScope.activeUserId}>
         <DashboardPersistentImageCache />
         <div className={styles.bg} />

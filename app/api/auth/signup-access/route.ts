@@ -6,7 +6,7 @@ import { getClientIp, enforceRateLimit } from "@/lib/rateLimit";
 import { openSignupAccess, signupAccessMatchesUser, SIGNUP_ACCESS_COOKIE } from "@/lib/signupImmediateAccessPolicy";
 import { signupAccessSecret } from "@/lib/signupImmediateAccessServer";
 import { ACTIVE_INRCY_ACCOUNT_COOKIE } from "@/lib/multicompte/constants";
-import { DIRECT_SIGNUP_ACTIVATION_PATH, getDirectSignupMetadata } from "@/lib/directSignupPolicy";
+import { getDirectSignupMetadata } from "@/lib/directSignupPolicy";
 import { isBasicNavigation, withBasicNavigation } from "@/lib/basicNavigation";
 
 export const runtime = "nodejs";
@@ -40,7 +40,7 @@ export async function POST(request: Request) {
     if (result.error || result.data.user?.id !== claims.userId || !result.data.session) return fail("Cet accès à usage unique a déjà été utilisé ou a expiré. Utilisez vos identifiants pour vous connecter.");
     const cookieStore = await cookies();
     cookieStore.set(SIGNUP_ACCESS_COOKIE, ticket!, { httpOnly: true, secure: ownOrigin.startsWith("https:"), sameSite: "strict", path: "/api/auth/signup-access", maxAge: Math.max(1, Math.floor((claims.expiresAt - Date.now()) / 1000)) });
-    const destination = getDirectSignupMetadata(fresh.data.user.app_metadata) ? DIRECT_SIGNUP_ACTIVATION_PATH : "/dashboard";
+    const destination = "/dashboard";
     const response = NextResponse.redirect(new URL(`${destination}?lang=${claims.language}`, request.url), { status: 303, headers });
     response.cookies.set(ACTIVE_INRCY_ACCOUNT_COOKIE, claims.userId, { path: "/", sameSite: "lax", secure: ownOrigin.startsWith("https:"), maxAge: 30 * 86400 });
     return response;

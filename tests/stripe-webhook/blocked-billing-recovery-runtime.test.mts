@@ -42,7 +42,7 @@ const expiredAt = "2020-01-22T00:00:00.000Z";
 
 function billingFixture(options: {
   row?: Row; live?: Row[]; linked?: Row; customerOwner?: string; otherOwner?: boolean;
-  unauthenticated?: boolean; noCustomerFound?: boolean; stripeFailure?: boolean; legacyMetadata?: boolean;
+  unauthenticated?: boolean; noCustomerFound?: boolean; stripeFailure?: boolean; legacyMetadata?: boolean; direct?: boolean;
 } = {}) {
   const row: Row = { status: "trial_expired", plan: "Standard", app_edition: "standard",
     stripe_customer_id: "cus_payer", stripe_subscription_id: null, billing_provider: "stripe", ...options.row };
@@ -104,7 +104,7 @@ function billingFixture(options: {
     "next/server": { NextResponse },
     "@/lib/requireUser": { requireUser: async () => options.unauthenticated
       ? { errorResponse: Response.json({ error: "Non authentifié" }, { status: 401 }) }
-      : { user: { id: actor, email: "payer@example.invalid" }, activeUserId: "account_other", errorResponse: null, supabase: { from: query } } },
+      : { user: { id: actor, email: "payer@example.invalid", app_metadata: options.direct ? { [directSignupPolicy.DIRECT_SIGNUP_METADATA_KEY]: { version: 1, entry: "basique", created_at: "2026-11-19T12:00:00.000Z" } } : {} }, activeUserId: options.direct ? actor : "account_other", errorResponse: null, supabase: { from: query } } },
     "@/lib/supabaseAdmin": { supabaseAdmin: { from: query } },
     "@/lib/stripeRest": {
       getAppUrl: () => "https://app.example.invalid", stripeGet,
@@ -154,6 +154,17 @@ function billingFixture(options: {
   return { row, posts, writes, payerReads, stripeReads, get checkoutSessions() { return checkoutSessions; },
     portal: () => portal.POST(request("portal")), checkout: () => checkout.POST(request("checkout")) };
 }
+
+test("direct incomplete contract returns to discovery after recovering billing, without duplicate checkout", async () => {
+  for (const route of ["portal", "checkout"] as const) {
+    const f = billingFixture({ direct: true, row: { status: "incomplete", plan: "Basic", app_edition: "basic", stripe_subscription_id: "sub_current" }, live: [stripeSubscription("incomplete")] });
+    const response = await f[route]();
+    assert.equal(response.status, 200, JSON.stringify(await response.clone().json()));
+    assert.equal(f.posts[0].path, "/billing_portal/sessions");
+    assert.equal(f.posts[0].params.get("return_url"), "https://app.example.invalid/dashboard?panel=abonnement");
+    assert.equal(f.checkoutSessions, 0);
+  }
+});
 
 for (const status of ["past_due", "unpaid", "incomplete", "paused"]) {
   test(`${status} opens existing recovery billing without a new subscription or entitlement change`, async () => {

@@ -8,7 +8,7 @@ import { createSupabaseServer } from "@/lib/supabaseServer";
 import { resolveDashboardEdition } from "@/lib/dashboardEdition";
 import BlockedBillingActions from "./BlockedBillingActions";
 import { checkoutReturnQuery, dashboardCheckoutReturnUrl } from "@/lib/checkoutReturnRouting";
-import { DIRECT_SIGNUP_ACTIVATION_PATH, directSignupNeedsActivation } from "@/lib/directSignupPolicy";
+import { DIRECT_SIGNUP_ACTIVATION_PATH, directSignupCanDiscover, directSignupNeedsActivation } from "@/lib/directSignupPolicy";
 
 export const dynamic = "force-dynamic";
 
@@ -205,6 +205,7 @@ export default async function BlockedAccountPage({ searchParams }: {
     .maybeSingle();
 
   const subscription = data as SubscriptionRow | null;
+  if (params?.checkout !== "success" && directSignupCanDiscover(user.app_metadata, subscription)) redirect("/dashboard");
   if (directSignupNeedsActivation(user.app_metadata, subscription)) {
     redirect(`${DIRECT_SIGNUP_ACTIVATION_PATH}${checkoutQuery ? `?${checkoutQuery}` : ""}`);
   }

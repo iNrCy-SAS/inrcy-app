@@ -1131,7 +1131,7 @@
   },
   "app/dashboard/mails/_components/MailboxDetailsModal.tsx": {
     "disposition": "basic",
-    "reason": "Historique et brouillons Publications utilisables en Basique ; seules les branches publications sont retenues, mails/campagnes et comptabilité gardent leurs gates.",
+    "reason": "Historique et brouillons Publications utilisables en Basique ; seules les branches publications sont retenues, mails/campagnes et comptabilité gardent leurs gates. Revue du mode découverte : les actions payantes sont soumises au verrou d’abonnement et les commandes restantes conservent leurs contrôles natifs.",
     "gateFiles": [
       "lib/dashboardEdition.ts"
     ],
@@ -1155,13 +1155,6 @@
       "app/dashboard/mails/_components/MailboxDetailsModal.tsx#button:47fed9a89a77d5aa:1": {
         "reason": "Campagnes mail absentes du dossier Publications Basic ; conversion de devis conditionnée au droit documentsEnabled Founder. Les anciens send_items de type publication restent inclus séparément.",
         "gateAnchor": "documentsEnabled &&",
-        "gateFiles": [
-          "app/dashboard/mails/_components/MailboxDetailsModal.tsx"
-        ]
-      },
-      "app/dashboard/mails/_components/MailboxDetailsModal.tsx#button:1c1b337cd0fcdf6c:1": {
-        "reason": "Campagnes mail absentes du dossier Publications Basic ; conversion de devis conditionnée au droit documentsEnabled Founder. Les anciens send_items de type publication restent inclus séparément.",
-        "gateAnchor": "detailsItem.source === \"mail_campaigns\"",
         "gateFiles": [
           "app/dashboard/mails/_components/MailboxDetailsModal.tsx"
         ]
@@ -1223,6 +1216,13 @@
         ]
       },
       "app/dashboard/mails/_components/MailboxDetailsModal.tsx#button:92ac308619bca678:1": {
+        "reason": "Campagnes mail absentes du dossier Publications Basic ; conversion de devis conditionnée au droit documentsEnabled Founder. Les anciens send_items de type publication restent inclus séparément.",
+        "gateAnchor": "detailsItem.source === \"mail_campaigns\"",
+        "gateFiles": [
+          "app/dashboard/mails/_components/MailboxDetailsModal.tsx"
+        ]
+      },
+      "app/dashboard/mails/_components/MailboxDetailsModal.tsx#button:185e2c100c0a89e9:1": {
         "reason": "Campagnes mail absentes du dossier Publications Basic ; conversion de devis conditionnée au droit documentsEnabled Founder. Les anciens send_items de type publication restent inclus séparément.",
         "gateAnchor": "detailsItem.source === \"mail_campaigns\"",
         "gateFiles": [

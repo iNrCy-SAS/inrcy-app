@@ -14,13 +14,13 @@ export const INR_ASSISTANT_CREATION_GUIDES: readonly InrAssistantCreationGuide[]
     id: "booster",
     title: "Booster : créer, publier ou programmer un contenu",
     keywords: ["booster", "publier", "publication", "programmer", "réseaux", "contenus", "brouillon", "tiktok", "musique", "stories", "reel"],
-    content: `${productNavigationSummary("publish", false)} Préparation → Idée → Contenus → Médias → Validation → Bilan ; sans Idée en Manuel.
+    content: `Découverte : IA et publication verrouillées. ${productNavigationSummary("publish", false)} Préparation → Idée → Contenus → Médias → Validation → Bilan ; sans Idée en Manuel.
 1. Préparation : canaux, Automatique/Manuel, Continuer. Indisponible : raison dans Mes canaux. Google Business doit être validé ; reconnecter seulement si l’accès le demande.
 2. Auto : sujet/références dans Idée puis « ✨ Générer avec iNrCy ». Manuel : rédiger dans Contenus (titre, texte, hashtags, CTA). « Ajuster la génération » reprend sujet/consigne ; sélectionner les canaux puis « Adapter les contenus ». Autres canaux/médias conservés ; Annuler ne change rien.
 3. Médias : importer, Médiathèque ou générer dans iNrStudio. « Modifier » : IA image ; « Retoucher » : manuel. Stories : 4 s/image ; Reel : 3 s/image (5 = 15 s). Vérifier l’aperçu ; reprise : musique/Stories validées conservées.
 4. Validation : canal à gauche, statut centré Prêt vert (+ alerte orange) ou Refus rouge (détails au clic), œil d’aperçu à droite. Puis Contenu, Mode ou Tableau si disponible, Musique Meta, Médias et miniatures. Options visibles dans chaque bloc : format Facebook/Instagram, Story associée, tableau Pinterest, mode Threads. Musique Facebook/Instagram réservée aux Stories/Reels : Auto ou 30 sons avec préécoute, une piste/canal. Photos Google Business/Threads et son des vidéos importées conservés ; TikTok garde sa musique native des photos. « Publier » → « Confirmer la publication ? » → « Publier ». « 🕒 Programmer » : date/heure. TikTok peut demander sa validation ; YouTube exige une vidéo.
 5. Bilan par canal/type (Classique/Reel/Story, Threads classique/éphémère) : publié/échec/attente. Total = blocs : Facebook + Story = 2, avec Instagram + Story = 4. « J’ai résolu le problème, réessayer » : échecs confirmés, succès conservés. Facebook : vérification d’identité dans l’app mobile, profil gestionnaire. Instagram : activation/vérification/restriction dans l’app (Statut du compte). Reconnecter ne suffit pas. Brouillons : rouvrir ; « Enregistrer le brouillon publication » : sauvegarder.
-Programmation : transfert original terminé ; après confirmation, adaptations même écran fermé. Vérifier Planning ; média en échec sans garantie d’envoi.
+Programmation : après transfert et confirmation, adaptations même écran fermé. Vérifier Planning ; média en échec sans garantie d’envoi.
 Accès selon offre/connexions. Planning manuel même Basique : consulter, modifier, reprogrammer, annuler, publier maintenant ; automatisation IA exclue. Studio IA : crédits selon devis, ouverture gratuite. Import, retouche manuelle et texte sans crédits IA.`,
     sourceFiles: ["lib/inrAssistantPublicationTools.ts", "lib/inrAssistantScheduledPublicationTools.ts", "lib/inrAssistantScheduledPublicationEdit.ts", "lib/productNavigation.ts", "app/api/booster/connected-channels/route.ts", "lib/googleBusinessPublicationGate.ts",
       "app/dashboard/_components/dashboardMobileMenuModel.ts",
@@ -50,7 +50,7 @@ Accès selon offre/connexions. Planning manuel même Basique : consulter, modifi
     id: "studio-create",
     title: "iNrStudio : générer une image ou une vidéo",
     keywords: ["studio", "inrstudio", "générer", "generation", "image", "vidéo", "prompt", "création", "paroles", "crédits", "voix", "vocal", "musiques", "narration", "sous-titres"],
-    content: `${productNavigationSummary("studio", false)} Format/moteur/durée, plans automatiques en Studio Libre, choix explicite conservé. Moteurs disponibles compatibles références/vocaux originaux, ≤16 crédits/s. Wan 3 et MiniMax H3 retirés de tous les parcours de génération.
+    content: `Découverte : IA et publication verrouillées. ${productNavigationSummary("studio", false)} Format/moteur/durée ; plans automatiques en Studio Libre. Moteurs disponibles compatibles références/vocaux originaux, ≤16 crédits/s. Wan 3 et MiniMax H3 retirés de tous les parcours de génération.
 Libre : prompt vidéo intégral + références au moteur, sans image substituée ni analyse IA bloquante.
 Vidéo/image : 500/4 000 caractères ; paroles à part. Utiliser mon ADN coché ; sinon marque/logo sur demande. Consignes ET Interdictions intégrales de Ma communication ; interdictions priment. Booster sans copie. Image : logo en référence au moteur (+1 photo ; Recraft incompatible), fidélité à vérifier. Vidéo : habillage local. Coordonnées sur demande.
 Inspiration facultative ; Personnage/Décor/Produit requis. Importer/Médiathèque : vérifier identités/doublons.
@@ -132,7 +132,7 @@ Basique : 50 crédits/mois ; recharges permettent de générer sans changer d’
     id: "studio-reference-memory",
     title: "iNrStudio : mémoriser les médias et leurs voix",
     keywords: ["studio", "inrstudio", "mémoriser", "mémoire", "médias", "références", "personnages", "photos", "noms", "voix", "vocaux", "oublier", "retrouver"],
-    content: `${productNavigationSummary("studio", false)} Dans Studio Libre, Mémoriser conserve les médias sélectionnés, noms des personnages et voix associées pour le seul établissement actif. Les fichiers nécessaires peuvent être ajoutés à la Médiathèque ; aucune création IA n’est lancée.
+    content: `Découverte : IA et publication verrouillées. ${productNavigationSummary("studio", false)} Dans Studio Libre, Mémoriser conserve les médias sélectionnés, noms des personnages et voix associées pour le seul établissement actif. Les fichiers nécessaires peuvent être ajoutés à la Médiathèque ; aucune création IA n’est lancée.
 Mettre à jour remplace ce jeu ; Oublier retire la mémoire sans supprimer les fichiers de la Médiathèque.
 Le jeu est restauré à la prochaine ouverture, aussi depuis une publication, sauf brouillon ou références déjà fournis : ces choix restent prioritaires. Les associations photo/voix sont conservées ; ne jamais deviner ou permuter les personnages.
 Ne mémorise ni consignes, dialogues, moteur ni autorisations. Les droits d’identité et de voix restent à confirmer par le professionnel ; la mémoire ne vaut pas consentement.
@@ -153,7 +153,7 @@ L’assistant agit uniquement sur la sélection affichée du compte courant, sur
     id: "studio-edit",
     title: "iNrStudio : modifier une image ou retoucher un média",
     keywords: ["studio", "modifier", "retoucher", "retouche", "fond", "recadrer", "cadrage", "image", "vidéo", "format"],
-    content: `${productNavigationSummary("studio", false)} Trois onglets distincts : Générer, Modifier, Retoucher. Sur mobile, les choisir dans le menu déroulant du haut.
+    content: `Découverte : IA et publication verrouillées. ${productNavigationSummary("studio", false)} Trois onglets distincts : Générer, Modifier, Retoucher. Sur mobile, les choisir dans le menu déroulant du haut.
 MODIFIER : modification d’image par IA ; la Vidéo est désactivée dans cet onglet. Ajouter l’« Image à modifier » par « Choisir sur mon appareil » ou « Choisir dans ma médiathèque ». Remplir « Consigne de modification » en précisant ce qui change et ce qui doit être conservé. Vérifier le moteur/coût/solde, puis « Modifier le média ». Le maintien parfait de tous les détails n’est pas garanti. Reprendre avec « Modifier la consigne », ou conserver via « Enregistrer dans la Médiathèque » / « Utiliser ce média » selon l’origine.
 RETOUCHER une Image : ajouter l’image puis ajuster dans l’atelier déjà ouvert avec les outils disponibles (cadrage, fond, texte/lien selon l’éditeur). Enregistrer avec « Enregistrer dans la Médiathèque » ou « Utiliser ce média ». Ce parcours d’édition manuelle est distinct de la modification IA.
 RETOUCHER une Vidéo : choisir Vidéo dans le header puis une source via « Choisir sur mon appareil » ou « Choisir dans ma médiathèque ». Les outils actuels adaptent le format et le cadrage ; ils ne constituent pas un montage vidéo général. « Remplacer la vidéo » change la source. Confirmer avec « Enregistrer dans la Médiathèque » ou « Utiliser ce média ».
@@ -236,7 +236,7 @@ Les boutons de validation restent soumis à la disponibilité réelle des connec
     id: "emailing",
     title: "Campagnes mails : Propulser, Fidéliser et finalisation dans iNr’Send",
     keywords: ["emailing", "mail", "campagne", "propulser", "fidéliser", "valoriser", "récolter", "offrir", "informer", "suivre", "enquêter", "newsletter", "destinataires"],
-    content: `${productNavigationSummary("campaigns", false)} Choisir ensuite le parcours ; accès Premium, pas Basique ni Standard/essai.
+    content: `Découverte : IA et publication verrouillées. ${productNavigationSummary("campaigns", false)} Choisir ensuite le parcours ; accès Premium, pas Basique ni Standard/essai.
 [Propulser](/dashboard/propulser) : Valoriser, Récolter ou Offrir, bouton « Lancer ». Accès directs : /dashboard/propulser?action=valorize ; /dashboard/propulser?action=reviews ; /dashboard/propulser?action=promo.
 [Fidéliser](/dashboard/fideliser) : Informer, Suivre ou Enquêter, bouton « Envoyer » de la carte (il ouvre d’abord le modèle). Accès directs : /dashboard/fideliser?action=inform ; /dashboard/fideliser?action=thanks ; /dashboard/fideliser?action=satisfaction.
 Dans l’action, choisir un modèle dans « Choisir un modèle », modifier Objet et Message, ou utiliser « ✨ Générer avec iNrCy ». Vérifier le texte généré, les informations de l’entreprise et les zones encore à compléter. Joindre les pièces utiles via le sélecteur de pièces jointes. Le header propose Brouillons et l’icône « Enregistrer le brouillon » ; sauvegarder permet de reprendre plus tard.

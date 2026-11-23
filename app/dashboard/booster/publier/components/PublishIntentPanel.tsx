@@ -1,4 +1,5 @@
 import { useTranslations } from "next-intl";
+import usePaidMediaAction from "../../../_hooks/usePaidMediaAction";
 import { createPortal } from "react-dom";
 import {
   useEffect,
@@ -200,6 +201,7 @@ export default function PublishIntentPanel({
     );
   };
 
+  const { paidActionsLocked, subscriptionLabel, openSubscription } = usePaidMediaAction();
   const generationDisabled = generating || voiceTarget !== null;
   const isVoiceTargetDisabled = (target: VoiceTarget) =>
     generating || (voiceTarget !== null && voiceTarget !== target);
@@ -352,13 +354,17 @@ export default function PublishIntentPanel({
             <button
               type="button"
               className={`${styles.primaryBtn} ${styles.aiGenerateBtn}`}
-              onClick={onGenerate}
-              disabled={generationDisabled || !idea.trim()}
+              onClick={paidActionsLocked ? openSubscription : onGenerate}
+              disabled={!paidActionsLocked && (generationDisabled || !idea.trim())}
+              title={paidActionsLocked ? subscriptionLabel : undefined}
+              aria-label={paidActionsLocked ? `${i18nT("generer_avec_inrcy_58900495")} — ${subscriptionLabel}` : undefined}
               style={{
                 flex: isMobile ? "1 1 100%" : "0 0 auto",
                 width: isMobile ? "100%" : "auto",
                 minHeight: 34,
                 whiteSpace: "nowrap",
+                filter: paidActionsLocked ? "grayscale(1)" : undefined,
+                opacity: paidActionsLocked ? 0.65 : undefined,
               }}
             >
               {generating
@@ -396,9 +402,9 @@ export default function PublishIntentPanel({
         <aside className={css.references} aria-label={i18nT("wizard_inspirations_help")}>
           <div className={css.referenceHeading}>
             <h2>{i18nT("wizard_inspirations_help")}</h2>
-            <PublishReferencePicker disabled={generationDisabled}
+            <PublishReferencePicker disabled={generationDisabled} subscriptionRequired={paidActionsLocked}
               documentDetail={i18nT("wizard_reference_document_limits")} documentCount={documentFiles.length}
-              onPickDocument={() => pdfInputRef.current?.click()} onGenerateMedia={onGenerateMedia} onOpenMediaLibrary={onOpenMediaLibrary}
+              onPickDocument={() => pdfInputRef.current?.click()} onGenerateMedia={paidActionsLocked ? openSubscription : onGenerateMedia} onOpenMediaLibrary={onOpenMediaLibrary}
               image={{ onSelect: onPickImagesClick, disabled: pickImagesDisabled,
                 disabledReason: imagesLimitReached ? i18nT("generation_images_limit", { count: BOOSTER_MAX_IMAGE_COUNT }) : undefined,
                 detail: `${getLocalizedBoosterImageLimits(runtimeT)} · ${getLocalizedBoosterImageFormats(runtimeT)}` }}

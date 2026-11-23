@@ -6,6 +6,7 @@ import { getAppUrl, stripeGet, stripePost } from "@/lib/stripeRest";
 import { inspectComplimentaryCheckout } from "@/lib/stripeCheckoutPreflight";
 import { hasActiveAccountSubscription } from "@/lib/accountSubscriptionPolicy";
 import { getApprovedAccountSubscription } from "@/lib/accountBillingSubscriptionServer";
+import { directSignupCanDiscover } from "@/lib/directSignupPolicy";
 
 export const runtime = "nodejs";
 
@@ -104,7 +105,8 @@ export async function POST(req: Request) {
     const appUrl = getAppUrl(req);
     const params = new URLSearchParams();
     params.set("customer", customerId);
-    params.set("return_url", blocked ? `${appUrl}/compte-bloque` : `${appUrl}/dashboard?panel=abonnement`);
+    const discovery = (activeUserId || user.id) === user.id && directSignupCanDiscover(user.app_metadata, row);
+    params.set("return_url", blocked && !discovery ? `${appUrl}/compte-bloque` : `${appUrl}/dashboard?panel=abonnement`);
 
     const session = await stripePost("/billing_portal/sessions", params);
     if (!session?.url) {

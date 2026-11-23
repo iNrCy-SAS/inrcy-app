@@ -14,6 +14,7 @@ import { requestDashboardToolWarmup } from "./DashboardToolWarmup";
 import { useDelayedPendingAction } from "@/hooks/useDelayedPendingAction";
 import { hasAccountingDashboardAccess, isStandardDashboardEdition } from "@/lib/dashboardEdition";
 import { useDashboardEdition, useDashboardSubscriptionEdition } from "./DashboardEditionProvider";
+import { useDashboardViewerAccess } from "./DashboardViewerAccessProvider";
 import { DASHBOARD_GEARBOX_ANCHOR_ID } from "../dashboard.scroll";
 import signatureStyles from "./DashboardSignatureTools.module.css";
 import DashboardAgentLogoButton from "./DashboardAgentLogoButton";
@@ -138,11 +139,13 @@ export default function DashboardModulesCard({ cockpit, generator, overview, goT
   const signatureT = useTranslations("dashboard.signatureTools");
   const helpT = useTranslations("dashboard.helpCenter");
   const heroT = useTranslations("dashboard.hero");
+  const boosterT = useTranslations("booster");
   const t = useDashboardI18n();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const dashboardEdition = useDashboardEdition();
+  const { paidActionsLocked } = useDashboardViewerAccess();
   const studioEdition = useDashboardSubscriptionEdition();
   const standardMode = standardModeOverride || isStandardDashboardEdition(dashboardEdition);
   const basicMode = dashboardEdition === "basic";
@@ -252,6 +255,10 @@ export default function DashboardModulesCard({ cockpit, generator, overview, goT
   };
 
   const openPublishModal = () => {
+    if (paidActionsLocked) {
+      startPanelOpening("abonnement");
+      return;
+    }
     if (!beginAction("modal:publish")) return;
     if (onOpenBoosterPublish) onOpenBoosterPublish();
     else goToModule("/dashboard?action=publish");
@@ -403,12 +410,13 @@ export default function DashboardModulesCard({ cockpit, generator, overview, goT
               <div className={signatureStyles.boosterPublishAction}>
                 <button
                   type="button"
-                  className={`${signatureStyles.primaryButton} ${signatureStyles.publishButton}`}
+                  className={`${signatureStyles.primaryButton} ${signatureStyles.publishButton}${paidActionsLocked ? ` ${signatureStyles.subscriptionRequired}` : ""}`}
                   data-testid={standardMode ? "standard-booster-publish" : "premium-booster-publish"}
                   onClick={openPublishModal}
                   disabled={isVisible("modal:publish")}
-                  aria-busy={isVisible("modal:publish") || undefined}
-                  aria-label={t.modules.publishCta}
+                  aria-busy={isVisible(paidActionsLocked ? "panel:abonnement" : "modal:publish") || undefined}
+                  aria-label={paidActionsLocked ? `${t.modules.publishCta} — ${boosterT("wizard_preview_subscribe")}` : t.modules.publishCta}
+                  title={paidActionsLocked ? boosterT("wizard_preview_subscribe") : undefined}
                 >{isVisible("modal:publish") ? i18nT("chargement_01cba1df") : t.modules.publishCta}</button>
               </div>
               <div className={signatureStyles.boosterSummaryActions}>
@@ -573,3 +581,4 @@ export default function DashboardModulesCard({ cockpit, generator, overview, goT
 
   );
 }
+

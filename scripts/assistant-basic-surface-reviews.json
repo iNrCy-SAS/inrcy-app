@@ -1,6 +1,6 @@
 {
   "formatVersion": 3,
-  "fragmentsDigest": "d0bc8a6436388a3aeee7af305a0f2636d598c16ac7c1ddd1ae30d7111c161591",
+  "fragmentsDigest": "5b8194dbed2ddf627b9212f29cad71b611d4b0569fee0fd43ac779198e2ecb00",
   "evidenceDigests": {
     "app/_components/AppAppearanceThemeBridge.tsx": "5228069f0705822520d98d528d851a7cf3c65daad0c5fab496fd4f9f8d6cb385",
     "app/_components/CookieConsentBanner.tsx": "4cc770134c68460e184b9b3275c18af250e8cca9135cf5cd2d73c8f964e2f5cf",
@@ -181,7 +181,7 @@
     "app/dashboard/_components/DashboardAssistantProvider.module.css": "bed01df699428a9c98d856a4b323bb2f9b8d0532a5356c6655b4c6f308b3a80c",
     "app/dashboard/_components/DashboardAssistantProvider.tsx": "21d6583d747d2a60250ec46b9cc7417ec26d2e751d544794e38b5f019b30437b",
     "app/dashboard/_components/DashboardAssistantScreenContext.tsx": "6a63b65e70e86339820d1adc01f098c0e3dcab050c6a6542bf2901d928acbe06",
-    "app/dashboard/_components/DashboardAssistantSession.tsx": "49ecf9694f79628013183de1c677eb060d85129cf4c5f84ed7a7437a60d93808",
+    "app/dashboard/_components/DashboardAssistantSession.tsx": "3ba37adcf4ba376c0816b393585c6195b2ee6284c77c3c5cab29d190594d1692",
     "app/dashboard/_components/DashboardAssistantTrigger.module.css": "9248594799cb66d41a89e649b7afcb16be824e83fa49be456e2b8344c41ca815",
     "app/dashboard/_components/DashboardAssistantTrigger.tsx": "db29eeea91c02916f3c4aac1e1a5e0d3aa60230144a82918d6c62e0bd21bde64",
     "app/dashboard/_components/DashboardBoosterModalLayer.tsx": "3bc282e860f5c83ffbf25d2177c9abfc7629ec771c40aeb19896f1303be5818d",
@@ -206,7 +206,7 @@
     "app/dashboard/_components/DashboardIntlProvider.tsx": "8e9669a1b9077efcf982d7832ccd8187350dbe965de1bf56dffcffb1aa1d0989",
     "app/dashboard/_components/DashboardMobileSelect.module.css": "fa30d7dcae5c1aa1a606997481de992fb2db3e4b7160604d087679a348514d64",
     "app/dashboard/_components/DashboardMobileSelect.tsx": "d8d380d2f8e4ab715b7a40e6c293032dcedcccfcb8996b96e33f58326f252e3c",
-    "app/dashboard/_components/DashboardModulesCard.tsx": "0e534f31f2fa841b65538a6f945b37aa2d6d5c68424cad31efec772bfc055562",
+    "app/dashboard/_components/DashboardModulesCard.tsx": "46412f37d0e499504344ded1fb3b48ee9de55c081ae3f8e68c683d8faca037f0",
     "app/dashboard/_components/DashboardNavigationIcon.module.css": "1c2b4f906f1e114cdb5fd9f9bd80003d78a2f748a532c40a79190302aa9034ac",
     "app/dashboard/_components/DashboardNavigationIcon.tsx": "1972ac7b8b2924d1659b718c32bf2dbbc854e8cf9e24e8ffd6445ce598f9fed8",
     "app/dashboard/_components/DashboardPersistentImageCache.tsx": "4a34a4273045a60ceda9ae71c8329f70a806bb78eef1071b27ea955ecc8e81f3",
@@ -216,7 +216,7 @@
     "app/dashboard/_components/DashboardScrollMemory.tsx": "b011787ae8613d894b439948f190bc9324712d622b2080e3265531894f5cf663",
     "app/dashboard/_components/DashboardSettingsDrawerContent.tsx": "e1a2d3a0d8965c5c4bd0ac2665359cb2efe3d7e996d047c2e675023fe9542781",
     "app/dashboard/_components/DashboardSettingsTabs.tsx": "435a1ff6157440e9d224aeb48f45ec8ba3f213cd80f98abbdd3d4016089ee6ab",
-    "app/dashboard/_components/DashboardSignatureTools.module.css": "7de482d2e7d7bfe9f4e7db742b981e6a07ac500fba9a8c6acf0e45b2f8342c78",
+    "app/dashboard/_components/DashboardSignatureTools.module.css": "1e5f55fd1b68f1f81d83af7e0295536577505652fc38ce278976d9de72d0ac78",
     "app/dashboard/_components/DashboardStandardModulesCard.tsx": "5cb16796b1c3ef3649d73bf3aedb83ceb61b7b9e08a1a6d31523cc5de13bc6b0",
     "app/dashboard/_components/DashboardToolArtwork.tsx": "a9b32850b90b795dca62d82d6895a0945e390b1895d6592bba7cc58d4c1c2011",
     "app/dashboard/_components/DashboardToolHeading.module.css": "15382765e7e70dd039574a658d4e3cd38abc76426d94df3a189dea5f593fad9f",
@@ -226,7 +226,7 @@
     "app/dashboard/_components/DashboardUnsavedNavigationProvider.tsx": "ecb3124d4670ce517e9ab69006451ddeccde8448e1db127dca7395831325ac5d",
     "app/dashboard/_components/DashboardUsageGuide.module.css": "acd210b7470972c743d5651f6e6e49d6dbf0d1b049b25c9ac32e08ca0c337a9f",
     "app/dashboard/_components/DashboardUsageGuide.tsx": "67ebcda61ac0c1312b8f0922db2ebf3e40edce80d2caca8601f843d27aca469d",
-    "app/dashboard/_components/DashboardViewerAccessProvider.tsx": "f7378745b3e511486d409e49a2f0416df6c5b56495ac312751b16f22b2b0b72b",
+    "app/dashboard/_components/DashboardViewerAccessProvider.tsx": "7b1c6ed43231416344f903a4ff754cef082b9f4ae4c211284e486dd8f5e4d255",
     "app/dashboard/_components/DashboardWorkspaceHeader.tsx": "c572d51cc1e60995a0c4147c356a4d4a4ce1223347da26c7981797f0fb165f00",
     "app/dashboard/_components/EditableChannelUrlField.module.css": "8b659e50b79a4a98ec7d69a645bd251f5bf7d20ab90cce93087bf61bd8bbe97b",
     "app/dashboard/_components/EditableChannelUrlField.tsx": "07a264aed86ed0df953659fc691ea2b67f52885e6f82ef2e551e57c3a783bbb6",
@@ -254,22 +254,22 @@
     "app/dashboard/_components/LocalMediaUploadChoice.tsx": "c224400cabc9ef3078720e1fe044a73e0b1f61d020defd358914d8fa23bc384d",
     "app/dashboard/_components/MediaBusinessDnaHelp.tsx": "b38fba0d7131789897c95597f49e86456f88e52a27b9c30dcefbab48078c53d9",
     "app/dashboard/_components/MediaCharacterVoiceInput.module.css": "6d8721e18c6e222f76cde5038b99b5b9f94ce6716f3a2424fbe2da7f7e7406e2",
-    "app/dashboard/_components/MediaCharacterVoiceInput.tsx": "e0fdc77a25455ea2b186b55e2b6fecd1e92be9a4c4a1a48f28326760e8521a98",
+    "app/dashboard/_components/MediaCharacterVoiceInput.tsx": "7164986b4235b6fed88d88f06c7e10bd99f54bb0c279b74d4dcad3faa2eddc8c",
     "app/dashboard/_components/MediaCharacterVoiceLibraryPicker.tsx": "25736ff7aef44265474e10c6416635f871ad7311a84268147e045c4c9a7e4844",
     "app/dashboard/_components/MediaEngineCreditControls.module.css": "70e8131ba2520810f6dffa0c95d28df1d97fc72dccb1ee07661fa5aafe48b7d0",
     "app/dashboard/_components/MediaEngineCreditControls.tsx": "0c772a7cb281299e6e9114b31f8b05e496f394761cb0b0420a5c7a1dd63139af",
     "app/dashboard/_components/MediaFreeGenerator.module.css": "2e255b275b459b7d4bf4832115744b17eacec7e831fe77d75c46ca2066b2fed6",
-    "app/dashboard/_components/MediaFreeGenerator.tsx": "177ea1883774d52ea1f7f3b35d7d78f0f78bde2fe303298441fd9d8c229e9a10",
+    "app/dashboard/_components/MediaFreeGenerator.tsx": "2ebf1246cc14fd7641b40dd95c173bbccfe6faef60d4f852d6659ecb15a944be",
     "app/dashboard/_components/MediaGenerationCreationWorkspace.module.css": "3e416d9a9e3da5c4789af771a2a4f68b4c23eaceeb10e9effb3adec55d21e7dc",
-    "app/dashboard/_components/MediaGenerationCreationWorkspace.tsx": "3a94bf08df7dc6a5139f1d7b655f014f89474392de6a1c623782a92cffce6394",
+    "app/dashboard/_components/MediaGenerationCreationWorkspace.tsx": "5b17c488aa840adea3babf47630f1da9b7d7788c91a65b006cd497a14882f8ab",
     "app/dashboard/_components/MediaGenerator.module.css": "29215a48724dd914dfd3d7bcd526f5e0509312632e45f855a44fdf8feaed2f80",
-    "app/dashboard/_components/MediaGenerator.tsx": "4c558d2bff82349fd566d63c127f2d3934fe50facd7868cb1719cd3552de1c63",
+    "app/dashboard/_components/MediaGenerator.tsx": "3abb5f9c10c7a6d4ea11a36c2420a10a642fb03a52b37ce020b24a4a6ac3c3a7",
     "app/dashboard/_components/MediaGeneratorModal.module.css": "70ead30462680e48eb6af26d6c5095791e74afb3f9aec216895dbe5f2fe60d28",
     "app/dashboard/_components/MediaGeneratorModal.tsx": "98d0d66fa68179398ad94494491615e06a894b6837847ed798885e2e409d689d",
     "app/dashboard/_components/MediaLibraryPickerModal.tsx": "0e8ebc9a3ac28769a1ea7c93657f93b3af86dc8caa3ee25429f891f45f938410",
     "app/dashboard/_components/MediaModifier.module.css": "6541daef24dc92d9920126f83b995d205fa35fb5795ad894c348870ec42fe2a3",
-    "app/dashboard/_components/MediaModifier.tsx": "ad6fbb5dbbe96ced78c9fc20e4848aa85abb48f59da4b019dd1e2a527e730ede",
-    "app/dashboard/_components/MediaOptimizerModal.tsx": "d371710686b4eaeb98632090c2dd0081c2504dd5540f439fc5fa9d92e6d6342a",
+    "app/dashboard/_components/MediaModifier.tsx": "b59c4d0b1c620d5683f4d9c4b9303d803121996c0504ebe4a2de42006dcccd4c",
+    "app/dashboard/_components/MediaOptimizerModal.tsx": "c04f2846ab59333488817b51e32b75a43c6ddb8c268811280d99e0340bc15180",
     "app/dashboard/_components/MediaPromptHelp.module.css": "05a6574a1e304c84939d3ddc89c82854690ba8034ef9c4385b3afcca74d58ca2",
     "app/dashboard/_components/MediaPromptHelp.tsx": "65e2cd9ee55eadf7b1ab57da2216b56d0c73384d6b74e500e0e13dafaa15411c",
     "app/dashboard/_components/MediaQuotaSummary.module.css": "9b6d98b17b735d34ea44210b6a1a7181ca9ffcbcf8a00e7f28e914287ad2baab",
@@ -282,7 +282,7 @@
     "app/dashboard/_components/MediaRetoucher.tsx": "b53f7b58ad8633a4e49fcef49c5242b6f75632d12b66d2250c935708c1e90f50",
     "app/dashboard/_components/MediaSoundtrackSelector.module.css": "bf2741a3ddbce3e43918b85ea5bee374b216a9199086f5e25e9cbaa35baff063",
     "app/dashboard/_components/MediaSoundtrackSelector.tsx": "0b9b36ddbd52223d034d96c16ec7d8081ddfad5c3def3a039d53d6dfbefbfa3b",
-    "app/dashboard/_components/MediaSubjectVoiceButton.tsx": "c307d9bb7a217a0fe51c3ef7bc6a85a04d53a360aa435a229034e3a3ed87aa27",
+    "app/dashboard/_components/MediaSubjectVoiceButton.tsx": "a64b49087b2395324a9ab82332f414475213bd541d01e082012dccefe1aba4d3",
     "app/dashboard/_components/MediaVideoRetoucher.module.css": "c14bc67f5fefd12ab9f3025b355bead0881b654a93fa1b6823197eb80f7ad779",
     "app/dashboard/_components/MediaVideoRetoucher.tsx": "f7f45c498d6522f8a9bd84dde11e5b472b2b242626aac3b11b3bdbe345c45ff0",
     "app/dashboard/_components/MetaOAuthCallbackNotice.tsx": "13c4f0c04b9a7cd60ea34c7ff9e104962523a43ab6d86daf2d8b64c9b5ff1c9b",
@@ -292,7 +292,7 @@
     "app/dashboard/_components/PublishExecutionProgress.module.css": "76e0500b6a548d3f416dd17ded8f6f469dededd3a2db4d64ba33f897e7fc451e",
     "app/dashboard/_components/PublishExecutionProgress.tsx": "2098cea0cda2e33b126da59e697ec6a3009d06f2286ef153a0a18ac54e2e7c34",
     "app/dashboard/_components/PublishExecutionResultModal.module.css": "76c65c20301665a920cda8999fa0faa4ee833db41a3c4ed253da9257e0f2df55",
-    "app/dashboard/_components/PublishExecutionResultModal.tsx": "8832a9c82e9c573fdf5173326af10483d2a6293e4488aa09a0e09edca6d4565f",
+    "app/dashboard/_components/PublishExecutionResultModal.tsx": "0785dba57341159d2bde2499d6da57b9754fae2c8b004212423c8cd91c2ee44f",
     "app/dashboard/_components/PublishScheduleModal.module.css": "6deb4065df637f85c27120f9fc9ee1337d30955ee0e682415fd7966f9220f52e",
     "app/dashboard/_components/PublishScheduleModal.tsx": "d54c9f82533666c03cb06c561f1e741bc314f22164bd201b393ff73395ade2cf",
     "app/dashboard/_components/ReferralPanel.module.css": "3a2000ee5014bb349d2d529c94670a1ffbeb4817a3c01e9d1e04cae35ad427d3",
@@ -300,7 +300,7 @@
     "app/dashboard/_components/ResponsiveActionButton.module.css": "13e062dd0758296d75b631ea86f714a43b991435469b8a3587ceb9a4f11b939a",
     "app/dashboard/_components/ResponsiveActionButton.tsx": "a6bb689a8a64b49750d94e708930b733a34eccc51a28d41dd29e51dadbb54c85",
     "app/dashboard/_components/ResponsiveBottomNav.module.css": "d48bb4361c242898f6279d500f74842a891f99c54b45e12d1799abafd7275b96",
-    "app/dashboard/_components/ResponsiveBottomNav.tsx": "d094daa7d6b8904dae0fa555de752ca2182c5a4154fcadac0b6281f9c6c2f16a",
+    "app/dashboard/_components/ResponsiveBottomNav.tsx": "1a7ea1f8cf8b12a9012b1bf0dd0be22391f60aaa5d8ef9f3e2732b146a0536fa",
     "app/dashboard/_components/RichMailEditor.tsx": "91d230ebfb42eaa01bfcd427fea37a2a9eafce8b6999fe001ede08e43512de2d",
     "app/dashboard/_components/SaveIcon.tsx": "f11ff2d7299ef6181ea74fd4f92a68e9b916f868f0219521650daf5c39b07a68",
     "app/dashboard/_components/SchedulePlanningPreview.tsx": "490774584bc8692c743d81b21b4c57dfdb3aee75273b496cb833645e21a502f1",
@@ -404,6 +404,7 @@
     "app/dashboard/_hooks/useMediaEnginePreference.ts": "90e024fcf452c0c37540008b48dd3f742c29dff9094be27e779d21a764c17b65",
     "app/dashboard/_hooks/useMediaGeneration.ts": "e0c79fdd96eb17b65e0f7f26d588a130b81c0ebdd96fb4fe209884b425e6e56f",
     "app/dashboard/_hooks/useMediaResultReveal.ts": "3fa2c85256a4a7d574754ac332ec16f8662d554d6656c336fe11b367df3276a7",
+    "app/dashboard/_hooks/usePaidMediaAction.ts": "295c1146e05d19e8b66383e3718f2bdf7c27a77d353f49cdcd25324d78183ae3",
     "app/dashboard/_hooks/useReferralForm.ts": "8b4a4c5917f6fdfbdbb5940b3ecf3dd2aa7e0bd09358da3fd4bbfa2d2ceae96f",
     "app/dashboard/_hooks/useUnsavedExitGuard.ts": "4e2ca6bd1df1311ef91c154ae9f5a13ebf162c533892dc01df9f600b6a2c5b6c",
     "app/dashboard/_lib/workflowCampaignState.ts": "9fbb54b379b9ee05c3e25ab5d543da44f85ff7f437399955ebbf36a848c98424",
@@ -504,7 +505,7 @@
     "app/dashboard/booster/publier/components/PublishChannelSelector.module.css": "01f4be1ce6f4413f550cd02f6fd6a4f17f6430d034c33ddd4038a6b3f200b1ec",
     "app/dashboard/booster/publier/components/PublishChannelSelector.tsx": "15f5fc17ab975013ecac81da520af52b51cdd86ae159080dd7af8affc973e122",
     "app/dashboard/booster/publier/components/PublishContentAdjustmentModal.module.css": "ac426d4bc423ba3f7a0f65108cca71e773fce375f6c55d682c955f24220bd003",
-    "app/dashboard/booster/publier/components/PublishContentAdjustmentModal.tsx": "2504f63d0f193489a4388d61aeecf2e39acf57de9b82a7d3022109f82a6d20bc",
+    "app/dashboard/booster/publier/components/PublishContentAdjustmentModal.tsx": "8fefc4931648cb970b25f7e424e117562532aa54bf13817020eb1406931af043",
     "app/dashboard/booster/publier/components/PublishContentEditorPanel.module.css": "6dfc02f541fc796fc56acdf6a84afec8603449be0ee28d0523c4e25b628ca815",
     "app/dashboard/booster/publier/components/PublishContentEditorPanel.tsx": "ebaa9d413b12c8c59279276aea88bb66f8fcf2d6a3448f4c9d0bf99c5e2fecc2",
     "app/dashboard/booster/publier/components/PublishCreationModePanel.module.css": "c23e5873d6447597991347e8d6bc3aa0066348a8b3acd789ecbba04e7dc89f7a",
@@ -512,14 +513,14 @@
     "app/dashboard/booster/publier/components/PublishDraftHeaderMenu.tsx": "89390e61920b197b799292de8e436e903a46a696f79fe6c286261b9433a902f6",
     "app/dashboard/booster/publier/components/PublishFinalReviewModal.module.css": "a3d523462b0f832fb46d2b038ee32cb936e1a49c8f04e56dfc8001b963019235",
     "app/dashboard/booster/publier/components/PublishFinalReviewModal.tsx": "2c19ba30f7ef2bd44000cdd858e54059e8844f19ef4a860c622089ca049b7dcd",
-    "app/dashboard/booster/publier/components/PublishFooterActions.tsx": "c7f75dceda93c07fb0a84eb7e328d4c673daf130e67b4a2399bda9cfc3b8a690",
+    "app/dashboard/booster/publier/components/PublishFooterActions.tsx": "36fdac7fa55c0854df101c23f669032e2b04d95196931dfeb1c9309761f1b0d3",
     "app/dashboard/booster/publier/components/PublishHelpModal.tsx": "b6f006b4c4f139c0a6352e118f4ef3178e99f4bbadf3b7f4f4e5dbdbd7e554d0",
     "app/dashboard/booster/publier/components/PublishIntentPanel.module.css": "f24df97aab58e5ddbab0c28877cd2c1750527d4e4dcca8133f717ef94f3423bc",
-    "app/dashboard/booster/publier/components/PublishIntentPanel.tsx": "8b1030fde38c1ad3b21874b6baa23777f0ad63f832123edc61fb4ec32ddbf8ec",
+    "app/dashboard/booster/publier/components/PublishIntentPanel.tsx": "cc2f704c9537246f26ee3392be222d7b991dbc1f171ff95e2d8e52fb0873a0e3",
     "app/dashboard/booster/publier/components/PublishMediaPoolPanel.module.css": "c4253979d8257c5c8bd29599d500ee4d4277aea273cb018847079ef040596e00",
-    "app/dashboard/booster/publier/components/PublishMediaPoolPanel.tsx": "592c026adab9eebf6d7222e4f4402589f66dcf2b0faef1db3147df1312d27936",
+    "app/dashboard/booster/publier/components/PublishMediaPoolPanel.tsx": "84f10960ac493e942f2b64c8cd70de79be1bb099304678c95e4fae330b677726",
     "app/dashboard/booster/publier/components/PublishReferencePicker.module.css": "36e1094ac4930510fcb2b01e49d8a52b5691baaba69672eaced9afb11b7e8696",
-    "app/dashboard/booster/publier/components/PublishReferencePicker.tsx": "ee7e6cd1a18b247b1633f6216815418fb8e9ce7a9f685d6f20da37f0f60829dd",
+    "app/dashboard/booster/publier/components/PublishReferencePicker.tsx": "f6c3c54c4b07152dc979e009ae577de3609e76ee23e1497bb467b2d37240d58c",
     "app/dashboard/booster/publier/components/PublishScheduleModal.tsx": "800ec16a316bb08b574eca0f4e4e6c081af540f458cca933de626aaedd99139d",
     "app/dashboard/booster/publier/components/PublishStepTitle.tsx": "9b621e7f018b48612060b135fb725f7bb02ad811ae132cd09250b2dfdd1643ee",
     "app/dashboard/booster/publier/components/PublishValidationBoard.module.css": "da8bf2eac2853766dd55d1b61942f6eee8059c5a6169dc1eafbb2b207bf81c8f",
@@ -558,7 +559,7 @@
     "app/dashboard/booster/publier/publishModal.styles.ts": "3007d1a38035d277bdf0974d0a5c9260e82eff7ab86e85080753ec9d96bbbfba",
     "app/dashboard/booster/publier/publishModal.videoAiRuntime.ts": "d0ab9f16e5b97fd328c69d1daad7c78a53f4bde2345bcf7e3ddefa4c223bccd7",
     "app/dashboard/booster/publier/threadsPublicationUi.ts": "99809a10d16b079eb9638d6d71f170280fb54716867900cece6a028459c85d8e",
-    "app/dashboard/booster/publier/useBoosterGeneration.ts": "e0304ede9a7dd4ae9f3bd893b2417992684a677de50dfb813759505a9b60162d",
+    "app/dashboard/booster/publier/useBoosterGeneration.ts": "81adad3c7c5b460c4793534a6db12746399ad3338be31625e56891e5c6908ce2",
     "app/dashboard/booster/publier/usePersistentMediaWorkspace.ts": "71e47cdba3d8fd247431e992747694d8a9b6476bf60456ad33eee5cd53888a91",
     "app/dashboard/booster/publier/usePublishImageController.ts": "334cd6272305faf519426b70922b9bde324812764963513eebf33e0ab1b042bb",
     "app/dashboard/booster/publier/usePublishVideoController.ts": "cc95e53cb912dea05ed5f6381e7de8a846b9dfa8ada9b2dffc87cf4c75ca38b8",
@@ -579,21 +580,21 @@
     "app/dashboard/dashboard.types.ts": "958add7609c873d256429885205b20dfd7360cc7ba7161d7bb8430b05415828a",
     "app/dashboard/dashboard.utils.ts": "566cd0eab60c877c038451f80250955e5ebaa0f106ae274f3f4da2d2d406b923",
     "app/dashboard/e-reputation/EReputationHeader.tsx": "cc833b120ca175d900f74a1b3695be4e0caffc4945047e2a99760e73d23f2692",
-    "app/dashboard/e-reputation/EReputationReviewsClient.tsx": "f918853d60aa34274a54cc958d9c28b5143756c61c14b800755e5b55e672b6eb",
+    "app/dashboard/e-reputation/EReputationReviewsClient.tsx": "c62357f208ae156e0c2be40f819c8e9a4852390f531855fcedd114e70baebc35",
     "app/dashboard/e-reputation/eReputation.module.css": "b200a2055bcb75aad0d376b6979cdb66e410d4ed8a44962ee5f4bd7a57fd8051",
     "app/dashboard/e-reputation/review-page-cache.ts": "cc57b7dd0623e7079e754fabb29abf2cadee8b875614d820da5ceef2b34833ba",
     "app/dashboard/generer-media/MediaGeneratorStudioClient.tsx": "5ecaf5325711c7b8093154067cf905e279f6fdf3b13dc083fb9a30f3175f06e8",
     "app/dashboard/generer-media/mediaGeneratorStudio.module.css": "20223146bcce68c110e47e9a5d15d38a904ae39f510a5e18b5f349a2da7db620",
     "app/dashboard/gps/gpsEditionPolicy.ts": "b25d5ad31e90b04f87ad9474dd80bc009bb20edfdbd871f6151f64fcecd61878",
     "app/dashboard/gps/noticeContent.ts": "f1f67cef69089570fbb5a08cd62ee3a9b39e11c646ed018ae2bb9a2348d2e2ce",
-    "app/dashboard/layout.tsx": "fcf807ba615e606e61cc9faec2afa71ed3bf1f856195daea83b6569eb1890e0e",
+    "app/dashboard/layout.tsx": "3aecace81309b715010917dd0e621ab9500b34da19e4b180ada229045f9051d7",
     "app/dashboard/mails/MailboxClient.tsx": "ac4bf68a7d57ad48e1b7c20044d14ffa9118bf990bb41566999f3c8ed83379dd",
     "app/dashboard/mails/_components/AdsCampaignDetailsModal.tsx": "d8e3aa55d0ad0d7c647f6653ecb48811556921e428aba151ce09b2ab3862052a",
     "app/dashboard/mails/_components/AdsCampaignsFolder.module.css": "a3d407efc29c4064a111aa9de4484214232d8b8597442c52c7bf930eb9aed64d",
     "app/dashboard/mails/_components/AdsCampaignsFolder.tsx": "87b93f970bcb3dfbe6ce53fb8f1bb7670e682819362f317994d3ead5e3f719ed",
     "app/dashboard/mails/_components/FolderTabs.tsx": "c3c54d4970dfea49feffbc4668f6329f547ba8f063f06a8f653649e365d062bc",
     "app/dashboard/mails/_components/MailboxComposeModal.tsx": "705335558ad402d035b151a6efd2b06734a31f10a09e4c1739650b2dd3e241da",
-    "app/dashboard/mails/_components/MailboxDetailsModal.tsx": "d3fd614626e2cb6fe69f91551b5b67b7c22b2d49100a855ea4e6a35a049a15e0",
+    "app/dashboard/mails/_components/MailboxDetailsModal.tsx": "bee6756e8139275c22b8d234a63804b8768794d518c099e097062592f397ce9b",
     "app/dashboard/mails/_components/MailboxHeader.tsx": "86ddcda894e410d0e9821b48a818faee8ceae64d7b92bddc69a9c911629e90ca",
     "app/dashboard/mails/_components/MailboxList.tsx": "0dfacc0218302a8b8fe674a0eb88894bd41a4d0f005e07ae990cc334e6a5bc83",
     "app/dashboard/mails/_components/MailboxSearchPanel.tsx": "9eedceca2294d31463a20cd245288465068fcf9ffe0f8c31d961d0bfe9411613",
@@ -633,15 +634,15 @@
     "app/dashboard/settings/_components/AiChannelCtaPanel.tsx": "1e06afca1ad07f72a52077cc4050c2c7588c411502007f318ea2c2d985dcf9cd",
     "app/dashboard/settings/_components/AiConfigurationContent.module.css": "22f8b9490d168a56f6890d23ae9b6a501f6c3bd8fa04a3e5b62a0f6a97cdc6e3",
     "app/dashboard/settings/_components/AiConfigurationContent.tsx": "2946b6a8ab6ad86878cb9f7e083c40d7dd81f7ea495f038f9dc16fc9f8988384",
-    "app/dashboard/settings/_components/AiMemoryContent.tsx": "69ebd0a1d320bc33867ce929e59838d42f7acb9547fde7a8b5fe51e1a224a9e3",
+    "app/dashboard/settings/_components/AiMemoryContent.tsx": "cbccfb006db0975e161ee74d2417c3134bcacd5fd6cf3ebf297c633ac5279b82",
     "app/dashboard/settings/_components/AppAppearancePicker.tsx": "5408ba8f4f0e04bdb74dc46acb350b56d4193a16cb41d21c0c47fc3fd616a3dc",
-    "app/dashboard/settings/_components/BasicSubscriptionCard.tsx": "173d7d60c5fef2d893fc01456dfe28042b37a0f41092aae2920da1d839d9d39c",
+    "app/dashboard/settings/_components/BasicSubscriptionCard.tsx": "7fdad22bbef63da3ba5833fc2aac1a23824e1b498cba37e58605c75c5c8c1dd7",
     "app/dashboard/settings/_components/BoutiqueContent.module.css": "05577d1070a0808741bccf666620fc77ee21afa2dbb839a12089508c82486c3b",
     "app/dashboard/settings/_components/BoutiqueContent.tsx": "df002fd9f645e56fe9843e58708d3c33db014ad8c545d92be4025168729fd606",
     "app/dashboard/settings/_components/BusinessDnaAnalysisScheduleModal.module.css": "1acfc5864f1036687f6948e13307019d9997422cf175797f63f17a0a16703b62",
     "app/dashboard/settings/_components/BusinessDnaAnalysisScheduleModal.tsx": "2e0f55656acb018f0a0ea83da1b41582188638d7d207cf9d78d00d5cc7fca2af",
     "app/dashboard/settings/_components/BusinessDnaAnalysisWorkspace.module.css": "51aaa68b9eef7a17489f0cb25bdccd51115f2f3f17fdcff150ed4730310e7c67",
-    "app/dashboard/settings/_components/BusinessDnaAnalysisWorkspace.tsx": "e94ca6c0b98b8f640cd6a4a5eb9649119db93fb9f9fc17bab01facebf35fc16b",
+    "app/dashboard/settings/_components/BusinessDnaAnalysisWorkspace.tsx": "9c123e17c06c84cf18c1291f7296a4c9706778a09296c573262ccda8452d6306",
     "app/dashboard/settings/_components/BusinessDnaRichTextEditor.tsx": "51a5049c716f3305e98bb04dccad7f561f5f78c9d11374a6038008424838ff04",
     "app/dashboard/settings/_components/BusinessLegalSettingsCard.tsx": "f57f1d59308172edc39f1f6f70b7d88735517ec2d6670169f1d89f910b992a74",
     "app/dashboard/settings/_components/BusinessLocationFields.module.css": "38f826ca7a745a25b7b68a8a9b71e7d71d598ae0b87079207483a9aea3e37c79",
@@ -674,7 +675,7 @@
     "app/dashboard/settings/_components/ProfilContent.tsx": "6b1d2a806a1e8818bf45291373f9d7769b351edff48591e4c62108ed9368715a",
     "app/dashboard/settings/_components/RgpdContent.tsx": "bfee52c465c031825afd91d929d874e480bcc12456c0048c7f2bd0568e5f10fb",
     "app/dashboard/settings/_components/SettingsSections.module.css": "987037bf684e3084cb3b451d46edf2f174349fabe17e371dde29affce28b78fb",
-    "app/dashboard/settings/_components/StandardSubscriptionContent.tsx": "7025ebbf4c805233dfef2f022c202a2081058f3bbb1cbd08236ad63274c3ff66",
+    "app/dashboard/settings/_components/StandardSubscriptionContent.tsx": "4a734a8b1a654f1e7b979f3d54766b97f961370d61f23a07a73bb8c0cbcf8eae",
     "app/dashboard/settings/_components/SubscriptionComparison.tsx": "11fdfcd1f80c7bf6a0a7dacd8649efeecc6a9809d7262ecec648a44464fb9193",
     "app/dashboard/settings/_components/SubscriptionInvoicesPanel.tsx": "4ef8d202df37c5735d70efa4bf7bb170eb66fb0cac84178553618271f1658bde",
     "app/dashboard/settings/_components/SubscriptionWorkspace.tsx": "06e41b0b5f5f4d0d93341204efa3a6e8dc02b77f73b64faea36ca42e9651cd93",
@@ -1080,7 +1081,7 @@
     "lib/decision/businessReadingBank.ts": "9a6db543addd0223925fd2ddf35ed04502ab26f8aadd5bf25313f7682754d087",
     "lib/decision/decisionEngine.ts": "80e07b33c8d9ac68f987db2e3551f7cd10eaba5a20be6d41db45c3812be3df4e",
     "lib/deterministicPublicationId.ts": "71e4b50cbfa150da1170aed76b928d7270a2a7fb96c4fb9e4e083254c47bbb09",
-    "lib/directSignupPolicy.ts": "23c37e05be8bbc351a1c867cdbef52cd5f5cf344fb84aee90fc3e901c4e61e26",
+    "lib/directSignupPolicy.ts": "27056e2f9d58fa47bb03d41aec300992cd620207ebb5ba5b199d3ce42b64dbf4",
     "lib/e2eServerFlags.ts": "ec8f8e8a12eedfa6d36824aa244119d6b9cea652d2188a28bc177257a98b94f4",
     "lib/elementStyleLock.ts": "b2188ea90f2b93ac1ba976232a390914305cce8c39670c757bee3450a8ec5936",
     "lib/ensureProfileRow.ts": "71db57d6e90c427a9b5e5c041a5de5530c5d41e29abc481c56896c6488431f40",
@@ -1203,7 +1204,7 @@
     "lib/inrAssistantAgentSettingsNavigation.ts": "44160f6dc60d20fb768a7d2949659dd712581a4f6793d2ddd3a0e415dba72a16",
     "lib/inrAssistantAgentSettingsUi.ts": "4c59986b974e65918aea8ea0b95014555cf04e3371a98dbefc44e51d2f80e12d",
     "lib/inrAssistantAgentTools.ts": "6e5e35362f8e09110e607160ff306f9e661100dc105861e88abac4f9a84183bf",
-    "lib/inrAssistantAppGuides.ts": "5964b6a8e946198213201d54c5c53c021bacc8fee3a5f9645dae8e9baffbedcc",
+    "lib/inrAssistantAppGuides.ts": "7a007673786e74d35edb56e3a4461858eefb811114077e50f5b813f8cb9c1dd7",
     "lib/inrAssistantApplicationPreferenceTools.ts": "99b9fadf1c3f34a9d0c65d5a4c166e68eefb00bb2de756ad57822d8b9fc0aa2d",
     "lib/inrAssistantApplicationPreferences.ts": "c15a9aea47ddce8c85856109a7b78ab1424b68d2bbbadce81d40bfadbaf43422",
     "lib/inrAssistantAttachmentAnalysis.ts": "4d19cbc49a889d207e1441085633ce64af6ae31dfac39478d0c60f687affb97f",
@@ -1238,7 +1239,7 @@
     "lib/inrAssistantClientContext.ts": "c10dddeaae52d8ae631a188868abd7e78aee20fa81ee515db65c7b578e91a5b1",
     "lib/inrAssistantClientStream.ts": "90482c1589bbb4cc072878fc841b19a8d29a23b354904e269911ca9aec92880d",
     "lib/inrAssistantClock.ts": "821d5394814c09b0481815d6db958036842ca54e84a6ef8c45761e7db5201065",
-    "lib/inrAssistantCodeIndex.generated.ts": "e8e198e568e110a7adde8a0d2939a426d2f45247b9ab5f4107c6f8f9e124e37c",
+    "lib/inrAssistantCodeIndex.generated.ts": "e105130cee23db97380794faae048190cff520e664d213805dfe2ef2a22a77a1",
     "lib/inrAssistantCommandRegistry.ts": "977519362eeaa8bd09a4f95718dab9949d0f0ec6fe41bc20d811513fecdf1713",
     "lib/inrAssistantCommercialTools.ts": "adf43e53336059c901c489d72ec6ae431ca32acd388183fe7c9812aec1649c3b",
     "lib/inrAssistantCommunicationIntent.ts": "1fa38fc900c244ce8fc5fc1f2a0be6686ee52dd533aacb37ae0cffaf8d06aad5",
@@ -1269,11 +1270,11 @@
     "lib/inrAssistantGoogleBusinessDraftUiTools.ts": "cf6e0c4c8e0700629517bf1ab91e06387520f5d76325ad8ef05370b45a7bfa55",
     "lib/inrAssistantGoogleReviewDraftIntent.ts": "bb7a17f0441ef4b812427babe3a80b5cdc268b784867cf4a05d533ada27fd538",
     "lib/inrAssistantGoogleReviewTools.ts": "320906763262c5363b5a4072db20c6ef6f88442f5cdbe3578496f7e15c6d01bc",
-    "lib/inrAssistantGuidesAccount.ts": "a0380531b1638cb79208d205239a06ff6ee172fc67155a23df5d8d28af8208fd",
-    "lib/inrAssistantGuidesBasic.ts": "b2638493bd44d0d2e5dd361a1d02e31cb456f90b597e60217a9b5603ee5bd225",
+    "lib/inrAssistantGuidesAccount.ts": "c406871f32f74b5346fcd1cbcc3093ac0422f61486b961b61ad0955020e418f4",
+    "lib/inrAssistantGuidesBasic.ts": "65af1a567493820e4f68cde11fb4a0979711b5561139e095c3b605437fbff2f7",
     "lib/inrAssistantGuidesContentLimits.ts": "dcdba643d6a24d46c2f73a93c18759086f570182a051fec07a797013ab533d53",
-    "lib/inrAssistantGuidesCreation.ts": "4b82e9109a1b7b91a96157c74d2920360f5760c54715e27bb0dcc6021b24de8f",
-    "lib/inrAssistantGuidesManagement.ts": "a7cc27031cac14b1bd45f81fce59d88f5c289336279433b274c5728dfb43a5c7",
+    "lib/inrAssistantGuidesCreation.ts": "b628dcd52280135352deba6788dc27b84e4026ee0c7b42f4eac53d5e33fb7e9d",
+    "lib/inrAssistantGuidesManagement.ts": "ad4e29f95194a5b7e9d03b00232b21c0b26b6ac7c9a816eef1fbd8d83f3b1bdb",
     "lib/inrAssistantGuidesRecovery.ts": "c358fbf35f7b6dd6747752708f5135e130c685f1f08c5d8dff5950e4cf2fdc87",
     "lib/inrAssistantHistoryUiSelection.ts": "8c50a751e1ebbdea554c89c8d573b501b5d89d70f8dfabe603495ea43a0d2c69",
     "lib/inrAssistantInsightsTools.ts": "15e2ccfb69c04ca1392c02656ac22690e4192b912e56a58b42731d5d202f952e",
@@ -2035,7 +2036,7 @@
     "lib/youtubeShortsAnalytics.ts": "923caebae24cfbcc50428e4a2ece581a6fe2d5cbbcee317ae2049c0ad43e09eb",
     "lib/youtubeShortsOAuth.ts": "9e225fa7aad51eb599fb0c146a82ded5fafc657a941fe92d2b8b018baf4d80a8",
     "lib/youtubeShortsPublish.ts": "40d7f68f3a080915fceb4401abeba5dc4e4f5308513a0ffd18f1b4bba6dec807",
-    "proxy.ts": "6b451d3d139e31de4fc08fbe7494f998409efe773ea9e26d48c9a29abbe92ff7",
+    "proxy.ts": "6630e96e00f8025bfb6a61753c97775a356d621232b63e0044235af41d7bd94e",
     "tests/ai-assistant/account-invoice-hosted.test.mts": "6dfa365d8f15e77b718f4490604c34c9de748e4ec83c23d2fb4ffc875444e208",
     "tests/ai-assistant/app-guides.test.mts": "c52ebe2cd1b388f1d93dd22b239f4b96bf639f78b8a60319a4cbe0d9af4a735a",
     "tests/ai-assistant/basic-account-services.test.mts": "7db5a14f9eaeba33c11fc3257946eaeae6d8a596ee7e0e069d799a6d740be268",
@@ -2132,6 +2133,7 @@
     "tests/dashboard/dashboard-mobile-menu-runtime.test.mts": "12a6dae03859769ea145a37bb96b41e4a9aa666d5244677f2dd4fd872323b17a",
     "tests/dashboard/dashboard-notification-mutation-scope-runtime.test.mts": "901916d6a5fc3abe2f4b70175d3f578555dd9db1f7d0a02839d7ab014aacbf6e",
     "tests/dashboard/dashboard-shared-tools-runtime.test.mts": "9e632cb6fcf74cbf504c961fe147d176e223d6ce6d9df2b82033ec52f3c007e7",
+    "tests/dashboard/discovery-media-button-browser.test.mts": "cd66222f1991fb2b6af1e657688cbad9f8f501667d7e39a57afe240ed84e0cad",
     "tests/dashboard/gmb-location-selection-ui.test.mts": "8afeca3ad7e456b0d6d754174f51f96813b9d197b6669d4944d3c69e7b6f9677",
     "tests/dashboard/gmb-verification-server-runtime.test.mts": "da280d37ef45925229f47af2d18000baf931feead73d74011cf768a7d13dfadd",
     "tests/dashboard/gmb-verification-state-ui.test.mts": "bb1439a720845ec959e42a41e2026cccd60a858630a6eafbbd6122fa15a3a02a",
@@ -2519,7 +2521,7 @@
     },
     "app/dashboard/_components/DashboardAssistantSession.tsx": {
       "disposition": "basic",
-      "reason": "Revue explicite de l’icône iNr’Assistant v3 approuvée : un seul point d’interrogation au-dessus du robot, fond transparent et ratio contenu dans les dimensions existantes. Seule la référence de l’image change ; labels accessibles, handlers, session partagée, menus, droits et confirmations de navigation sont conservés. Cadrage visuel compensé pour garder la présence du robot antérieur malgré le point d’interrogation ajouté au-dessus, sans changer la place des commandes ni leurs actions.",
+      "reason": "Surface du canal de conversation et de ses commandes métier. Le bouton d’envoi ouvre l’abonnement en découverte ; les pièces jointes, navigation et confirmations conservent leurs contrôles de portée. La preuve navigateur synthétique d’un autre bouton média ne certifie pas ce canal.",
       "gateFiles": [
         "app/dashboard/_components/DashboardAssistantSession.tsx"
       ],
@@ -2589,12 +2591,12 @@
           "reason": "Infrastructure du canal de conversation : saisie/envoi ou reprise des instructions, fichiers attachés à cette saisie, dictée et présentation du chat. Ces contrôles ne sont pas des opérations métier Basic ; ils ne peuvent pas fabriquer leur propre autorisation utilisateur. Les décisions média, insertion Studio, contact et navigation métier restent recensées séparément.",
           "gateAnchor": "<button type=\"button\" className={styles.attachButton} aria-label={attachmentCopy.attach} title={attachmentCopy.attach} aria-expanded={files.menuOpen} disabled={pending || files.busy || files.attachments.length >= ASSISTA"
         },
-        "app/dashboard/_components/DashboardAssistantSession.tsx#button:a1053b5d4c957fa9:1": {
+        "app/dashboard/_components/DashboardAssistantSession.tsx#button:a2e23caa2146edf8:1": {
           "reason": "Infrastructure du canal de conversation : saisie/envoi ou reprise des instructions, fichiers attachés à cette saisie, dictée et présentation du chat. Ces contrôles ne sont pas des opérations métier Basic ; ils ne peuvent pas fabriquer leur propre autorisation utilisateur. Les décisions média, insertion Studio, contact et navigation métier restent recensées séparément.",
-          "gateAnchor": "<button type=\"submit\" className={styles.sendButton} aria-label={copy.send} title={copy.send} disabled={pending || files.busy || (!draft.trim() && !files.attachments.length)}>\n            <svg viewBox=\"0 0 24 24\" aria-hid"
+          "gateAnchor": "<button type=\"submit\" className={styles.sendButton} aria-label={paidActionsLocked ? `${copy.send} — ${boosterT(\"wizard_preview_subscribe\")}` : copy.send} title={paidActionsLocked ? boosterT(\"wizard_preview_subscribe\") : copy.send} disabled={!paidActionsLocked && (pending || files.busy || (!draft.trim() && !files.attachments.length))} style={paidActionsLocked ? { filter: \"grayscale(1)\", opacity: 0.65 } : undefined}>"
         }
       },
-      "sourceDigest": "49ecf9694f79628013183de1c677eb060d85129cf4c5f84ed7a7437a60d93808",
+      "sourceDigest": "3ba37adcf4ba376c0816b393585c6195b2ee6284c77c3c5cab29d190594d1692",
       "controlIds": [
         "app/dashboard/_components/DashboardAssistantSession.tsx#dialog:483d57280538c1dc:1",
         "app/dashboard/_components/DashboardAssistantSession.tsx#button:1f4da767378fdaf0:1",
@@ -2618,7 +2620,7 @@
         "app/dashboard/_components/DashboardAssistantSession.tsx#button:990172e6314df88f:1",
         "app/dashboard/_components/DashboardAssistantSession.tsx#button:2672265d89d85049:1",
         "app/dashboard/_components/DashboardAssistantSession.tsx#button:53470d97590b512c:1",
-        "app/dashboard/_components/DashboardAssistantSession.tsx#button:a1053b5d4c957fa9:1"
+        "app/dashboard/_components/DashboardAssistantSession.tsx#button:a2e23caa2146edf8:1"
       ]
     },
     "app/dashboard/_components/DashboardAssistantTrigger.tsx": {
@@ -2779,7 +2781,7 @@
     },
     "app/dashboard/_components/DashboardModulesCard.tsx": {
       "disposition": "basic",
-      "reason": "Surface partagée accessible au professionnel Basique. Chaque contrôle est lié à son contrat effectif ; form signifie préparation/guide et non exécution autonome. Les exclusions locales sont seulement des gates payantes ou des conteneurs techniques explicites.",
+      "reason": "Surface partagée accessible au professionnel Basique. Chaque contrôle est lié à son contrat effectif ; form signifie préparation/guide et non exécution autonome. Les exclusions locales sont seulement des gates payantes ou des conteneurs techniques explicites. Revue du mode découverte : les actions payantes sont soumises au verrou d’abonnement et les commandes restantes conservent leurs contrôles natifs.",
       "gateFiles": [
         "app/dashboard/_components/DashboardModulesCard.tsx"
       ],
@@ -2814,7 +2816,7 @@
           "gateAnchor": "!standardMode"
         }
       },
-      "sourceDigest": "0e534f31f2fa841b65538a6f945b37aa2d6d5c68424cad31efec772bfc055562",
+      "sourceDigest": "46412f37d0e499504344ded1fb3b48ee9de55c081ae3f8e68c683d8faca037f0",
       "controlIds": [
         "app/dashboard/_components/DashboardModulesCard.tsx#DashboardAgentLogoButton:3a49c174caa1d7d0:1",
         "app/dashboard/_components/DashboardModulesCard.tsx#button:7275b105d1462c56:1",
@@ -2823,7 +2825,7 @@
         "app/dashboard/_components/DashboardModulesCard.tsx#button:9e0a5c7b52c5c5a8:1",
         "app/dashboard/_components/DashboardModulesCard.tsx#button:029755d0c2493c29:1",
         "app/dashboard/_components/DashboardModulesCard.tsx#button:d58d87fdc2660a6b:1",
-        "app/dashboard/_components/DashboardModulesCard.tsx#button:8bc2a5a25233646c:1",
+        "app/dashboard/_components/DashboardModulesCard.tsx#button:ec4aa8a56fe97f21:1",
         "app/dashboard/_components/DashboardModulesCard.tsx#button:8923f05cf3332878:1",
         "app/dashboard/_components/DashboardModulesCard.tsx#button:64ba7366b1bac1ec:1",
         "app/dashboard/_components/DashboardModulesCard.tsx#button:762bf5d4caa48f50:1",
@@ -3244,28 +3246,28 @@
     },
     "app/dashboard/_components/MediaCharacterVoiceInput.tsx": {
       "disposition": "basic",
-      "reason": "Outil manuel ou composant partagé monté par un parcours Basique ; les restrictions locales et validations natives restent applicables.",
+      "reason": "Outil manuel ou composant partagé monté par un parcours Basique ; les restrictions locales et validations natives restent applicables. Revue du mode découverte : les actions payantes sont soumises au verrou d’abonnement et les commandes restantes conservent leurs contrôles natifs.",
       "gateFiles": [
         "lib/dashboardEdition.ts"
       ],
       "gateAnchor": "export function isDashboardRouteAllowedForEdition(",
-      "sourceDigest": "e0fdc77a25455ea2b186b55e2b6fecd1e92be9a4c4a1a48f28326760e8521a98",
+      "sourceDigest": "7164986b4235b6fed88d88f06c7e10bd99f54bb0c279b74d4dcad3faa2eddc8c",
       "controlIds": [
-        "app/dashboard/_components/MediaCharacterVoiceInput.tsx#select:23fa8a6d6dfec882:1",
+        "app/dashboard/_components/MediaCharacterVoiceInput.tsx#select:1c5b8c457599b6c9:1",
         "app/dashboard/_components/MediaCharacterVoiceInput.tsx#option:fe0ec7c00fbf85d1:1",
         "app/dashboard/_components/MediaCharacterVoiceInput.tsx#option:9dec90f1f0128c60:1",
         "app/dashboard/_components/MediaCharacterVoiceInput.tsx#input:4dec8a4aee7a7d82:1",
-        "app/dashboard/_components/MediaCharacterVoiceInput.tsx#button:c570304bbab11d81:1",
-        "app/dashboard/_components/MediaCharacterVoiceInput.tsx#button:04453879496897f6:1",
-        "app/dashboard/_components/MediaCharacterVoiceInput.tsx#button:22467b8d63c6dbdd:1",
+        "app/dashboard/_components/MediaCharacterVoiceInput.tsx#button:615979c0e6142ca1:1",
+        "app/dashboard/_components/MediaCharacterVoiceInput.tsx#button:c925ed96b9a72e6f:1",
+        "app/dashboard/_components/MediaCharacterVoiceInput.tsx#button:d969f98faf43ac46:1",
         "app/dashboard/_components/MediaCharacterVoiceInput.tsx#button:a1936f6ca656f679:1",
         "app/dashboard/_components/MediaCharacterVoiceInput.tsx#button:4850bb895d3fc950:1",
         "app/dashboard/_components/MediaCharacterVoiceInput.tsx#button:07726adde3bb9b0b:1",
         "app/dashboard/_components/MediaCharacterVoiceInput.tsx#MediaCharacterVoiceLibraryPicker:31c4e6b7b12e4ce0:1",
-        "app/dashboard/_components/MediaCharacterVoiceInput.tsx#button:c533b34971639782:1",
+        "app/dashboard/_components/MediaCharacterVoiceInput.tsx#button:cbbdbcd382b41656:1",
         "app/dashboard/_components/MediaCharacterVoiceInput.tsx#button:0bcc7dc7f6917c32:1",
-        "app/dashboard/_components/MediaCharacterVoiceInput.tsx#button:767714386782fdb4:1",
-        "app/dashboard/_components/MediaCharacterVoiceInput.tsx#button:a816943165500931:1",
+        "app/dashboard/_components/MediaCharacterVoiceInput.tsx#button:c3b31240a8eaeaa9:1",
+        "app/dashboard/_components/MediaCharacterVoiceInput.tsx#button:706dee8da33a940b:1",
         "app/dashboard/_components/MediaCharacterVoiceInput.tsx#button:08850acc2f35a523:1"
       ]
     },
@@ -3304,12 +3306,12 @@
     },
     "app/dashboard/_components/MediaFreeGenerator.tsx": {
       "disposition": "basic",
-      "reason": "Revue explicite Studio Libre : éditeur Exact par lignes avec locuteur numéroté, liaison stable photo/vocal, préservation du brouillon lors du retour à Automatiques et de la voix off réelle sans photo. Les autres contrôles natifs sont indisponibles derrière le dialogue ouvert. Le sujet Booster conserve son contexte seulement tant qu’il est inchangé ; reset retire ce contexte. Droits, devis, crédits et consentements restent natifs, aucune génération implicite. Ancien textarea global supprimé et setter caché refusé.",
+      "reason": "Revue explicite Studio Libre : éditeur Exact par lignes avec locuteur numéroté, liaison stable photo/vocal, préservation du brouillon lors du retour à Automatiques et de la voix off réelle sans photo. Les autres contrôles natifs sont indisponibles derrière le dialogue ouvert. Le sujet Booster conserve son contexte seulement tant qu’il est inchangé ; reset retire ce contexte. Droits, devis, crédits et consentements restent natifs, aucune génération implicite. Ancien textarea global supprimé et setter caché refusé. Revue du mode découverte : les actions payantes sont soumises au verrou d’abonnement et les commandes restantes conservent leurs contrôles natifs.",
       "gateFiles": [
         "lib/dashboardEdition.ts"
       ],
       "gateAnchor": "export function isDashboardRouteAllowedForEdition(",
-      "sourceDigest": "177ea1883774d52ea1f7f3b35d7d78f0f78bde2fe303298441fd9d8c229e9a10",
+      "sourceDigest": "2ebf1246cc14fd7641b40dd95c173bbccfe6faef60d4f852d6659ecb15a944be",
       "controlIds": [
         "app/dashboard/_components/MediaFreeGenerator.tsx#dialog:66a3dc9f9a0799b3:1",
         "app/dashboard/_components/MediaFreeGenerator.tsx#button:707a09cd18884eb8:1",
@@ -3328,7 +3330,7 @@
         "app/dashboard/_components/MediaFreeGenerator.tsx#option:1042df8d1b7ecf00:1",
         "app/dashboard/_components/MediaFreeGenerator.tsx#select:85429379816bb437:1",
         "app/dashboard/_components/MediaFreeGenerator.tsx#option:642b5f22a3d83233:1",
-        "app/dashboard/_components/MediaFreeGenerator.tsx#button:3a5f40570f171cf1:1",
+        "app/dashboard/_components/MediaFreeGenerator.tsx#button:53ca6be396216ae6:1",
         "app/dashboard/_components/MediaFreeGenerator.tsx#input:65cbde957a1a8fe7:1",
         "app/dashboard/_components/MediaFreeGenerator.tsx#textarea:181b555f5d31ab58:1",
         "app/dashboard/_components/MediaFreeGenerator.tsx#MediaSubjectVoiceButton:59ae5084fed437e3:1",
@@ -3361,12 +3363,12 @@
     },
     "app/dashboard/_components/MediaGenerationCreationWorkspace.tsx": {
       "disposition": "basic",
-      "reason": "Révision explicite : barre déterminée conservée, pourcentage vidéo marqué approximatif et libellé d’attente neutre ; arrêt, confirmation et récupération gardent leurs actions natives.",
+      "reason": "Révision explicite : barre déterminée conservée, pourcentage vidéo marqué approximatif et libellé d’attente neutre ; arrêt, confirmation et récupération gardent leurs actions natives. Revue du mode découverte : les actions payantes sont soumises au verrou d’abonnement et les commandes restantes conservent leurs contrôles natifs.",
       "gateFiles": [
         "lib/dashboardEdition.ts"
       ],
       "gateAnchor": "export function isDashboardRouteAllowedForEdition(",
-      "sourceDigest": "3a94bf08df7dc6a5139f1d7b655f014f89474392de6a1c623782a92cffce6394",
+      "sourceDigest": "5b17c488aa840adea3babf47630f1da9b7d7788c91a65b006cd497a14882f8ab",
       "controlIds": [
         "app/dashboard/_components/MediaGenerationCreationWorkspace.tsx#DashboardMobileSelect:b472e41d9466b001:1",
         "app/dashboard/_components/MediaGenerationCreationWorkspace.tsx#button:cc1bbe5cfcbab3cb:1",
@@ -3380,21 +3382,21 @@
         "app/dashboard/_components/MediaGenerationCreationWorkspace.tsx#button:0e0fe5f06969ddb1:1",
         "app/dashboard/_components/MediaGenerationCreationWorkspace.tsx#button:fb75a0446ca3136a:1",
         "app/dashboard/_components/MediaGenerationCreationWorkspace.tsx#button:e4928dc4e42a5a14:1",
-        "app/dashboard/_components/MediaGenerationCreationWorkspace.tsx#button:900fe68c588cd28b:1",
+        "app/dashboard/_components/MediaGenerationCreationWorkspace.tsx#button:9161b7d2a0a333b4:1",
         "app/dashboard/_components/MediaGenerationCreationWorkspace.tsx#button:90afff0a79d08f5a:1",
-        "app/dashboard/_components/MediaGenerationCreationWorkspace.tsx#button:4d890345bc0230c3:1",
+        "app/dashboard/_components/MediaGenerationCreationWorkspace.tsx#button:e817bbdd9485af0c:1",
         "app/dashboard/_components/MediaGenerationCreationWorkspace.tsx#button:377811014112a8d8:1",
         "app/dashboard/_components/MediaGenerationCreationWorkspace.tsx#button:90afff0a79d08f5a:2"
       ]
     },
     "app/dashboard/_components/MediaGenerator.tsx": {
       "disposition": "basic",
-      "reason": "Revue explicite Kling : parcours partage conserve, validation native du vocal de 5 a 10 secondes et message localise avant generation. Les restrictions du forfait, affectations et consentements restent applicables.",
+      "reason": "Revue explicite Kling : parcours partage conserve, validation native du vocal de 5 a 10 secondes et message localise avant generation. Les restrictions du forfait, affectations et consentements restent applicables. Revue du mode découverte : les actions payantes sont soumises au verrou d’abonnement et les commandes restantes conservent leurs contrôles natifs.",
       "gateFiles": [
         "lib/dashboardEdition.ts"
       ],
       "gateAnchor": "export function isDashboardRouteAllowedForEdition(",
-      "sourceDigest": "4c558d2bff82349fd566d63c127f2d3934fe50facd7868cb1719cd3552de1c63",
+      "sourceDigest": "3abb5f9c10c7a6d4ea11a36c2420a10a642fb03a52b37ce020b24a4a6ac3c3a7",
       "controlIds": [
         "app/dashboard/_components/MediaGenerator.tsx#button:8428e750c4eb28a4:1",
         "app/dashboard/_components/MediaGenerator.tsx#input:43446270c76b16ed:1",
@@ -3403,7 +3405,7 @@
         "app/dashboard/_components/MediaGenerator.tsx#input:6f1171fdd6b51655:1",
         "app/dashboard/_components/MediaGenerator.tsx#button:73020064fabc0ca3:1",
         "app/dashboard/_components/MediaGenerator.tsx#button:bd237722e629a7bc:1",
-        "app/dashboard/_components/MediaGenerator.tsx#button:01b9e47727ed685d:1",
+        "app/dashboard/_components/MediaGenerator.tsx#button:79c0b9dd5a2a0bbe:1",
         "app/dashboard/_components/MediaGenerator.tsx#MediaGenerationSettingsTabs:6fc8ccbfd7609928:1",
         "app/dashboard/_components/MediaGenerator.tsx#button:f518447d2695c29f:1",
         "app/dashboard/_components/MediaGenerator.tsx#textarea:8a5374ed407dba78:1",
@@ -3515,12 +3517,12 @@
     },
     "app/dashboard/_components/MediaModifier.tsx": {
       "disposition": "basic",
-      "reason": "Révision explicite : après import, Remplacer conserve le choix appareil et la Médiathèque reste disponible ; le bouton appareil redondant est masqué. Import initial, verrous et brouillon inchangés.",
+      "reason": "Après import, Remplacer conserve le choix appareil et la Médiathèque reste disponible ; le bouton appareil redondant est masqué. La génération est verrouillée en découverte et les autres contrôles restent soumis aux droits et validations natifs.",
       "gateFiles": [
         "lib/dashboardEdition.ts"
       ],
       "gateAnchor": "export function isDashboardRouteAllowedForEdition(",
-      "sourceDigest": "ad6fbb5dbbe96ced78c9fc20e4848aa85abb48f59da4b019dd1e2a527e730ede",
+      "sourceDigest": "b59c4d0b1c620d5683f4d9c4b9303d803121996c0504ebe4a2de42006dcccd4c",
       "controlIds": [
         "app/dashboard/_components/MediaModifier.tsx#textarea:817b166089b57b3c:1",
         "app/dashboard/_components/MediaModifier.tsx#MediaSubjectVoiceButton:d742e399041436c1:1",
@@ -3530,22 +3532,22 @@
         "app/dashboard/_components/MediaModifier.tsx#button:f1ebe86a8a6030bc:2",
         "app/dashboard/_components/MediaModifier.tsx#button:a0e72f23e1034382:1",
         "app/dashboard/_components/MediaModifier.tsx#button:ce15192c5d1ad2c4:1",
-        "app/dashboard/_components/MediaModifier.tsx#button:6f691419ad0e62bc:1"
+        "app/dashboard/_components/MediaModifier.tsx#button:8f32f5a461a05a2d:1"
       ]
     },
     "app/dashboard/_components/MediaOptimizerModal.tsx": {
       "disposition": "basic",
-      "reason": "Outil manuel ou composant partagé monté par un parcours Basique ; les restrictions locales et validations natives restent applicables.",
+      "reason": "Outil manuel ou composant partagé monté par un parcours Basique ; les restrictions locales et validations natives restent applicables. Revue du mode découverte : les actions payantes sont soumises au verrou d’abonnement et les commandes restantes conservent leurs contrôles natifs.",
       "gateFiles": [
         "lib/dashboardEdition.ts"
       ],
       "gateAnchor": "export function isDashboardRouteAllowedForEdition(",
-      "sourceDigest": "d371710686b4eaeb98632090c2dd0081c2504dd5540f439fc5fa9d92e6d6342a",
+      "sourceDigest": "c04f2846ab59333488817b51e32b75a43c6ddb8c268811280d99e0340bc15180",
       "controlIds": [
         "app/dashboard/_components/MediaOptimizerModal.tsx#button:7ef1f118fbab5842:1",
         "app/dashboard/_components/MediaOptimizerModal.tsx#input:28ba877357ab9e89:1",
         "app/dashboard/_components/MediaOptimizerModal.tsx#button:8f4617d33a62cf09:1",
-        "app/dashboard/_components/MediaOptimizerModal.tsx#button:de628325fa79c869:1",
+        "app/dashboard/_components/MediaOptimizerModal.tsx#button:9a6bae4d74053e43:1",
         "app/dashboard/_components/MediaOptimizerModal.tsx#button:f5c099bc527c0d8d:1"
       ]
     },
@@ -3654,14 +3656,14 @@
     },
     "app/dashboard/_components/MediaSubjectVoiceButton.tsx": {
       "disposition": "basic",
-      "reason": "Outil manuel ou composant partagé monté par un parcours Basique ; les restrictions locales et validations natives restent applicables.",
+      "reason": "Outil manuel ou composant partagé monté par un parcours Basique ; les restrictions locales et validations natives restent applicables. Revue du mode découverte : les actions payantes sont soumises au verrou d’abonnement et les commandes restantes conservent leurs contrôles natifs.",
       "gateFiles": [
         "lib/dashboardEdition.ts"
       ],
       "gateAnchor": "export function isDashboardRouteAllowedForEdition(",
-      "sourceDigest": "c307d9bb7a217a0fe51c3ef7bc6a85a04d53a360aa435a229034e3a3ed87aa27",
+      "sourceDigest": "a64b49087b2395324a9ab82332f414475213bd541d01e082012dccefe1aba4d3",
       "controlIds": [
-        "app/dashboard/_components/MediaSubjectVoiceButton.tsx#button:0a08d13098318750:1"
+        "app/dashboard/_components/MediaSubjectVoiceButton.tsx#button:1db40edbb3e03c4e:1"
       ]
     },
     "app/dashboard/_components/MediaVideoRetoucher.tsx": {
@@ -3716,14 +3718,14 @@
     },
     "app/dashboard/_components/PublishExecutionResultModal.tsx": {
       "disposition": "basic",
-      "reason": "Outil manuel ou composant partagé monté par un parcours Basique ; les restrictions locales et validations natives restent applicables.",
+      "reason": "Outil manuel ou composant partagé monté par un parcours Basique ; les restrictions locales et validations natives restent applicables. Revue du mode découverte : les actions payantes sont soumises au verrou d’abonnement et les commandes restantes conservent leurs contrôles natifs.",
       "gateFiles": [
         "lib/dashboardEdition.ts"
       ],
       "gateAnchor": "export function isDashboardRouteAllowedForEdition(",
-      "sourceDigest": "8832a9c82e9c573fdf5173326af10483d2a6293e4488aa09a0e09edca6d4565f",
+      "sourceDigest": "0785dba57341159d2bde2499d6da57b9754fae2c8b004212423c8cd91c2ee44f",
       "controlIds": [
-        "app/dashboard/_components/PublishExecutionResultModal.tsx#button:f018e1bbf7a7c9b3:1",
+        "app/dashboard/_components/PublishExecutionResultModal.tsx#button:e9a60ec5f1cf5f2f:1",
         "app/dashboard/_components/PublishExecutionResultModal.tsx#button:caffb800391b4030:1",
         "app/dashboard/_components/PublishExecutionResultModal.tsx#button:bcba3db9de213888:1",
         "app/dashboard/_components/PublishExecutionResultModal.tsx#button:52715fd5f95671c5:1",
@@ -3787,7 +3789,7 @@
     },
     "app/dashboard/_components/ResponsiveBottomNav.tsx": {
       "disposition": "basic",
-      "reason": "Revue explicite de l’icône iNr’Assistant v3 approuvée : un seul point d’interrogation au-dessus du robot, fond transparent et ratio contenu dans les dimensions existantes. Seule la référence de l’image change ; labels accessibles, handlers, session partagée, menus, droits et confirmations de navigation sont conservés. Cadrage visuel compensé pour garder la présence du robot antérieur malgré le point d’interrogation ajouté au-dessus, sans changer la place des commandes ni leurs actions.",
+      "reason": "Navigation mobile et raccourcis du tableau de bord Basic. En découverte le raccourci Publier ouvre l’abonnement ; les autres commandes et leurs restrictions restent recensées séparément.",
       "gateFiles": [
         "app/dashboard/_components/ResponsiveBottomNav.tsx"
       ],
@@ -3806,11 +3808,11 @@
           "gateAnchor": "<button type=\"button\" className={[styles.item, styles.assistPreview].join(\" \")}\n            aria-label={assistantLabel} title={assistantLabel} aria-haspopup=\"dialog\" aria-expanded={assistantOpen}\n            aria-busy={a"
         }
       },
-      "sourceDigest": "d094daa7d6b8904dae0fa555de752ca2182c5a4154fcadac0b6281f9c6c2f16a",
+      "sourceDigest": "1a7ea1f8cf8b12a9012b1bf0dd0be22391f60aaa5d8ef9f3e2732b146a0536fa",
       "controlIds": [
         "app/dashboard/_components/ResponsiveBottomNav.tsx#button:9f5e3066e6e5f9d8:1",
         "app/dashboard/_components/ResponsiveBottomNav.tsx#button:b77b6c10909728c0:1",
-        "app/dashboard/_components/ResponsiveBottomNav.tsx#button:a3c1f468e05ceed5:1",
+        "app/dashboard/_components/ResponsiveBottomNav.tsx#button:204b231967e866f6:1",
         "app/dashboard/_components/ResponsiveBottomNav.tsx#MobileMenuActionButton:c886faa1feef29b9:1",
         "app/dashboard/_components/ResponsiveBottomNav.tsx#MobileMenuActionButton:7b02cd4dd6e255ac:1",
         "app/dashboard/_components/ResponsiveBottomNav.tsx#MobileMenuActionButton:6185aaf201319c3c:1",
@@ -6947,12 +6949,12 @@
     },
     "app/dashboard/booster/publier/components/PublishContentAdjustmentModal.tsx": {
       "disposition": "basic",
-      "reason": "Outil manuel ou composant partagé monté par un parcours Basique ; les restrictions locales et validations natives restent applicables.",
+      "reason": "Outil manuel ou composant partagé monté par un parcours Basique ; les restrictions locales et validations natives restent applicables. Revue du mode découverte : les actions payantes sont soumises au verrou d’abonnement et les commandes restantes conservent leurs contrôles natifs.",
       "gateFiles": [
         "lib/dashboardEdition.ts"
       ],
       "gateAnchor": "export function isDashboardRouteAllowedForEdition(",
-      "sourceDigest": "2504f63d0f193489a4388d61aeecf2e39acf57de9b82a7d3022109f82a6d20bc",
+      "sourceDigest": "8fefc4931648cb970b25f7e424e117562532aa54bf13817020eb1406931af043",
       "controlIds": [
         "app/dashboard/booster/publier/components/PublishContentAdjustmentModal.tsx#button:6271211e98430943:1",
         "app/dashboard/booster/publier/components/PublishContentAdjustmentModal.tsx#textarea:752e51e71e7c9497:1",
@@ -6961,7 +6963,7 @@
         "app/dashboard/booster/publier/components/PublishContentAdjustmentModal.tsx#button:5243453fb9d39aa7:1",
         "app/dashboard/booster/publier/components/PublishContentAdjustmentModal.tsx#input:9454a48c5e4bebeb:1",
         "app/dashboard/booster/publier/components/PublishContentAdjustmentModal.tsx#button:95ac64116ff3601d:1",
-        "app/dashboard/booster/publier/components/PublishContentAdjustmentModal.tsx#button:f68a42faa518ce51:1"
+        "app/dashboard/booster/publier/components/PublishContentAdjustmentModal.tsx#button:60b5b4804578443f:1"
       ]
     },
     "app/dashboard/booster/publier/components/PublishContentEditorPanel.tsx": {
@@ -7043,32 +7045,32 @@
     },
     "app/dashboard/booster/publier/components/PublishFooterActions.tsx": {
       "disposition": "basic",
-      "reason": "Outil manuel ou composant partagé monté par un parcours Basique ; les restrictions locales et validations natives restent applicables.",
+      "reason": "Outil manuel ou composant partagé monté par un parcours Basique ; les restrictions locales et validations natives restent applicables. Revue du mode découverte : les actions payantes sont soumises au verrou d’abonnement et les commandes restantes conservent leurs contrôles natifs.",
       "gateFiles": [
         "lib/dashboardEdition.ts"
       ],
       "gateAnchor": "export function isDashboardRouteAllowedForEdition(",
-      "sourceDigest": "c7f75dceda93c07fb0a84eb7e328d4c673daf130e67b4a2399bda9cfc3b8a690",
+      "sourceDigest": "36fdac7fa55c0854df101c23f669032e2b04d95196931dfeb1c9309761f1b0d3",
       "controlIds": [
-        "app/dashboard/booster/publier/components/PublishFooterActions.tsx#button:07193b3419794632:1",
-        "app/dashboard/booster/publier/components/PublishFooterActions.tsx#button:273d480bb93e6393:1"
+        "app/dashboard/booster/publier/components/PublishFooterActions.tsx#button:b13e6551b6adba76:1",
+        "app/dashboard/booster/publier/components/PublishFooterActions.tsx#button:3a82083cfae7a3c9:1"
       ]
     },
     "app/dashboard/booster/publier/components/PublishIntentPanel.tsx": {
       "disposition": "basic",
-      "reason": "Outil manuel ou composant partagé monté par un parcours Basique ; les restrictions locales et validations natives restent applicables.",
+      "reason": "Outil manuel ou composant partagé monté par un parcours Basique ; les restrictions locales et validations natives restent applicables. Revue du mode découverte : les actions payantes sont soumises au verrou d’abonnement et les commandes restantes conservent leurs contrôles natifs.",
       "gateFiles": [
         "lib/dashboardEdition.ts"
       ],
       "gateAnchor": "export function isDashboardRouteAllowedForEdition(",
-      "sourceDigest": "8b1030fde38c1ad3b21874b6baa23777f0ad63f832123edc61fb4ec32ddbf8ec",
+      "sourceDigest": "cc2f704c9537246f26ee3392be222d7b991dbc1f171ff95e2d8e52fb0873a0e3",
       "controlIds": [
         "app/dashboard/booster/publier/components/PublishIntentPanel.tsx#textarea:75dd44317acb647e:1",
         "app/dashboard/booster/publier/components/PublishIntentPanel.tsx#MediaSubjectVoiceButton:19db6a112e5b75b0:1",
         "app/dashboard/booster/publier/components/PublishIntentPanel.tsx#button:76cbc72289243a58:1",
         "app/dashboard/booster/publier/components/PublishIntentPanel.tsx#select:efd5242dd64d662c:1",
         "app/dashboard/booster/publier/components/PublishIntentPanel.tsx#option:9b0b1a30e512c57d:1",
-        "app/dashboard/booster/publier/components/PublishIntentPanel.tsx#button:310c92e4aec869e4:1",
+        "app/dashboard/booster/publier/components/PublishIntentPanel.tsx#button:f280ab07b8b0ea28:1",
         "app/dashboard/booster/publier/components/PublishIntentPanel.tsx#button:df67d1f5146380f2:1",
         "app/dashboard/booster/publier/components/PublishIntentPanel.tsx#button:e373d94cc0cf9bf9:1",
         "app/dashboard/booster/publier/components/PublishIntentPanel.tsx#button:7fed82eef6c347d8:1",
@@ -7081,15 +7083,15 @@
     },
     "app/dashboard/booster/publier/components/PublishMediaPoolPanel.tsx": {
       "disposition": "basic",
-      "reason": "Pool médias du parcours Basique : mêmes imports, outils et limites natives. Les en-têtes Images et Vidéo sont renforcés sans modifier les effets ni droits des commandes.",
+      "reason": "Pool médias du parcours Basique : imports, outils et limites natives. En découverte le bouton de génération ouvre l’abonnement ; le test navigateur associé simule contexte, routage et absence d’appel fournisseur.",
       "gateFiles": [
         "lib/dashboardEdition.ts"
       ],
       "gateAnchor": "export function isDashboardRouteAllowedForEdition(",
-      "sourceDigest": "592c026adab9eebf6d7222e4f4402589f66dcf2b0faef1db3147df1312d27936",
+      "sourceDigest": "84f10960ac493e942f2b64c8cd70de79be1bb099304678c95e4fae330b677726",
       "controlIds": [
         "app/dashboard/booster/publier/components/PublishMediaPoolPanel.tsx#button:5263b90abdafd975:1",
-        "app/dashboard/booster/publier/components/PublishMediaPoolPanel.tsx#button:70f9c3557042fd4f:1",
+        "app/dashboard/booster/publier/components/PublishMediaPoolPanel.tsx#button:9e6b38c532f176e6:1",
         "app/dashboard/booster/publier/components/PublishMediaPoolPanel.tsx#button:5b463f32828f63ed:1",
         "app/dashboard/booster/publier/components/PublishMediaPoolPanel.tsx#button:cbc365faac976a10:1",
         "app/dashboard/booster/publier/components/PublishMediaPoolPanel.tsx#button:065a8c66a4187c8a:1",
@@ -7106,18 +7108,18 @@
     },
     "app/dashboard/booster/publier/components/PublishReferencePicker.tsx": {
       "disposition": "basic",
-      "reason": "Outil manuel ou composant partagé monté par un parcours Basique ; les restrictions locales et validations natives restent applicables.",
+      "reason": "Outil manuel ou composant partagé monté par un parcours Basique ; les restrictions locales et validations natives restent applicables. Revue du mode découverte : les actions payantes sont soumises au verrou d’abonnement et les commandes restantes conservent leurs contrôles natifs.",
       "gateFiles": [
         "lib/dashboardEdition.ts"
       ],
       "gateAnchor": "export function isDashboardRouteAllowedForEdition(",
-      "sourceDigest": "ee7e6cd1a18b247b1633f6216815418fb8e9ce7a9f685d6f20da37f0f60829dd",
+      "sourceDigest": "f6c3c54c4b07152dc979e009ae577de3609e76ee23e1497bb467b2d37240d58c",
       "controlIds": [
         "app/dashboard/booster/publier/components/PublishReferencePicker.tsx#button:6633e9edd0bf75ff:1",
         "app/dashboard/booster/publier/components/PublishReferencePicker.tsx#button:6fea9920323df0d5:1",
         "app/dashboard/booster/publier/components/PublishReferencePicker.tsx#button:ba3be4206d49fcf5:1",
         "app/dashboard/booster/publier/components/PublishReferencePicker.tsx#button:ad5832b1a4aa41ec:1",
-        "app/dashboard/booster/publier/components/PublishReferencePicker.tsx#button:b254f34108dfa9f8:1",
+        "app/dashboard/booster/publier/components/PublishReferencePicker.tsx#button:039d0b5efbcbde7d:1",
         "app/dashboard/booster/publier/components/PublishReferencePicker.tsx#button:c0e6cb737bc289fc:1",
         "app/dashboard/booster/publier/components/PublishReferencePicker.tsx#button:8c592920b40e8276:1",
         "app/dashboard/booster/publier/components/PublishReferencePicker.tsx#button:50f36d1f26efdda0:1"
@@ -7600,12 +7602,12 @@
     },
     "app/dashboard/e-reputation/EReputationReviewsClient.tsx": {
       "disposition": "basic",
-      "reason": "Outil manuel ou composant partagé monté par un parcours Basique ; les restrictions locales et validations natives restent applicables.",
+      "reason": "Outil manuel ou composant partagé monté par un parcours Basique ; les restrictions locales et validations natives restent applicables. Revue du mode découverte : les actions payantes sont soumises au verrou d’abonnement et les commandes restantes conservent leurs contrôles natifs.",
       "gateFiles": [
         "lib/dashboardEdition.ts"
       ],
       "gateAnchor": "export function isDashboardRouteAllowedForEdition(",
-      "sourceDigest": "f918853d60aa34274a54cc958d9c28b5143756c61c14b800755e5b55e672b6eb",
+      "sourceDigest": "c62357f208ae156e0c2be40f819c8e9a4852390f531855fcedd114e70baebc35",
       "controlIds": [
         "app/dashboard/e-reputation/EReputationReviewsClient.tsx#DashboardMobileSelect:261083928b8a9c29:1",
         "app/dashboard/e-reputation/EReputationReviewsClient.tsx#button:f842f3e6dbc965e7:1",
@@ -7636,9 +7638,9 @@
         "app/dashboard/e-reputation/EReputationReviewsClient.tsx#EmojiPickerButton:df40f86996089bcb:1",
         "app/dashboard/e-reputation/EReputationReviewsClient.tsx#textarea:6f51f952be716972:1",
         "app/dashboard/e-reputation/EReputationReviewsClient.tsx#AiContentReportButton:506b60003cfe4f09:1",
-        "app/dashboard/e-reputation/EReputationReviewsClient.tsx#button:db753d6532620d07:1",
-        "app/dashboard/e-reputation/EReputationReviewsClient.tsx#button:0e141096ac0cb1ad:1",
-        "app/dashboard/e-reputation/EReputationReviewsClient.tsx#button:463e5352b59fdf32:1"
+        "app/dashboard/e-reputation/EReputationReviewsClient.tsx#button:acac0bf6b72c7230:1",
+        "app/dashboard/e-reputation/EReputationReviewsClient.tsx#button:2d67ea8335322b0c:1",
+        "app/dashboard/e-reputation/EReputationReviewsClient.tsx#button:33d2e51640108957:1"
       ]
     },
     "app/dashboard/factures/ListPage.tsx": {
@@ -7984,7 +7986,7 @@
     },
     "app/dashboard/mails/_components/MailboxDetailsModal.tsx": {
       "disposition": "basic",
-      "reason": "Historique et brouillons Publications utilisables en Basique ; seules les branches publications sont retenues, mails/campagnes et comptabilité gardent leurs gates.",
+      "reason": "Historique et brouillons Publications utilisables en Basique ; seules les branches publications sont retenues, mails/campagnes et comptabilité gardent leurs gates. Revue du mode découverte : les actions payantes sont soumises au verrou d’abonnement et les commandes restantes conservent leurs contrôles natifs.",
       "gateFiles": [
         "lib/dashboardEdition.ts"
       ],
@@ -8008,13 +8010,6 @@
         "app/dashboard/mails/_components/MailboxDetailsModal.tsx#button:47fed9a89a77d5aa:1": {
           "reason": "Campagnes mail absentes du dossier Publications Basic ; conversion de devis conditionnée au droit documentsEnabled Founder. Les anciens send_items de type publication restent inclus séparément.",
           "gateAnchor": "documentsEnabled &&",
-          "gateFiles": [
-            "app/dashboard/mails/_components/MailboxDetailsModal.tsx"
-          ]
-        },
-        "app/dashboard/mails/_components/MailboxDetailsModal.tsx#button:1c1b337cd0fcdf6c:1": {
-          "reason": "Campagnes mail absentes du dossier Publications Basic ; conversion de devis conditionnée au droit documentsEnabled Founder. Les anciens send_items de type publication restent inclus séparément.",
-          "gateAnchor": "detailsItem.source === \"mail_campaigns\"",
           "gateFiles": [
             "app/dashboard/mails/_components/MailboxDetailsModal.tsx"
           ]
@@ -8081,11 +8076,18 @@
           "gateFiles": [
             "app/dashboard/mails/_components/MailboxDetailsModal.tsx"
           ]
+        },
+        "app/dashboard/mails/_components/MailboxDetailsModal.tsx#button:185e2c100c0a89e9:1": {
+          "reason": "Campagnes mail absentes du dossier Publications Basic ; conversion de devis conditionnée au droit documentsEnabled Founder. Les anciens send_items de type publication restent inclus séparément.",
+          "gateAnchor": "detailsItem.source === \"mail_campaigns\"",
+          "gateFiles": [
+            "app/dashboard/mails/_components/MailboxDetailsModal.tsx"
+          ]
         }
       },
-      "sourceDigest": "d3fd614626e2cb6fe69f91551b5b67b7c22b2d49100a855ea4e6a35a049a15e0",
+      "sourceDigest": "bee6756e8139275c22b8d234a63804b8768794d518c099e097062592f397ce9b",
       "controlIds": [
-        "app/dashboard/mails/_components/MailboxDetailsModal.tsx#button:2c21cdb4246c7584:1",
+        "app/dashboard/mails/_components/MailboxDetailsModal.tsx#button:16aafe5adee7d673:1",
         "app/dashboard/mails/_components/MailboxDetailsModal.tsx#div:27537defa7f82816:1",
         "app/dashboard/mails/_components/MailboxDetailsModal.tsx#div:2f5ce4dfe6b379ba:1",
         "app/dashboard/mails/_components/MailboxDetailsModal.tsx#button:b667863225c28725:1",
@@ -8094,7 +8096,7 @@
         "app/dashboard/mails/_components/MailboxDetailsModal.tsx#button:2e6f4677001a3c5b:1",
         "app/dashboard/mails/_components/MailboxDetailsModal.tsx#button:045143b4b20e97de:1",
         "app/dashboard/mails/_components/MailboxDetailsModal.tsx#button:47fed9a89a77d5aa:1",
-        "app/dashboard/mails/_components/MailboxDetailsModal.tsx#button:1c1b337cd0fcdf6c:1",
+        "app/dashboard/mails/_components/MailboxDetailsModal.tsx#button:185e2c100c0a89e9:1",
         "app/dashboard/mails/_components/MailboxDetailsModal.tsx#button:b2de55afbadc3e01:1",
         "app/dashboard/mails/_components/MailboxDetailsModal.tsx#button:8c2a62f7422281dc:1",
         "app/dashboard/mails/_components/MailboxDetailsModal.tsx#button:9775e38183dfca8c:1",
@@ -8105,12 +8107,12 @@
         "app/dashboard/mails/_components/MailboxDetailsModal.tsx#a:90e5a10b0ff44063:1",
         "app/dashboard/mails/_components/MailboxDetailsModal.tsx#a:5f6440bf43f9b00e:1",
         "app/dashboard/mails/_components/MailboxDetailsModal.tsx#button:901b7e8eba9699cb:1",
-        "app/dashboard/mails/_components/MailboxDetailsModal.tsx#button:e3a20472b89e62f4:1",
+        "app/dashboard/mails/_components/MailboxDetailsModal.tsx#button:ef20bb726cdf76e5:1",
         "app/dashboard/mails/_components/MailboxDetailsModal.tsx#button:5aeb3d391f4b96dc:1",
         "app/dashboard/mails/_components/MailboxDetailsModal.tsx#button:a39abd0ba714f79c:1",
         "app/dashboard/mails/_components/MailboxDetailsModal.tsx#button:cfcf75aee5cdf7ab:1",
         "app/dashboard/mails/_components/MailboxDetailsModal.tsx#button:05a344f1a809fe49:1",
-        "app/dashboard/mails/_components/MailboxDetailsModal.tsx#button:a268aace9ac59a49:1",
+        "app/dashboard/mails/_components/MailboxDetailsModal.tsx#button:13fa657a19ceff53:1",
         "app/dashboard/mails/_components/MailboxDetailsModal.tsx#button:31b495556fd2d8c9:1",
         "app/dashboard/mails/_components/MailboxDetailsModal.tsx#button:b497e571899dac3e:1",
         "app/dashboard/mails/_components/MailboxDetailsModal.tsx#button:2e6f4677001a3c5b:2",
@@ -8684,13 +8686,13 @@
     },
     "app/dashboard/settings/_components/AiMemoryContent.tsx": {
       "disposition": "basic",
-      "reason": "Contenu de domaine monté dans Personnalisation / les bulles canaux non verrouillées / les panneaux compte. Les contrôles payants sont exclus individuellement ; les variantes desktop/mobile ont leur propre controlId.",
+      "reason": "Contenu de domaine monté dans Personnalisation / les bulles canaux non verrouillées / les panneaux compte. Les contrôles payants sont exclus individuellement ; les variantes desktop/mobile ont leur propre controlId. Revue du mode découverte : les actions payantes sont soumises au verrou d’abonnement et les commandes restantes conservent leurs contrôles natifs.",
       "gateFiles": [
         "app/dashboard/personnalisation/page.tsx",
         "app/dashboard/settings/_components/AiMemoryContent.tsx"
       ],
       "gateAnchor": "const strategyEnabled = true;",
-      "sourceDigest": "69ebd0a1d320bc33867ce929e59838d42f7acb9547fde7a8b5fe51e1a224a9e3",
+      "sourceDigest": "cbccfb006db0975e161ee74d2417c3134bcacd5fd6cf3ebf297c633ac5279b82",
       "controlIds": [
         "app/dashboard/settings/_components/AiMemoryContent.tsx#EditableTags:a8c0db01a589302e:1",
         "app/dashboard/settings/_components/AiMemoryContent.tsx#input:bbd6ebb217f5f296:1",
@@ -8718,7 +8720,7 @@
         "app/dashboard/settings/_components/AiMemoryContent.tsx#button:70578e1978686779:1",
         "app/dashboard/settings/_components/AiMemoryContent.tsx#button:92410228ce080d6c:1",
         "app/dashboard/settings/_components/AiMemoryContent.tsx#button:a91739965d3ee270:1",
-        "app/dashboard/settings/_components/AiMemoryContent.tsx#button:c9565ff37dc46923:1",
+        "app/dashboard/settings/_components/AiMemoryContent.tsx#button:ecdee5a334f4b4c6:1",
         "app/dashboard/settings/_components/AiMemoryContent.tsx#MediaSubjectVoiceButton:67bbff048bfbce17:1",
         "app/dashboard/settings/_components/AiMemoryContent.tsx#textarea:6a60022c78635369:1",
         "app/dashboard/settings/_components/AiMemoryContent.tsx#BusinessDnaRichTextEditor:724cd214421969cf:1"
@@ -8740,13 +8742,13 @@
     },
     "app/dashboard/settings/_components/BasicSubscriptionCard.tsx": {
       "disposition": "basic",
-      "reason": "Contenu de domaine monté dans Personnalisation / les bulles canaux non verrouillées / les panneaux compte. Les contrôles payants sont exclus individuellement ; les variantes desktop/mobile ont leur propre controlId.",
+      "reason": "Contenu de domaine monté dans Personnalisation / les bulles canaux non verrouillées / les panneaux compte. Les contrôles payants sont exclus individuellement ; les variantes desktop/mobile ont leur propre controlId. Revue du mode découverte : les actions payantes sont soumises au verrou d’abonnement et les commandes restantes conservent leurs contrôles natifs.",
       "gateFiles": [
         "app/dashboard/_components/DashboardSettingsDrawerContent.tsx",
         "app/dashboard/settings/_components/BasicSubscriptionCard.tsx"
       ],
       "gateAnchor": "{panel === \"preferences\" && <GeneralPreferencesContent mode=\"drawer\" onUnsavedChange={onUnsavedChange} />}",
-      "sourceDigest": "173d7d60c5fef2d893fc01456dfe28042b37a0f41092aae2920da1d839d9d39c",
+      "sourceDigest": "7fdad22bbef63da3ba5833fc2aac1a23824e1b498cba37e58605c75c5c8c1dd7",
       "controlIds": [
         "app/dashboard/settings/_components/BasicSubscriptionCard.tsx#button:bfa1abe673fdb13b:1",
         "app/dashboard/settings/_components/BasicSubscriptionCard.tsx#button:f090d5372d1eafd0:1",
@@ -8805,17 +8807,17 @@
     },
     "app/dashboard/settings/_components/BusinessDnaAnalysisWorkspace.tsx": {
       "disposition": "basic",
-      "reason": "Contenu de domaine monté dans Personnalisation / les bulles canaux non verrouillées / les panneaux compte. Les contrôles payants sont exclus individuellement ; les variantes desktop/mobile ont leur propre controlId.",
+      "reason": "Contenu de domaine monté dans Personnalisation / les bulles canaux non verrouillées / les panneaux compte. Les contrôles payants sont exclus individuellement ; les variantes desktop/mobile ont leur propre controlId. Revue du mode découverte : les actions payantes sont soumises au verrou d’abonnement et les commandes restantes conservent leurs contrôles natifs.",
       "gateFiles": [
         "app/dashboard/personnalisation/page.tsx",
         "app/dashboard/settings/_components/AiMemoryContent.tsx"
       ],
       "gateAnchor": "const strategyEnabled = true;",
-      "sourceDigest": "e94ca6c0b98b8f640cd6a4a5eb9649119db93fb9f9fc17bab01facebf35fc16b",
+      "sourceDigest": "9c123e17c06c84cf18c1291f7296a4c9706778a09296c573262ccda8452d6306",
       "controlIds": [
         "app/dashboard/settings/_components/BusinessDnaAnalysisWorkspace.tsx#input:990aeb7928ca5c09:1",
-        "app/dashboard/settings/_components/BusinessDnaAnalysisWorkspace.tsx#button:dd73bc72cd3317ee:1",
-        "app/dashboard/settings/_components/BusinessDnaAnalysisWorkspace.tsx#button:a55e488e0d17fdca:1",
+        "app/dashboard/settings/_components/BusinessDnaAnalysisWorkspace.tsx#button:a2a4e218a445d2f1:1",
+        "app/dashboard/settings/_components/BusinessDnaAnalysisWorkspace.tsx#button:9a3e3a2cbe4faeb6:1",
         "app/dashboard/settings/_components/BusinessDnaAnalysisWorkspace.tsx#button:286fee3ff76fc6be:1"
       ]
     },
@@ -9277,13 +9279,13 @@
     },
     "app/dashboard/settings/_components/StandardSubscriptionContent.tsx": {
       "disposition": "basic",
-      "reason": "Contenu de domaine monté dans Personnalisation / les bulles canaux non verrouillées / les panneaux compte. Les contrôles payants sont exclus individuellement ; les variantes desktop/mobile ont leur propre controlId.",
+      "reason": "Contenu de domaine monté dans Personnalisation / les bulles canaux non verrouillées / les panneaux compte. Les contrôles payants sont exclus individuellement ; les variantes desktop/mobile ont leur propre controlId. Revue du mode découverte : les actions payantes sont soumises au verrou d’abonnement et les commandes restantes conservent leurs contrôles natifs.",
       "gateFiles": [
         "app/dashboard/_components/DashboardSettingsDrawerContent.tsx",
         "app/dashboard/settings/_components/StandardSubscriptionContent.tsx"
       ],
       "gateAnchor": "{panel === \"preferences\" && <GeneralPreferencesContent mode=\"drawer\" onUnsavedChange={onUnsavedChange} />}",
-      "sourceDigest": "7025ebbf4c805233dfef2f022c202a2081058f3bbb1cbd08236ad63274c3ff66",
+      "sourceDigest": "4a734a8b1a654f1e7b979f3d54766b97f961370d61f23a07a73bb8c0cbcf8eae",
       "controlIds": [
         "app/dashboard/settings/_components/StandardSubscriptionContent.tsx#button:6d6e03638af3d661:1",
         "app/dashboard/settings/_components/StandardSubscriptionContent.tsx#button:10f184c4cefc4eed:1",

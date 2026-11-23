@@ -672,13 +672,13 @@
     "sourceFiles": [
       "app/dashboard/_components/MediaCharacterVoiceInput.tsx"
     ],
-    "sourceAnchor": "<select id={`${id}-mode`} aria-label={t(\"ai_generator_character_voice_label\")} value={mode} disabled={disabled || uploading || recordingOpen} onChange={(event) => {\n      setError(\"\"); onModeChange(event.target.value === \"provided\" ? \"provided\" : \"ai\");\n    }}>\n      <option value=\"ai\">{t(\"ai_generator_character_voice_ai\")}</option>\n      <option value=\"provided\">{t(\"ai_generator_character_voice_provided\")}</option>\n    </select>",
+    "sourceAnchor": "<select id={`${id}-mode`} aria-label={t(\"ai_generator_character_voice_label\")} value={mode} disabled={!paidActionsLocked && (disabled || uploading || recordingOpen)} onChange={(event) => {\n      setError(\"\"); onModeChange(event.target.value === \"provided\" ? \"provided\" : \"ai\");\n    }}>",
     "capabilityId": "studio.generate",
     "toolNames": [
       "generateMedia"
     ],
     "mode": "handoff",
-    "notes": "Microphone, voix personnelle, identité fidèle et droits d’utilisation restent un choix explicite du professionnel. Une voix ou un consentement ne peut pas être créé par le modèle. Contraintes UI : contrôle présent dans ce composant manuel.",
+    "notes": "Microphone, voix personnelle, identité fidèle et droits d’utilisation restent un choix explicite du professionnel. Une voix ou un consentement ne peut pas être créé par le modèle. Contraintes UI : contrôle présent dans ce composant manuel. Revue du mode découverte : les opérations payantes de ce parcours nécessitent un abonnement ; les preuves existantes portent sur le parcours Basic autorisé et ne certifient pas une transaction fournisseur.",
     "testFiles": [
       "tests/ai-assistant/media-tools.test.mts"
     ],
@@ -686,7 +686,7 @@
     "coverageStatus": "human_required",
     "handoffReason": "Microphone, voix personnelle, identité fidèle et droits d’utilisation restent un choix explicite du professionnel. Une voix ou un consentement ne peut pas être créé par le modèle.",
     "controlIds": [
-      "app/dashboard/_components/MediaCharacterVoiceInput.tsx#select:23fa8a6d6dfec882:1"
+      "app/dashboard/_components/MediaCharacterVoiceInput.tsx#select:1c5b8c457599b6c9:1"
     ]
   },
   {
@@ -768,13 +768,13 @@
     "sourceFiles": [
       "app/dashboard/_components/MediaCharacterVoiceInput.tsx"
     ],
-    "sourceAnchor": "<button type=\"button\" disabled={disabled || uploading} onClick={() => inputRef.current?.click()}>{t(\"ai_generator_character_voice_import\")}</button>",
+    "sourceAnchor": "<button type=\"button\" disabled={!paidActionsLocked && (disabled || uploading)} onClick={() => paidActionsLocked ? openSubscription() : inputRef.current?.click()} title={paidActionsLocked ? subscriptionLabel : undefined} style={paidActionsLocked ? { filter: \"grayscale(1)\", opacity: 0.65 } : undefined}>",
     "capabilityId": "studio.generate",
     "toolNames": [
       "generateMedia"
     ],
     "mode": "handoff",
-    "notes": "Microphone, voix personnelle, identité fidèle et droits d’utilisation restent un choix explicite du professionnel. Une voix ou un consentement ne peut pas être créé par le modèle. Contraintes UI : !recordingOpen ; mode === \"provided\".",
+    "notes": "Microphone, voix personnelle, identité fidèle et droits d’utilisation restent un choix explicite du professionnel. Une voix ou un consentement ne peut pas être créé par le modèle. Contraintes UI : !recordingOpen ; mode === \"provided\". Revue du mode découverte : les opérations payantes de ce parcours nécessitent un abonnement ; les preuves existantes portent sur le parcours Basic autorisé et ne certifient pas une transaction fournisseur.",
     "testFiles": [
       "tests/ai-assistant/media-tools.test.mts"
     ],
@@ -782,7 +782,7 @@
     "coverageStatus": "human_required",
     "handoffReason": "Microphone, voix personnelle, identité fidèle et droits d’utilisation restent un choix explicite du professionnel. Une voix ou un consentement ne peut pas être créé par le modèle.",
     "controlIds": [
-      "app/dashboard/_components/MediaCharacterVoiceInput.tsx#button:c570304bbab11d81:1"
+      "app/dashboard/_components/MediaCharacterVoiceInput.tsx#button:615979c0e6142ca1:1"
     ]
   },
   {
@@ -792,13 +792,13 @@
     "sourceFiles": [
       "app/dashboard/_components/MediaCharacterVoiceInput.tsx"
     ],
-    "sourceAnchor": "<button type=\"button\" disabled={disabled || uploading} onClick={() => { setError(\"\"); setRecordingState(\"idle\"); }}>{t(\"ai_generator_character_voice_record\")}</button>",
+    "sourceAnchor": "<button type=\"button\" disabled={!paidActionsLocked && (disabled || uploading)} onClick={() => { if (paidActionsLocked) { openSubscription(); return; } setError(\"\"); setRecordingState(\"idle\"); }} title={paidActionsLocked ? subscriptionLabel : undefined} style={paidActionsLocked ? { filter: \"grayscale(1)\", opacity: 0.65 } : undefined}>",
     "capabilityId": "studio.generate",
     "toolNames": [
       "generateMedia"
     ],
     "mode": "handoff",
-    "notes": "Microphone, voix personnelle, identité fidèle et droits d’utilisation restent un choix explicite du professionnel. Une voix ou un consentement ne peut pas être créé par le modèle. Contraintes UI : !recordingOpen ; mode === \"provided\".",
+    "notes": "Microphone, voix personnelle, identité fidèle et droits d’utilisation restent un choix explicite du professionnel. Une voix ou un consentement ne peut pas être créé par le modèle. Contraintes UI : !recordingOpen ; mode === \"provided\". Revue du mode découverte : les opérations payantes de ce parcours nécessitent un abonnement ; les preuves existantes portent sur le parcours Basic autorisé et ne certifient pas une transaction fournisseur.",
     "testFiles": [
       "tests/ai-assistant/media-tools.test.mts"
     ],
@@ -806,7 +806,7 @@
     "coverageStatus": "human_required",
     "handoffReason": "Microphone, voix personnelle, identité fidèle et droits d’utilisation restent un choix explicite du professionnel. Une voix ou un consentement ne peut pas être créé par le modèle.",
     "controlIds": [
-      "app/dashboard/_components/MediaCharacterVoiceInput.tsx#button:04453879496897f6:1"
+      "app/dashboard/_components/MediaCharacterVoiceInput.tsx#button:c925ed96b9a72e6f:1"
     ]
   },
   {
@@ -816,13 +816,13 @@
     "sourceFiles": [
       "app/dashboard/_components/MediaCharacterVoiceInput.tsx"
     ],
-    "sourceAnchor": "<button type=\"button\" disabled={disabled || uploading} onClick={() => { setLibraryOpen(true); setBusy(true); }}>{t(\"ai_generator_character_voice_library\")}</button>",
+    "sourceAnchor": "<button type=\"button\" disabled={!paidActionsLocked && (disabled || uploading)} onClick={() => { if (paidActionsLocked) { openSubscription(); return; } setLibraryOpen(true); setBusy(true); }} title={paidActionsLocked ? subscriptionLabel : undefined} style={paidActionsLocked ? { filter: \"grayscale(1)\", opacity: 0.65 } : undefined}>",
     "capabilityId": "studio.generate",
     "toolNames": [
       "generateMedia"
     ],
     "mode": "handoff",
-    "notes": "Microphone, voix personnelle, identité fidèle et droits d’utilisation restent un choix explicite du professionnel. Une voix ou un consentement ne peut pas être créé par le modèle. Contraintes UI : !recordingOpen ; mode === \"provided\".",
+    "notes": "Microphone, voix personnelle, identité fidèle et droits d’utilisation restent un choix explicite du professionnel. Une voix ou un consentement ne peut pas être créé par le modèle. Contraintes UI : !recordingOpen ; mode === \"provided\". Revue du mode découverte : les opérations payantes de ce parcours nécessitent un abonnement ; les preuves existantes portent sur le parcours Basic autorisé et ne certifient pas une transaction fournisseur.",
     "testFiles": [
       "tests/ai-assistant/media-tools.test.mts"
     ],
@@ -830,7 +830,7 @@
     "coverageStatus": "human_required",
     "handoffReason": "Microphone, voix personnelle, identité fidèle et droits d’utilisation restent un choix explicite du professionnel. Une voix ou un consentement ne peut pas être créé par le modèle.",
     "controlIds": [
-      "app/dashboard/_components/MediaCharacterVoiceInput.tsx#button:22467b8d63c6dbdd:1"
+      "app/dashboard/_components/MediaCharacterVoiceInput.tsx#button:d969f98faf43ac46:1"
     ]
   },
   {
@@ -936,13 +936,13 @@
     "sourceFiles": [
       "app/dashboard/_components/MediaCharacterVoiceInput.tsx"
     ],
-    "sourceAnchor": "<button type=\"button\" disabled={externallyLocked} onClick={() => void startRecording()}>{t(\"ai_generator_character_voice_record_start\")}</button>",
+    "sourceAnchor": "<button type=\"button\" disabled={!paidActionsLocked && externallyLocked} onClick={() => void startRecording()} title={paidActionsLocked ? subscriptionLabel : undefined} style={paidActionsLocked ? { filter: \"grayscale(1)\", opacity: 0.65 } : undefined}>",
     "capabilityId": "studio.generate",
     "toolNames": [
       "generateMedia"
     ],
     "mode": "handoff",
-    "notes": "Microphone, voix personnelle, identité fidèle et droits d’utilisation restent un choix explicite du professionnel. Une voix ou un consentement ne peut pas être créé par le modèle. Contraintes UI : recordingState === \"idle\" ; recordingOpen ; mode === \"provided\".",
+    "notes": "Microphone, voix personnelle, identité fidèle et droits d’utilisation restent un choix explicite du professionnel. Une voix ou un consentement ne peut pas être créé par le modèle. Contraintes UI : recordingState === \"idle\" ; recordingOpen ; mode === \"provided\". Revue du mode découverte : les opérations payantes de ce parcours nécessitent un abonnement ; les preuves existantes portent sur le parcours Basic autorisé et ne certifient pas une transaction fournisseur.",
     "testFiles": [
       "tests/ai-assistant/media-tools.test.mts"
     ],
@@ -950,7 +950,7 @@
     "coverageStatus": "human_required",
     "handoffReason": "Microphone, voix personnelle, identité fidèle et droits d’utilisation restent un choix explicite du professionnel. Une voix ou un consentement ne peut pas être créé par le modèle.",
     "controlIds": [
-      "app/dashboard/_components/MediaCharacterVoiceInput.tsx#button:c533b34971639782:1"
+      "app/dashboard/_components/MediaCharacterVoiceInput.tsx#button:cbbdbcd382b41656:1"
     ]
   },
   {
@@ -984,13 +984,13 @@
     "sourceFiles": [
       "app/dashboard/_components/MediaCharacterVoiceInput.tsx"
     ],
-    "sourceAnchor": "<button type=\"button\" disabled={externallyLocked || uploading} onClick={() => void startRecording()}>{t(\"ai_generator_character_voice_record_retry\")}</button>",
+    "sourceAnchor": "<button type=\"button\" disabled={!paidActionsLocked && (externallyLocked || uploading)} onClick={() => void startRecording()} title={paidActionsLocked ? subscriptionLabel : undefined} style={paidActionsLocked ? { filter: \"grayscale(1)\", opacity: 0.65 } : undefined}>",
     "capabilityId": "studio.generate",
     "toolNames": [
       "generateMedia"
     ],
     "mode": "handoff",
-    "notes": "Microphone, voix personnelle, identité fidèle et droits d’utilisation restent un choix explicite du professionnel. Une voix ou un consentement ne peut pas être créé par le modèle. Contraintes UI : recordingState === \"preview\" ; recordingOpen ; mode === \"provided\".",
+    "notes": "Microphone, voix personnelle, identité fidèle et droits d’utilisation restent un choix explicite du professionnel. Une voix ou un consentement ne peut pas être créé par le modèle. Contraintes UI : recordingState === \"preview\" ; recordingOpen ; mode === \"provided\". Revue du mode découverte : les opérations payantes de ce parcours nécessitent un abonnement ; les preuves existantes portent sur le parcours Basic autorisé et ne certifient pas une transaction fournisseur.",
     "testFiles": [
       "tests/ai-assistant/media-tools.test.mts"
     ],
@@ -998,7 +998,7 @@
     "coverageStatus": "human_required",
     "handoffReason": "Microphone, voix personnelle, identité fidèle et droits d’utilisation restent un choix explicite du professionnel. Une voix ou un consentement ne peut pas être créé par le modèle.",
     "controlIds": [
-      "app/dashboard/_components/MediaCharacterVoiceInput.tsx#button:767714386782fdb4:1"
+      "app/dashboard/_components/MediaCharacterVoiceInput.tsx#button:c3b31240a8eaeaa9:1"
     ]
   },
   {
@@ -1008,13 +1008,13 @@
     "sourceFiles": [
       "app/dashboard/_components/MediaCharacterVoiceInput.tsx"
     ],
-    "sourceAnchor": "<button type=\"button\" disabled={externallyLocked || uploading || !recording} onClick={() => {\n              if (!recording) return;\n              const extension = recording.mimeType.includes(\"mp4\") ? \"m4a\" : recording.mimeType.includes(\"ogg\") ? \"ogg\" : \"webm\";\n              void uploadSample(new File([recording.blob], `vocal.${extension}`, { type: recording.mimeType }), \"recording\");\n            }}>{t(\"ai_generator_character_voice_record_use\")}</button>",
+    "sourceAnchor": "<button type=\"button\" disabled={!paidActionsLocked && (externallyLocked || uploading || !recording)} title={paidActionsLocked ? subscriptionLabel : undefined} style={paidActionsLocked ? { filter: \"grayscale(1)\", opacity: 0.65 } : undefined} onClick={() => {\n              if (paidActionsLocked) { openSubscription(); return; }\n              if (!recording) return;\n              const extension = recording.mimeType.includes(\"mp4\") ? \"m4a\" : recording.mimeType.includes(\"ogg\") ? \"ogg\" : \"webm\";\n              void uploadSample(new File([recording.blob], `vocal.${extension}`, { type: recording.mimeType }), \"recording\");\n            }}>",
     "capabilityId": "studio.generate",
     "toolNames": [
       "generateMedia"
     ],
     "mode": "handoff",
-    "notes": "Microphone, voix personnelle, identité fidèle et droits d’utilisation restent un choix explicite du professionnel. Une voix ou un consentement ne peut pas être créé par le modèle. Contraintes UI : recordingState === \"preview\" ; recordingOpen ; mode === \"provided\".",
+    "notes": "Microphone, voix personnelle, identité fidèle et droits d’utilisation restent un choix explicite du professionnel. Une voix ou un consentement ne peut pas être créé par le modèle. Contraintes UI : recordingState === \"preview\" ; recordingOpen ; mode === \"provided\". Revue du mode découverte : les opérations payantes de ce parcours nécessitent un abonnement ; les preuves existantes portent sur le parcours Basic autorisé et ne certifient pas une transaction fournisseur.",
     "testFiles": [
       "tests/ai-assistant/media-tools.test.mts"
     ],
@@ -1022,7 +1022,7 @@
     "coverageStatus": "human_required",
     "handoffReason": "Microphone, voix personnelle, identité fidèle et droits d’utilisation restent un choix explicite du professionnel. Une voix ou un consentement ne peut pas être créé par le modèle.",
     "controlIds": [
-      "app/dashboard/_components/MediaCharacterVoiceInput.tsx#button:a816943165500931:1"
+      "app/dashboard/_components/MediaCharacterVoiceInput.tsx#button:706dee8da33a940b:1"
     ]
   },
   {
@@ -1525,13 +1525,13 @@
     "sourceFiles": [
       "app/dashboard/_components/MediaFreeGenerator.tsx"
     ],
-    "sourceAnchor": "<button\n    type=\"button\" className={styles.primaryButton} data-media-primary-action\n    disabled={recoveryIncompatible || (recoveryPending ? recovering || operationLocked : busy ? !cancellable : Boolean(result) || !canGenerate)}\n    title={recoveryPending ? t(\"ai_generator_recovery_generation_blocked\") : busy && !cancellable ? t(\"ai_generator_editor_stop_locked\") : undefined}\n    onClick={() => { if (recoveryPending) void handleRecoverResult(); else if (busy) setStopConfirmOpen(true); else if (!result) void handleGenerate(); }}\n  >\n    <span aria-hidden=\"true\">{busy && !recoveryPending ? \"■\" : \"✦\"}</span>\n    {t(recoveryPending ? recovering ? \"ai_generator_recovery_checking\" : \"ai_generator_recovery_check\" : busy ? \"ai_generator_editor_stop\" : kind === \"video\" ? \"ai_generator_generate_video\" : \"ai_generator_generate_image\")}\n  </button>",
+    "sourceAnchor": "<button\n    type=\"button\" className={styles.primaryButton} data-media-primary-action\n    disabled={paidActionsLocked && !recoveryPending && !busy ? false : recoveryIncompatible || (recoveryPending ? recovering || operationLocked : busy ? !cancellable : Boolean(result) || !canGenerate)}\n    style={paidActionsLocked && !recoveryPending && !busy ? { filter: \"grayscale(1)\", opacity: 0.55 } : undefined}\n    aria-label={paidActionsLocked && !recoveryPending && !busy ? `${t(kind === \"video\" ? \"ai_generator_generate_video\" : \"ai_generator_generate_image\")} — ${subscriptionLabel}` : undefined}\n    title={paidActionsLocked && !recoveryPending && !busy ? subscriptionLabel : recoveryPending ? t(\"ai_generator_recovery_generation_blocked\") : busy && !cancellable ? t(\"ai_generator_editor_stop_locked\") : undefined}\n    onClick={() => { if (recoveryPending) void handleRecoverResult(); else if (busy) setStopConfirmOpen(true); else if (paidActionsLocked) openSubscription(); else if (!result) void handleGenerate(); }}\n  >",
     "capabilityId": "studio.form",
     "toolNames": [
       "controlLocalInterface"
     ],
     "mode": "form",
-    "notes": "En récupération, retry utilise le bridge local du Studio libre, guidé ou Modifier réellement monté : vérifier le même identifiant par GET, sans nouvelle génération, annulation ni acceptation du brouillon. Le navigateur confirme la vérification en cours ou le résultat rendu ; compte, révision et verrou natif restent contrôlés. Hors récupération, génération et confirmation d’annulation gardent leurs parcours distincts ; aucune permission de les lancer ne vient du contrôle retry.",
+    "notes": "En récupération, retry utilise le bridge local du Studio libre, guidé ou Modifier réellement monté : vérifier le même identifiant par GET, sans nouvelle génération, annulation ni acceptation du brouillon. Le navigateur confirme la vérification en cours ou le résultat rendu ; compte, révision et verrou natif restent contrôlés. Hors récupération, génération et confirmation d’annulation gardent leurs parcours distincts ; aucune permission de les lancer ne vient du contrôle retry. Revue du mode découverte : les opérations payantes de ce parcours nécessitent un abonnement ; les preuves existantes portent sur le parcours Basic autorisé et ne certifient pas une transaction fournisseur.",
     "testFiles": [
       "tests/ai-assistant/studio-recovery-local-controls.test.mts",
       "tests/dashboard/studio-video-brief-speech-browser.test.mts",
@@ -1540,7 +1540,7 @@
     "testAnchor": "the actual Free Guided and Modifier recovery bridges check the same result or pause locally without generation or cancellation",
     "coverageStatus": "implemented",
     "controlIds": [
-      "app/dashboard/_components/MediaFreeGenerator.tsx#button:3a5f40570f171cf1:1"
+      "app/dashboard/_components/MediaFreeGenerator.tsx#button:53ca6be396216ae6:1"
     ],
     "additionalProofs": [
       {
@@ -2540,20 +2540,20 @@
     "sourceFiles": [
       "app/dashboard/_components/MediaGenerationCreationWorkspace.tsx"
     ],
-    "sourceAnchor": "<button\n              type=\"button\"\n              className={styles.regenerateButton}\n              onClick={() => void handleGenerate()}\n              disabled={disabled || operationLocked}\n              data-media-regenerate\n            >\n              ↻ {t(\"ai_generator_regenerate\")}\n            </button>",
+    "sourceAnchor": "<button\n              type=\"button\"\n              className={styles.regenerateButton}\n              onClick={() => { if (paidActionsLocked) openSubscription(); else void handleGenerate(); }}\n              disabled={paidActionsLocked ? operationLocked : disabled || operationLocked}\n              style={paidActionsLocked ? { filter: \"grayscale(1)\", opacity: 0.55 } : undefined}\n              title={paidActionsLocked ? subscriptionLabel : undefined}\n              data-media-regenerate\n            >",
     "capabilityId": "studio.generate",
     "toolNames": [
       "generateMedia"
     ],
     "mode": "execute",
-    "notes": "Ordre créatif actuel explicite, devis/quota et moteur natifs, même identifiant de travail conservé, acceptation distincte selon le résultat demandé. Tests sur fournisseurs simulés, pas certification fournisseur réelle. Contraintes UI : generationResult.",
+    "notes": "Ordre créatif actuel explicite, devis/quota et moteur natifs, même identifiant de travail conservé, acceptation distincte selon le résultat demandé. Tests sur fournisseurs simulés, pas certification fournisseur réelle. Contraintes UI : generationResult. Revue du mode découverte : les opérations payantes de ce parcours nécessitent un abonnement ; les preuves existantes portent sur le parcours Basic autorisé et ne certifient pas une transaction fournisseur.",
     "testFiles": [
       "tests/ai-assistant/media-tools.test.mts"
     ],
     "testAnchor": "creation reuses quota, signed quote, real generation and draft acceptance in that order",
     "coverageStatus": "implemented",
     "controlIds": [
-      "app/dashboard/_components/MediaGenerationCreationWorkspace.tsx#button:900fe68c588cd28b:1"
+      "app/dashboard/_components/MediaGenerationCreationWorkspace.tsx#button:9161b7d2a0a333b4:1"
     ]
   },
   {
@@ -2586,20 +2586,20 @@
     "sourceFiles": [
       "app/dashboard/_components/MediaGenerationCreationWorkspace.tsx"
     ],
-    "sourceAnchor": "<button\n              type=\"button\"\n              onClick={() => void handleGenerate()}\n              disabled={disabled}\n            >\n              {t(\"ai_generator_retry\")}\n            </button>",
+    "sourceAnchor": "<button\n              type=\"button\"\n              onClick={() => { if (paidActionsLocked) openSubscription(); else void handleGenerate(); }}\n              disabled={paidActionsLocked ? operationLocked : disabled}\n              style={paidActionsLocked ? { filter: \"grayscale(1)\", opacity: 0.55 } : undefined}\n              title={paidActionsLocked ? subscriptionLabel : undefined}\n            >",
     "capabilityId": "studio.generate",
     "toolNames": [
       "generateMedia"
     ],
     "mode": "execute",
-    "notes": "Ordre créatif actuel explicite, devis/quota et moteur natifs, même identifiant de travail conservé, acceptation distincte selon le résultat demandé. Tests sur fournisseurs simulés, pas certification fournisseur réelle. Contraintes UI : !embedded ; showCreationError.",
+    "notes": "Ordre créatif actuel explicite, devis/quota et moteur natifs, même identifiant de travail conservé, acceptation distincte selon le résultat demandé. Tests sur fournisseurs simulés, pas certification fournisseur réelle. Contraintes UI : !embedded ; showCreationError. Revue du mode découverte : les opérations payantes de ce parcours nécessitent un abonnement ; les preuves existantes portent sur le parcours Basic autorisé et ne certifient pas une transaction fournisseur.",
     "testFiles": [
       "tests/ai-assistant/media-tools.test.mts"
     ],
     "testAnchor": "creation reuses quota, signed quote, real generation and draft acceptance in that order",
     "coverageStatus": "implemented",
     "controlIds": [
-      "app/dashboard/_components/MediaGenerationCreationWorkspace.tsx#button:4d890345bc0230c3:1"
+      "app/dashboard/_components/MediaGenerationCreationWorkspace.tsx#button:e817bbdd9485af0c:1"
     ]
   },
   {
@@ -2832,13 +2832,13 @@
     "sourceFiles": [
       "app/dashboard/_components/MediaGenerator.tsx"
     ],
-    "sourceAnchor": "<button\n    type=\"button\" className={styles.generateButton} data-media-primary-action\n    disabled={recoveryPending ? recovering || operationLocked : generationBusy ? !generationCancellable : disabled}\n    title={recoveryPending ? t(\"ai_generator_recovery_generation_blocked\") : generationBusy && !generationCancellable ? t(\"ai_generator_editor_stop_locked\") : undefined}\n    onClick={() => { if (recoveryPending) void handleRecoverResult(); else if (generationBusy) handleRequestGenerationStop(); else void handleGenerate(); }}\n  >\n    <span aria-hidden=\"true\">{generationBusy && !recoveryPending ? \"■\" : generationResult ? \"↻\" : \"✦\"}</span>\n    <strong>{t(recoveryPending ? recovering ? \"ai_generator_recovery_checking\" : \"ai_generator_recovery_check\" : generationBusy ? \"ai_generator_editor_stop\" : generationResult ? \"ai_generator_regenerate\" : kind === \"image\" ? \"ai_generator_generate_image\" : \"ai_generator_generate_video\")}</strong>\n  </button>",
+    "sourceAnchor": "<button\n    type=\"button\" className={styles.generateButton} data-media-primary-action\n    disabled={paidActionsLocked && !recoveryPending && !generationBusy ? false : recoveryPending ? recovering || operationLocked : generationBusy ? !generationCancellable : disabled}\n    style={paidActionsLocked && !recoveryPending && !generationBusy ? { filter: \"grayscale(1)\", opacity: 0.55 } : undefined}\n    aria-label={paidActionsLocked && !recoveryPending && !generationBusy ? `${t(kind === \"video\" ? \"ai_generator_generate_video\" : \"ai_generator_generate_image\")} — ${subscriptionLabel}` : undefined}\n    title={paidActionsLocked && !recoveryPending && !generationBusy ? subscriptionLabel : recoveryPending ? t(\"ai_generator_recovery_generation_blocked\") : generationBusy && !generationCancellable ? t(\"ai_generator_editor_stop_locked\") : undefined}\n    onClick={() => { if (recoveryPending) void handleRecoverResult(); else if (generationBusy) handleRequestGenerationStop(); else if (paidActionsLocked) openSubscription(); else void handleGenerate(); }}\n  >",
     "capabilityId": "studio.form",
     "toolNames": [
       "controlLocalInterface"
     ],
     "mode": "form",
-    "notes": "En récupération, retry utilise le bridge local du Studio libre, guidé ou Modifier réellement monté : vérifier le même identifiant par GET, sans nouvelle génération, annulation ni acceptation du brouillon. Le navigateur confirme la vérification en cours ou le résultat rendu ; compte, révision et verrou natif restent contrôlés. Hors récupération, génération et confirmation d’annulation gardent leurs parcours distincts ; aucune permission de les lancer ne vient du contrôle retry.",
+    "notes": "En récupération, retry utilise le bridge local du Studio libre, guidé ou Modifier réellement monté : vérifier le même identifiant par GET, sans nouvelle génération, annulation ni acceptation du brouillon. Le navigateur confirme la vérification en cours ou le résultat rendu ; compte, révision et verrou natif restent contrôlés. Hors récupération, génération et confirmation d’annulation gardent leurs parcours distincts ; aucune permission de les lancer ne vient du contrôle retry. Revue du mode découverte : les opérations payantes de ce parcours nécessitent un abonnement ; les preuves existantes portent sur le parcours Basic autorisé et ne certifient pas une transaction fournisseur.",
     "testFiles": [
       "tests/ai-assistant/studio-recovery-local-controls.test.mts",
       "tests/dashboard/studio-video-brief-speech-browser.test.mts",
@@ -2847,7 +2847,7 @@
     "testAnchor": "the actual Free Guided and Modifier recovery bridges check the same result or pause locally without generation or cancellation",
     "coverageStatus": "implemented",
     "controlIds": [
-      "app/dashboard/_components/MediaGenerator.tsx#button:01b9e47727ed685d:1"
+      "app/dashboard/_components/MediaGenerator.tsx#button:79c0b9dd5a2a0bbe:1"
     ],
     "additionalProofs": [
       {
@@ -4885,13 +4885,13 @@
     "sourceFiles": [
       "app/dashboard/_components/MediaModifier.tsx"
     ],
-    "sourceAnchor": "<button\n            type=\"button\"\n            className={styles.primaryButton}\n            data-media-primary-action\n            onClick={() => {\n              if (recoveryPending) void handleRecovery();\n              else if (generationBusy) handleRequestGenerationStop();\n              else if (!result) void handleGenerate();\n            }}\n            title={recoveryPending ? t(\"ai_generator_recovery_generation_blocked\") : generationBusy && !generationCancellable ? t(\"ai_generator_editor_stop_locked\") : undefined}\n            disabled={recoveryPending ? recovering || operationLocked : generationBusy ? !generationCancellable :\n              Boolean(result) || operationLocked ||\n              !sourceImage ||\n              instruction.trim().length < 3 ||\n              quotaLoading || !creditQuote.ready || creditQuote.insufficient ||\n              imageQuotaExhausted\n            }\n          >\n            <span aria-hidden=\"true\">{generationBusy ? \"■\" : \"✦\"}</span>\n            {t(recoveryPending ? recovering ? \"ai_generator_recovery_checking\" : \"ai_generator_recovery_check\" : generationBusy ? \"ai_generator_recovery_cancel\" : \"ai_modifier_action\")}\n          </button>",
+    "sourceAnchor": "<button\n            type=\"button\"\n            className={styles.primaryButton}\n            data-media-primary-action\n            onClick={() => {\n              if (recoveryPending) void handleRecovery();\n              else if (generationBusy) handleRequestGenerationStop();\n              else if (paidActionsLocked) openSubscription();\n              else if (!result) void handleGenerate();\n            }}\n            style={paidActionsLocked && !recoveryPending && !generationBusy ? { filter: \"grayscale(1)\", opacity: 0.55 } : undefined}\n            aria-label={paidActionsLocked && !recoveryPending && !generationBusy ? `${t(\"ai_modifier_action\")} — ${subscriptionLabel}` : undefined}\n            title={paidActionsLocked && !recoveryPending && !generationBusy ? subscriptionLabel : recoveryPending ? t(\"ai_generator_recovery_generation_blocked\") : generationBusy && !generationCancellable ? t(\"ai_generator_editor_stop_locked\") : undefined}\n            disabled={paidActionsLocked && !recoveryPending && !generationBusy ? false : recoveryPending ? recovering || operationLocked : generationBusy ? !generationCancellable :\n              Boolean(result) || operationLocked ||\n              !sourceImage ||\n              instruction.trim().length < 3 ||\n              quotaLoading || !creditQuote.ready || creditQuote.insufficient ||\n              imageQuotaExhausted\n            }\n          >",
     "capabilityId": "studio.form",
     "toolNames": [
       "controlLocalInterface"
     ],
     "mode": "form",
-    "notes": "En récupération, retry utilise le bridge local du Studio libre, guidé ou Modifier réellement monté : vérifier le même identifiant par GET, sans nouvelle génération, annulation ni acceptation du brouillon. Le navigateur confirme la vérification en cours ou le résultat rendu ; compte, révision et verrou natif restent contrôlés. Hors récupération, génération et confirmation d’annulation gardent leurs parcours distincts ; aucune permission de les lancer ne vient du contrôle retry.",
+    "notes": "En récupération, retry utilise le bridge local du Studio libre, guidé ou Modifier réellement monté : vérifier le même identifiant par GET, sans nouvelle génération, annulation ni acceptation du brouillon. Le navigateur confirme la vérification en cours ou le résultat rendu ; compte, révision et verrou natif restent contrôlés. Hors récupération, génération et confirmation d’annulation gardent leurs parcours distincts ; aucune permission de les lancer ne vient du contrôle retry. Revue du mode découverte : les opérations payantes de ce parcours nécessitent un abonnement ; les preuves existantes portent sur le parcours Basic autorisé et ne certifient pas une transaction fournisseur.",
     "testFiles": [
       "tests/ai-assistant/studio-recovery-local-controls.test.mts",
       "tests/dashboard/studio-video-brief-speech-browser.test.mts",
@@ -4900,7 +4900,7 @@
     "testAnchor": "the actual Free Guided and Modifier recovery bridges check the same result or pause locally without generation or cancellation",
     "coverageStatus": "implemented",
     "controlIds": [
-      "app/dashboard/_components/MediaModifier.tsx#button:6f691419ad0e62bc:1"
+      "app/dashboard/_components/MediaModifier.tsx#button:8f32f5a461a05a2d:1"
     ],
     "additionalProofs": [
       {
@@ -4989,20 +4989,20 @@
     "sourceFiles": [
       "app/dashboard/_components/MediaOptimizerModal.tsx"
     ],
-    "sourceAnchor": "<button\n              type=\"button\"\n              onClick={() => void handleOptimize()}\n              disabled={busy || !mediaType || !currentSize || !requirements?.needsOptimization || sourceTooLarge}\n              style={{\n                borderRadius: 999,\n                padding: \"10px 16px\",\n                border: \"1px solid rgba(105,239,255,.34)\",\n                background: \"linear-gradient(135deg, rgba(47,209,255,.30), rgba(155,81,255,.34))\",\n                color: \"#fff\",\n                fontWeight: 950,\n                cursor: busy ? \"wait\" : sourceTooLarge ? \"not-allowed\" : \"pointer\",\n                opacity: busy || sourceTooLarge ? 0.65 : 1,\n              }}\n            >\n              {busy ? i18nT(\"optimisation_en_cours_def4a3cc\") : i18nT(\"optimiser_le_media_1bc4fc40\")}\n            </button>",
+    "sourceAnchor": "<button\n              type=\"button\"\n              onClick={() => void handleOptimize()}\n              disabled={!paidActionsLocked && (busy || !mediaType || !currentSize || !requirements?.needsOptimization || sourceTooLarge)}\n              title={paidActionsLocked ? subscriptionLabel : undefined}\n              style={{\n                borderRadius: 999,\n                padding: \"10px 16px\",\n                border: \"1px solid rgba(105,239,255,.34)\",\n                background: \"linear-gradient(135deg, rgba(47,209,255,.30), rgba(155,81,255,.34))\",\n                color: \"#fff\",\n                fontWeight: 950,\n                cursor: busy ? \"wait\" : sourceTooLarge ? \"not-allowed\" : \"pointer\",\n                opacity: paidActionsLocked || busy || sourceTooLarge ? 0.65 : 1,\n                filter: paidActionsLocked ? \"grayscale(1)\" : undefined,\n              }}\n            >",
     "capabilityId": "media.optimize",
     "toolNames": [
       "runScreenCommand"
     ],
     "mode": "execute",
-    "notes": "Copie optimisée native vérifiée, média sélectionné et compte/révision stables. Le professionnel peut toujours annuler le dialogue ; aucune suppression de l’original. Contraintes UI : !outputItem.",
+    "notes": "Copie optimisée native vérifiée, média sélectionné et compte/révision stables. Le professionnel peut toujours annuler le dialogue ; aucune suppression de l’original. Contraintes UI : !outputItem. Revue du mode découverte : les opérations payantes de ce parcours nécessitent un abonnement ; les preuves existantes portent sur le parcours Basic autorisé et ne certifient pas une transaction fournisseur.",
     "testFiles": [
       "tests/ai-assistant/basic-media-surfaces.test.mts"
     ],
     "testAnchor": "media surface inventory preserves native anchors and distinguishes local forms from executed tools",
     "coverageStatus": "implemented",
     "controlIds": [
-      "app/dashboard/_components/MediaOptimizerModal.tsx#button:de628325fa79c869:1"
+      "app/dashboard/_components/MediaOptimizerModal.tsx#button:9a6bae4d74053e43:1"
     ]
   },
   {
@@ -5613,13 +5613,13 @@
     "sourceFiles": [
       "app/dashboard/_components/MediaSubjectVoiceButton.tsx"
     ],
-    "sourceAnchor": "<button\n      type=\"button\"\n      className={styles.voiceButton}\n      data-recording={recording ? \"true\" : undefined}\n      disabled={disabled || state === \"requesting\" || state === \"transcribing\"}\n      aria-label={accessibleLabel}\n      aria-busy={state === \"requesting\" || state === \"transcribing\"}\n      aria-pressed={recording}\n      title={contextLabel ? `${t(titleKey)} — ${contextLabel}` : t(titleKey)}\n      onClick={() => (recording ? stopRecording() : void startRecording())}\n    >\n      {recording ? `■ ${formatDuration(seconds)}` : state === \"idle\" ? \"🎙️\" : \"…\"}\n    </button>",
+    "sourceAnchor": "<button\n      type=\"button\"\n      className={styles.voiceButton}\n      data-recording={recording ? \"true\" : undefined}\n      disabled={!paidActionsLocked && (disabled || state === \"requesting\" || state === \"transcribing\")}\n      aria-label={paidActionsLocked ? `${accessibleLabel} — ${subscriptionLabel}` : accessibleLabel}\n      aria-busy={state === \"requesting\" || state === \"transcribing\"}\n      aria-pressed={recording}\n      title={paidActionsLocked ? subscriptionLabel : contextLabel ? `${t(titleKey)} — ${contextLabel}` : t(titleKey)}\n      style={paidActionsLocked ? { filter: \"grayscale(1)\", opacity: 0.65 } : undefined}\n      onClick={() => {\n        if (paidActionsLocked) { openSubscription(); return; }\n        if (recording) stopRecording(); else void startRecording();\n      }}\n    >",
     "capabilityId": "studio.generate",
     "toolNames": [
       "generateMedia"
     ],
     "mode": "handoff",
-    "notes": "Microphone, voix personnelle, identité fidèle et droits d’utilisation restent un choix explicite du professionnel. Une voix ou un consentement ne peut pas être créé par le modèle. Contraintes UI : contrôle présent dans ce composant manuel.",
+    "notes": "Microphone, voix personnelle, identité fidèle et droits d’utilisation restent un choix explicite du professionnel. Une voix ou un consentement ne peut pas être créé par le modèle. Contraintes UI : contrôle présent dans ce composant manuel. Revue du mode découverte : les opérations payantes de ce parcours nécessitent un abonnement ; les preuves existantes portent sur le parcours Basic autorisé et ne certifient pas une transaction fournisseur.",
     "testFiles": [
       "tests/ai-assistant/media-tools.test.mts"
     ],
@@ -5627,7 +5627,7 @@
     "coverageStatus": "human_required",
     "handoffReason": "Microphone, voix personnelle, identité fidèle et droits d’utilisation restent un choix explicite du professionnel. Une voix ou un consentement ne peut pas être créé par le modèle.",
     "controlIds": [
-      "app/dashboard/_components/MediaSubjectVoiceButton.tsx#button:0a08d13098318750:1"
+      "app/dashboard/_components/MediaSubjectVoiceButton.tsx#button:1db40edbb3e03c4e:1"
     ]
   },
   {
@@ -5835,14 +5835,14 @@
       "editPublication"
     ],
     "mode": "confirm",
-    "notes": "Le bouton natif relance seulement les types en échec. Pour une activation, une vérification d’identité ou une restriction Meta, une confirmation est demandée avant la reprise ; Annuler ne lance rien. Les types réussis restent acquis. Aucun envoi automatique ni contournement d’un autre refus non reprenable. Les outils indiqués préparent le contenu et ne certifient pas cette action humaine.",
+    "notes": "Le bouton natif relance seulement les types en échec. Pour une activation, une vérification d’identité ou une restriction Meta, une confirmation est demandée avant la reprise ; Annuler ne lance rien. Les types réussis restent acquis. Aucun envoi automatique ni contournement d’un autre refus non reprenable. Les outils indiqués préparent le contenu et ne certifient pas cette action humaine. Revue du mode découverte : les opérations payantes de ce parcours nécessitent un abonnement ; les preuves existantes portent sur le parcours Basic autorisé et ne certifient pas une transaction fournisseur.",
     "testFiles": [
       "tests/dashboard/meta-publication-account-actions-runtime.test.mts"
     ],
     "testAnchor": "manual retry requires confirmation, cancellation sends nothing, and a double click invokes one callback",
     "coverageStatus": "human_required",
     "controlIds": [
-      "app/dashboard/_components/PublishExecutionResultModal.tsx#button:f018e1bbf7a7c9b3:1"
+      "app/dashboard/_components/PublishExecutionResultModal.tsx#button:e9a60ec5f1cf5f2f:1"
     ],
     "handoffReason": "Le professionnel doit terminer les vérifications Meta dans les applications du fournisseur et confirmer la reprise réelle dans iNrCy. Les outils de préparation ne valent pas validation de ces étapes personnelles.",
     "additionalProofs": [
@@ -9068,21 +9068,21 @@
     "sourceFiles": [
       "app/dashboard/booster/publier/components/PublishContentAdjustmentModal.tsx"
     ],
-    "sourceAnchor": "<button type=\"button\" className={css.primary} disabled={busy || !subject.trim() || !changed || !chosen.length} onClick={() => { if (!busy && subject.trim() && changed && chosen.length) onApply({ idea: subject.trim(), instruction: guidance.trim(), channels: chosen }); }}>{t(busy ? \"adjust_progress\" : \"adjust_apply\")}</button>",
+    "sourceAnchor": "<button type=\"button\" className={css.primary} disabled={!paidActionsLocked && (busy || !subject.trim() || !changed || !chosen.length)}\n        title={paidActionsLocked ? subscriptionLabel : undefined} style={paidActionsLocked ? { filter: \"grayscale(1)\", opacity: 0.65 } : undefined}\n        onClick={() => { if (paidActionsLocked) { openSubscription(); return; } if (!busy && subject.trim() && changed && chosen.length) onApply({ idea: subject.trim(), instruction: guidance.trim(), channels: chosen }); }}>",
     "capabilityId": "publication.prepare",
     "toolNames": [
       "preparePublication",
       "editPublication"
     ],
     "mode": "form",
-    "notes": "Création/édition du brouillon natif, texte et canaux explicites, champs omis conservés. L’équivalent serveur n’atteste pas le déplacement visuel entre champs du wizard. Action locale du formulaire : l’équivalent serveur indiqué ne prouve pas une modification de l’écran monté. Contraintes UI : contrôle présent dans ce composant manuel.",
+    "notes": "Création/édition du brouillon natif, texte et canaux explicites, champs omis conservés. L’équivalent serveur n’atteste pas le déplacement visuel entre champs du wizard. Action locale du formulaire : l’équivalent serveur indiqué ne prouve pas une modification de l’écran monté. Contraintes UI : contrôle présent dans ce composant manuel. Revue du mode découverte : les opérations payantes de ce parcours nécessitent un abonnement ; les preuves existantes portent sur le parcours Basic autorisé et ne certifient pas une transaction fournisseur.",
     "testFiles": [
       "tests/ai-assistant/publication-tools.test.mts"
     ],
     "testAnchor": "preparation records a real Booster draft with owned media, preserving auth and exposing no private media URL",
     "coverageStatus": "server_equivalent",
     "controlIds": [
-      "app/dashboard/booster/publier/components/PublishContentAdjustmentModal.tsx#button:f68a42faa518ce51:1"
+      "app/dashboard/booster/publier/components/PublishContentAdjustmentModal.tsx#button:60b5b4804578443f:1"
     ]
   },
   {
@@ -9883,20 +9883,20 @@
     "sourceFiles": [
       "app/dashboard/booster/publier/components/PublishFooterActions.tsx"
     ],
-    "sourceAnchor": "<button\n              type=\"button\"\n              className={`${styles.secondaryBtn} ${styles.publishScheduleButton}`}\n              data-publish-schedule-action\n              aria-label={i18nT(\"programmer_ad97007f\")}\n              title={i18nT(\"programmer_ad97007f\")}\n              onClick={onSchedule}\n              disabled={draftSaving || voiceBusy || Boolean(scheduleMediaPreparationIssue)}\n              style={{\n                opacity: draftSaving || voiceBusy || scheduleMediaPreparationIssue ? 0.64 : 1,\n                cursor: draftSaving || voiceBusy || scheduleMediaPreparationIssue ? \"wait\" : \"pointer\",\n              }}\n            >\n              <span data-publish-schedule-icon aria-hidden=\"true\">🕒</span>\n              <span data-publish-schedule-label>{i18nT(\"programmer_ad97007f\")}</span>\n            </button>",
+    "sourceAnchor": "<button\n              type=\"button\"\n              className={`${styles.secondaryBtn} ${styles.publishScheduleButton}`}\n              data-publish-schedule-action\n              aria-label={i18nT(\"programmer_ad97007f\")}\n              title={paidActionsLocked ? i18nT(\"wizard_preview_subscribe\") : i18nT(\"programmer_ad97007f\")}\n              onClick={() => subscriptionOr(onSchedule)}\n              disabled={!paidActionsLocked && (draftSaving || voiceBusy || Boolean(scheduleMediaPreparationIssue))}\n              style={{\n                opacity: paidActionsLocked || draftSaving || voiceBusy || scheduleMediaPreparationIssue ? 0.64 : 1,\n                filter: paidActionsLocked ? \"grayscale(1)\" : undefined,\n                cursor: !paidActionsLocked && (draftSaving || voiceBusy || scheduleMediaPreparationIssue) ? \"wait\" : \"pointer\",\n              }}\n            >",
     "capabilityId": "publication.execute",
     "toolNames": [
       "executePublication"
     ],
     "mode": "form",
-    "notes": "Date/heure/fuseau explicites, regroupement natif par canal et reçu de programmation distinct d’une diffusion immédiate ; saisie locale seule ne programme rien. Contraintes UI : busy.",
+    "notes": "Date/heure/fuseau explicites, regroupement natif par canal et reçu de programmation distinct d’une diffusion immédiate ; saisie locale seule ne programme rien. Contraintes UI : busy. Revue du mode découverte : les opérations payantes de ce parcours nécessitent un abonnement ; les preuves existantes portent sur le parcours Basic autorisé et ne certifient pas une transaction fournisseur.",
     "testFiles": [
       "tests/ai-assistant/publication-tools.test.mts"
     ],
     "testAnchor": "future scheduling requires a current date and hour, records a native UUID receipt and recovers it without duplicate",
     "coverageStatus": "implemented",
     "controlIds": [
-      "app/dashboard/booster/publier/components/PublishFooterActions.tsx#button:07193b3419794632:1"
+      "app/dashboard/booster/publier/components/PublishFooterActions.tsx#button:b13e6551b6adba76:1"
     ]
   },
   {
@@ -9906,20 +9906,20 @@
     "sourceFiles": [
       "app/dashboard/booster/publier/components/PublishFooterActions.tsx"
     ],
-    "sourceAnchor": "<button\n              type=\"button\"\n              className={`${styles.primaryBtn} ${styles.publishConfirmButton}`}\n              onClick={onPublish}\n              disabled={draftSaving || voiceBusy || Boolean(mediaPreparationIssue)}\n              style={{\n                opacity: draftSaving || voiceBusy || mediaPreparationIssue ? 0.64 : 1,\n                cursor: draftSaving || voiceBusy || mediaPreparationIssue ? \"wait\" : \"pointer\",\n              }}\n            >\n              <span className={styles.publishActionIcon} aria-hidden=\"true\">\n                🚀\n              </span>\n              <span>{i18nT(\"publier_34e6b19e\")}</span>\n            </button>",
+    "sourceAnchor": "<button\n              type=\"button\"\n              className={`${styles.primaryBtn} ${styles.publishConfirmButton}`}\n              onClick={() => subscriptionOr(onPublish)}\n              title={paidActionsLocked ? i18nT(\"wizard_preview_subscribe\") : undefined}\n              disabled={!paidActionsLocked && (draftSaving || voiceBusy || Boolean(mediaPreparationIssue))}\n              style={{\n                opacity: paidActionsLocked || draftSaving || voiceBusy || mediaPreparationIssue ? 0.64 : 1,\n                filter: paidActionsLocked ? \"grayscale(1)\" : undefined,\n                cursor: !paidActionsLocked && (draftSaving || voiceBusy || mediaPreparationIssue) ? \"wait\" : \"pointer\",\n              }}\n            >",
     "capabilityId": "publication.execute",
     "toolNames": [
       "executePublication"
     ],
     "mode": "execute",
-    "notes": "Publication du brouillon exact après validation native des canaux/médias ; reçu file/processing distinct de publication confirmée. Aucun consentement ou compte inventé. Contraintes UI : busy.",
+    "notes": "Publication du brouillon exact après validation native des canaux/médias ; reçu file/processing distinct de publication confirmée. Aucun consentement ou compte inventé. Contraintes UI : busy. Revue du mode découverte : les opérations payantes de ce parcours nécessitent un abonnement ; les preuves existantes portent sur le parcours Basic autorisé et ne certifient pas une transaction fournisseur.",
     "testFiles": [
       "tests/ai-assistant/publication-tools.test.mts"
     ],
     "testAnchor": "publication uses only a real stored draft with a stable native idempotency key and honest queued result",
     "coverageStatus": "implemented",
     "controlIds": [
-      "app/dashboard/booster/publier/components/PublishFooterActions.tsx#button:273d480bb93e6393:1"
+      "app/dashboard/booster/publier/components/PublishFooterActions.tsx#button:3a82083cfae7a3c9:1"
     ]
   },
   {
@@ -10048,21 +10048,21 @@
     "sourceFiles": [
       "app/dashboard/booster/publier/components/PublishIntentPanel.tsx"
     ],
-    "sourceAnchor": "<button\n              type=\"button\"\n              className={`${styles.primaryBtn} ${styles.aiGenerateBtn}`}\n              onClick={onGenerate}\n              disabled={generationDisabled || !idea.trim()}\n              style={{\n                flex: isMobile ? \"1 1 100%\" : \"0 0 auto\",\n                width: isMobile ? \"100%\" : \"auto\",\n                minHeight: 34,\n                whiteSpace: \"nowrap\",\n              }}\n            >\n              {generating\n                ? i18nT(\"generation_avec_value_0ba06089\", { value0: selectedAiEngineOption.shortLabel })\n                : voiceTarget !== null\n                  ? i18nT(\"vocal_en_cours_6e444e8f\")\n                  : i18nT(\"generer_avec_inrcy_58900495\")}\n            </button>",
+    "sourceAnchor": "<button\n              type=\"button\"\n              className={`${styles.primaryBtn} ${styles.aiGenerateBtn}`}\n              onClick={paidActionsLocked ? openSubscription : onGenerate}\n              disabled={!paidActionsLocked && (generationDisabled || !idea.trim())}\n              title={paidActionsLocked ? subscriptionLabel : undefined}\n              aria-label={paidActionsLocked ? `${i18nT(\"generer_avec_inrcy_58900495\")} — ${subscriptionLabel}` : undefined}\n              style={{\n                flex: isMobile ? \"1 1 100%\" : \"0 0 auto\",\n                width: isMobile ? \"100%\" : \"auto\",\n                minHeight: 34,\n                whiteSpace: \"nowrap\",\n                filter: paidActionsLocked ? \"grayscale(1)\" : undefined,\n                opacity: paidActionsLocked ? 0.65 : undefined,\n              }}\n            >",
     "capabilityId": "publication.prepare",
     "toolNames": [
       "preparePublication",
       "editPublication"
     ],
     "mode": "form",
-    "notes": "Création/édition du brouillon natif, texte et canaux explicites, champs omis conservés. L’équivalent serveur n’atteste pas le déplacement visuel entre champs du wizard. Action locale du formulaire : l’équivalent serveur indiqué ne prouve pas une modification de l’écran monté. Contraintes UI : contrôle présent dans ce composant manuel.",
+    "notes": "Création/édition du brouillon natif, texte et canaux explicites, champs omis conservés. L’équivalent serveur n’atteste pas le déplacement visuel entre champs du wizard. Action locale du formulaire : l’équivalent serveur indiqué ne prouve pas une modification de l’écran monté. Contraintes UI : contrôle présent dans ce composant manuel. Revue du mode découverte : les opérations payantes de ce parcours nécessitent un abonnement ; les preuves existantes portent sur le parcours Basic autorisé et ne certifient pas une transaction fournisseur.",
     "testFiles": [
       "tests/ai-assistant/publication-tools.test.mts"
     ],
     "testAnchor": "preparation records a real Booster draft with owned media, preserving auth and exposing no private media URL",
     "coverageStatus": "server_equivalent",
     "controlIds": [
-      "app/dashboard/booster/publier/components/PublishIntentPanel.tsx#button:310c92e4aec869e4:1"
+      "app/dashboard/booster/publier/components/PublishIntentPanel.tsx#button:f280ab07b8b0ea28:1"
     ]
   },
   {
@@ -10288,21 +10288,27 @@
     "sourceFiles": [
       "app/dashboard/booster/publier/components/PublishMediaPoolPanel.tsx"
     ],
-    "sourceAnchor": "<button type=\"button\" className={css.generate} onClick={() => onGenerate(kind)}><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" strokeWidth=\"1.6\" aria-hidden=\"true\"><path d=\"m12 3 2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5L12 3Z\" /></svg>{t(\"wizard_generate_media\")}</button>",
+    "sourceAnchor": "<button type=\"button\" className={css.generate} onClick={() => paidActionsLocked ? openSubscription() : onGenerate(kind)}\n      title={paidActionsLocked ? subscriptionLabel : undefined}\n      aria-label={paidActionsLocked ? `${t(\"wizard_generate_media\")} — ${subscriptionLabel}` : undefined}\n      style={paidActionsLocked ? { filter: \"grayscale(1)\", opacity: 0.65 } : undefined}>",
     "capabilityId": "publication.prepare",
     "toolNames": [
       "preparePublication",
       "editPublication"
     ],
     "mode": "form",
-    "notes": "Création/édition du brouillon natif, texte et canaux explicites, champs omis conservés. L’équivalent serveur n’atteste pas le déplacement visuel entre champs du wizard. Action locale du formulaire : l’équivalent serveur indiqué ne prouve pas une modification de l’écran monté. Contraintes UI : contrôle présent dans ce composant manuel.",
+    "notes": "Création/édition du brouillon natif, texte et canaux explicites, champs omis conservés. L’équivalent serveur n’atteste pas le déplacement visuel entre champs du wizard. Action locale du formulaire : l’équivalent serveur indiqué ne prouve pas une modification de l’écran monté. Contraintes UI : contrôle présent dans ce composant manuel. Revue du mode découverte : les opérations payantes de ce parcours nécessitent un abonnement ; les preuves existantes portent sur le parcours Basic autorisé et ne certifient pas une transaction fournisseur. Le clic de ce seul bouton média a été testé dans un navigateur avec contexte et navigation simulés.",
     "testFiles": [
       "tests/ai-assistant/publication-tools.test.mts"
     ],
     "testAnchor": "preparation records a real Booster draft with owned media, preserving auth and exposing no private media URL",
     "coverageStatus": "server_equivalent",
     "controlIds": [
-      "app/dashboard/booster/publier/components/PublishMediaPoolPanel.tsx#button:70f9c3557042fd4f:1"
+      "app/dashboard/booster/publier/components/PublishMediaPoolPanel.tsx#button:9e6b38c532f176e6:1"
+    ],
+    "additionalProofs": [
+      {
+        "file": "tests/dashboard/discovery-media-button-browser.test.mts",
+        "testAnchor": "a locked media-generation button opens Mon abonnement, while a subscribed account enters the normal media flow"
+      }
     ]
   },
   {
@@ -10696,21 +10702,21 @@
     "sourceFiles": [
       "app/dashboard/booster/publier/components/PublishReferencePicker.tsx"
     ],
-    "sourceAnchor": "<button type=\"button\" className={css.choice} data-tone=\"violet\" onClick={() => choose(onGenerateMedia)}>\n              <ReferenceGlyph kind=\"sparkle\" /><span className={css.mediaLabel}><strong>{t(\"wizard_generate_media\")}</strong><small>{t(\"wizard_reference_generate_detail\")}</small></span><span className={css.arrow} aria-hidden=\"true\">↗</span>\n            </button>",
+    "sourceAnchor": "<button type=\"button\" className={css.choice} data-tone=\"violet\" onClick={() => choose(onGenerateMedia)}\n              title={subscriptionRequired ? t(\"wizard_preview_subscribe\") : undefined}\n              aria-label={subscriptionRequired ? `${t(\"wizard_generate_media\")} — ${t(\"wizard_preview_subscribe\")}` : undefined}\n              style={subscriptionRequired ? { filter: \"grayscale(1)\", opacity: 0.65 } : undefined}>",
     "capabilityId": "publication.options",
     "toolNames": [
       "readPublicationOptions",
       "preparePublication"
     ],
     "mode": "form",
-    "notes": "Sélection, ordre et réglages des médias par canal utilisent le brouillon et les IDs possédés natifs ; les dialogues d’aperçu/retouche conservent leurs validations. Pas de sauvegarde ou publication implicite. Action locale du formulaire : l’équivalent serveur indiqué ne prouve pas une modification de l’écran monté. Contraintes UI : view === \"sources\" ; open.",
+    "notes": "Sélection, ordre et réglages des médias par canal utilisent le brouillon et les IDs possédés natifs ; les dialogues d’aperçu/retouche conservent leurs validations. Pas de sauvegarde ou publication implicite. Action locale du formulaire : l’équivalent serveur indiqué ne prouve pas une modification de l’écran monté. Contraintes UI : view === \"sources\" ; open. Revue du mode découverte : les opérations payantes de ce parcours nécessitent un abonnement ; les preuves existantes portent sur le parcours Basic autorisé et ne certifient pas une transaction fournisseur.",
     "testFiles": [
       "tests/ai-assistant/publication-tools.test.mts"
     ],
     "testAnchor": "bounded image/video options use real selected image keys and preserve unrelated native rendering metadata",
     "coverageStatus": "server_equivalent",
     "controlIds": [
-      "app/dashboard/booster/publier/components/PublishReferencePicker.tsx#button:b254f34108dfa9f8:1"
+      "app/dashboard/booster/publier/components/PublishReferencePicker.tsx#button:039d0b5efbcbde7d:1"
     ]
   },
   {
@@ -12891,20 +12897,20 @@
     "sourceFiles": [
       "app/dashboard/e-reputation/EReputationReviewsClient.tsx"
     ],
-    "sourceAnchor": "<button className={styles.btnGhostSmall} type=\"button\" disabled={!canGenerate} onClick={generateReply}>{generating ? i18nT(\"generation_839b5564\") : i18nT(\"generer_avec_inrcy_bcf461c3\")}</button>",
+    "sourceAnchor": "<button className={styles.btnGhostSmall} type=\"button\" disabled={!paidActionsLocked && !canGenerate} onClick={generateReply}\n                        title={paidActionsLocked ? subscriptionLabel : undefined} style={paidActionsLocked ? { filter: \"grayscale(1)\", opacity: 0.65 } : undefined}>",
     "capabilityId": "reputation.draft",
     "toolNames": [
       "generateGoogleReviewReplyDraft"
     ],
     "mode": "execute",
-    "notes": "Brouillon généré par la même route native, les mêmes crédits/moteur et le contenu réel de l’avis relu ; compte/auteur et avis/version vérifiés avant/après. Aucune publication ni seconde génération automatique après incertitude. Contraintes UI : detailsOpen && selectedReview && typeof document !== \"undefined\".",
+    "notes": "Brouillon généré par la même route native, les mêmes crédits/moteur et le contenu réel de l’avis relu ; compte/auteur et avis/version vérifiés avant/après. Aucune publication ni seconde génération automatique après incertitude. Contraintes UI : detailsOpen && selectedReview && typeof document !== \"undefined\". Revue du mode découverte : les opérations payantes de ce parcours nécessitent un abonnement ; les preuves existantes portent sur le parcours Basic autorisé et ne certifient pas une transaction fournisseur.",
     "testFiles": [
       "tests/ai-assistant/google-review-draft-tools.test.mts"
     ],
     "testAnchor": "Basic Google reply drafts use the reread native review and never publish or regenerate on repetition",
     "coverageStatus": "implemented",
     "controlIds": [
-      "app/dashboard/e-reputation/EReputationReviewsClient.tsx#button:db753d6532620d07:1"
+      "app/dashboard/e-reputation/EReputationReviewsClient.tsx#button:acac0bf6b72c7230:1"
     ]
   },
   {
@@ -12914,21 +12920,21 @@
     "sourceFiles": [
       "app/dashboard/e-reputation/EReputationReviewsClient.tsx"
     ],
-    "sourceAnchor": "<button className={styles.btnPrimarySmall} type=\"button\" disabled={!canPublish} onClick={publishReply}>{publishing ? i18nT(\"publication_aa5ddada\") : selectedAlreadyAnswered ? i18nT(\"modifier_la_reponse_46c5f616\") : i18nT(\"publier_la_reponse_5d40615c\")}</button>",
+    "sourceAnchor": "<button className={styles.btnPrimarySmall} type=\"button\" disabled={!paidActionsLocked && !canPublish} onClick={publishReply}\n                        title={paidActionsLocked ? subscriptionLabel : undefined} style={paidActionsLocked ? { filter: \"grayscale(1)\", opacity: 0.65 } : undefined}>",
     "capabilityId": "reputation.reply-lifecycle",
     "toolNames": [
       "previewGoogleReviewReplyAction",
       "applyGoogleReviewReplyAction"
     ],
     "mode": "confirm",
-    "notes": "Réponse à un avis Google réellement lu : texte explicite, aperçu signé et confirmation référencée avant remplacement/suppression, puis relecture. Le commentaire du client ne peut pas être supprimé. Contraintes UI : detailsOpen && selectedReview && typeof document !== \"undefined\".",
+    "notes": "Réponse à un avis Google réellement lu : texte explicite, aperçu signé et confirmation référencée avant remplacement/suppression, puis relecture. Le commentaire du client ne peut pas être supprimé. Contraintes UI : detailsOpen && selectedReview && typeof document !== \"undefined\". Revue du mode découverte : les opérations payantes de ce parcours nécessitent un abonnement ; les preuves existantes portent sur le parcours Basic autorisé et ne certifient pas une transaction fournisseur.",
     "testFiles": [
       "tests/ai-assistant/basic-stats-reviews.test.mts"
     ],
     "testAnchor": "changing or deleting a business reply requires exact signed confirmation and readback, preserving the customer review",
     "coverageStatus": "implemented",
     "controlIds": [
-      "app/dashboard/e-reputation/EReputationReviewsClient.tsx#button:0e141096ac0cb1ad:1"
+      "app/dashboard/e-reputation/EReputationReviewsClient.tsx#button:2d67ea8335322b0c:1"
     ]
   },
   {
@@ -12938,21 +12944,21 @@
     "sourceFiles": [
       "app/dashboard/e-reputation/EReputationReviewsClient.tsx"
     ],
-    "sourceAnchor": "<button className={styles.btnDangerSmall} type=\"button\" disabled={!canDelete} onClick={deleteReply}>{deleting ? i18nT(\"suppression_a67d695d\") : i18nT(\"supprimer_1acfc1c7\")}</button>",
+    "sourceAnchor": "<button className={styles.btnDangerSmall} type=\"button\" disabled={!paidActionsLocked && !canDelete} onClick={deleteReply}\n                        title={paidActionsLocked ? subscriptionLabel : undefined} style={paidActionsLocked ? { filter: \"grayscale(1)\", opacity: 0.65 } : undefined}>",
     "capabilityId": "reputation.reply-lifecycle",
     "toolNames": [
       "previewGoogleReviewReplyAction",
       "applyGoogleReviewReplyAction"
     ],
     "mode": "confirm",
-    "notes": "Réponse à un avis Google réellement lu : texte explicite, aperçu signé et confirmation référencée avant remplacement/suppression, puis relecture. Le commentaire du client ne peut pas être supprimé. Contraintes UI : selectedAlreadyAnswered ; detailsOpen && selectedReview && typeof document !== \"undefined\".",
+    "notes": "Réponse à un avis Google réellement lu : texte explicite, aperçu signé et confirmation référencée avant remplacement/suppression, puis relecture. Le commentaire du client ne peut pas être supprimé. Contraintes UI : selectedAlreadyAnswered ; detailsOpen && selectedReview && typeof document !== \"undefined\". Revue du mode découverte : les opérations payantes de ce parcours nécessitent un abonnement ; les preuves existantes portent sur le parcours Basic autorisé et ne certifient pas une transaction fournisseur.",
     "testFiles": [
       "tests/ai-assistant/basic-stats-reviews.test.mts"
     ],
     "testAnchor": "changing or deleting a business reply requires exact signed confirmation and readback, preserving the customer review",
     "coverageStatus": "implemented",
     "controlIds": [
-      "app/dashboard/e-reputation/EReputationReviewsClient.tsx#button:463e5352b59fdf32:1"
+      "app/dashboard/e-reputation/EReputationReviewsClient.tsx#button:33d2e51640108957:1"
     ]
   },
   {

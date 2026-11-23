@@ -1,6 +1,7 @@
 "use client";
 
 import { useDashboardViewerAccess } from "./DashboardViewerAccessProvider";
+import usePaidMediaAction from "../_hooks/usePaidMediaAction";
 import { isMetaPilotChannelVisible } from "@/lib/metaChannelUiAccess";
 import { isRetryablePublicationEntry, publicationEntryRequiresAccountAction, publicationStorySequenceCounts } from "@/lib/publicationStorySequenceRetry";
 import { confirmInrcy } from "@/lib/inrcyDialog";
@@ -266,6 +267,7 @@ export function PublishExecutionResultActions({
   publicationDestinations?: readonly PublicationProgressDestination[];
 }) {
   const i18nT = useTranslations("booster");
+  const { paidActionsLocked, subscriptionLabel, openSubscription } = usePaidMediaAction();
   const resultEntries = getPublicationResultCounts(summary, publicationDestinations).entries;
   const retryInFlightRef = useRef(false);
   const requiresAccountAction = resultEntries.some(publicationEntryRequiresAccountAction);
@@ -273,6 +275,7 @@ export function PublishExecutionResultActions({
     ? resultEntries.filter(isRetryablePublicationEntry).length
     : Math.max(0, Number(summary?.retryableFailureCount || 0));
   const requestRetry = async () => {
+    if (paidActionsLocked) { openSubscription(); return; }
     if (retrying || retryInFlightRef.current || !onRetryFailed) return;
     retryInFlightRef.current = true;
     try {
@@ -297,9 +300,11 @@ export function PublishExecutionResultActions({
           type="button"
           className={resultCss.retryButton}
           onClick={() => void requestRetry()}
-          disabled={retrying}
+          disabled={!paidActionsLocked && retrying}
           aria-busy={retrying}
-          aria-label={retrying ? i18nT("relance_en_cours_82dfaae8") : retryLabel}
+          aria-label={paidActionsLocked ? `${retryLabel} — ${subscriptionLabel}` : retrying ? i18nT("relance_en_cours_82dfaae8") : retryLabel}
+          title={paidActionsLocked ? subscriptionLabel : undefined}
+          style={paidActionsLocked ? { filter: "grayscale(1)", opacity: 0.65 } : undefined}
         >
           <span aria-hidden="true">↻</span>
           <span className={resultCss.actionFullLabel}>{retrying

@@ -16,6 +16,7 @@ import PublishAiConfigurationDrawer from "@/app/dashboard/booster/publier/compon
 import { MODULE_SNAPSHOT_KEYS, readModuleSnapshot, writeModuleSnapshot } from "@/lib/browserModuleSnapshotCache";
 import { getActiveBrowserUserId } from "@/lib/browserAccountCache";
 import { useInrAssistantLocalClose } from "../_hooks/useInrAssistantLocalClose";
+import usePaidMediaAction from "../_hooks/usePaidMediaAction";
 import { DiscardedReviewPageError, ReviewPageCache } from "./review-page-cache";
 import styles from "./eReputation.module.css";
 
@@ -497,6 +498,7 @@ function platformFromSnapshot(
 
 export default function EReputationReviewsClient(props: Props) {
   const i18nT = useTranslations("reputation");
+  const { paidActionsLocked, subscriptionLabel, openSubscription } = usePaidMediaAction();
   const locale = useLocale();
   const runtimeT = i18nT as unknown as ReputationTranslator;
   const { onDirtyChange } = props;
@@ -1029,6 +1031,7 @@ export default function EReputationReviewsClient(props: Props) {
   }
 
   async function generateReply() {
+    if (paidActionsLocked) { openSubscription(); return; }
     if (!selectedReview?.reviewName) return;
     setGenerating(true);
     setNotice(null);
@@ -1067,6 +1070,7 @@ export default function EReputationReviewsClient(props: Props) {
   }
 
   async function publishReply() {
+    if (paidActionsLocked) { openSubscription(); return; }
     if (!selectedReview?.reviewName) return;
     const cleanReply = replyText.trim();
     if (cleanReply.length < 2) {
@@ -1100,6 +1104,7 @@ export default function EReputationReviewsClient(props: Props) {
   }
 
   async function deleteReply() {
+    if (paidActionsLocked) { openSubscription(); return; }
     if (!selectedReview?.reviewName || !selectedReview.reply) return;
     const confirmed = await confirmInrcy({
       eyebrow: i18nT("e_reputation_1d5febdc"),
@@ -1461,9 +1466,12 @@ export default function EReputationReviewsClient(props: Props) {
                     </div>
                     {notice ? <div className={notice.type === "success" ? styles.noticeSuccess : styles.noticeError} role="status">{notice.text}</div> : null}
                     <div className={styles.modalActions}>
-                      <button className={styles.btnGhostSmall} type="button" disabled={!canGenerate} onClick={generateReply}>{generating ? i18nT("generation_839b5564") : i18nT("generer_avec_inrcy_bcf461c3")}</button>
-                      <button className={styles.btnPrimarySmall} type="button" disabled={!canPublish} onClick={publishReply}>{publishing ? i18nT("publication_aa5ddada") : selectedAlreadyAnswered ? i18nT("modifier_la_reponse_46c5f616") : i18nT("publier_la_reponse_5d40615c")}</button>
-                      {selectedAlreadyAnswered ? <button className={styles.btnDangerSmall} type="button" disabled={!canDelete} onClick={deleteReply}>{deleting ? i18nT("suppression_a67d695d") : i18nT("supprimer_1acfc1c7")}</button> : null}
+                      <button className={styles.btnGhostSmall} type="button" disabled={!paidActionsLocked && !canGenerate} onClick={generateReply}
+                        title={paidActionsLocked ? subscriptionLabel : undefined} style={paidActionsLocked ? { filter: "grayscale(1)", opacity: 0.65 } : undefined}>{generating ? i18nT("generation_839b5564") : i18nT("generer_avec_inrcy_bcf461c3")}</button>
+                      <button className={styles.btnPrimarySmall} type="button" disabled={!paidActionsLocked && !canPublish} onClick={publishReply}
+                        title={paidActionsLocked ? subscriptionLabel : undefined} style={paidActionsLocked ? { filter: "grayscale(1)", opacity: 0.65 } : undefined}>{publishing ? i18nT("publication_aa5ddada") : selectedAlreadyAnswered ? i18nT("modifier_la_reponse_46c5f616") : i18nT("publier_la_reponse_5d40615c")}</button>
+                      {selectedAlreadyAnswered ? <button className={styles.btnDangerSmall} type="button" disabled={!paidActionsLocked && !canDelete} onClick={deleteReply}
+                        title={paidActionsLocked ? subscriptionLabel : undefined} style={paidActionsLocked ? { filter: "grayscale(1)", opacity: 0.65 } : undefined}>{deleting ? i18nT("suppression_a67d695d") : i18nT("supprimer_1acfc1c7")}</button> : null}
                     </div>
                     <div className={styles.reportFooterLine}>
                       <p className={styles.secureText}>{i18nT("vous_validez_chaque_reponse_avant_publication_fc19200d", { value0: platformLabel })}</p>

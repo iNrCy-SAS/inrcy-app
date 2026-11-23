@@ -22,12 +22,12 @@ function nodes(value: unknown): RenderNode[] {
   return [node, ...nodes(node.props?.children)];
 }
 
-async function renderLayout(actorRole: Role, accountRole: Role, options: { actorId?: string; accountId?: string; accountLookupFails?: boolean; status?: string; approved?: Record<string,unknown>; approvedLookupFails?: boolean } = {}) {
+async function renderLayout(actorRole: Role, accountRole: Role, options: { actorId?: string; accountId?: string; accountLookupFails?: boolean; status?: string; approved?: Record<string,unknown>; approvedLookupFails?: boolean; directSignup?: boolean } = {}) {
   const actorId = options.actorId || FULL_PRODUCT_REVIEWER_ACCOUNT_ID;
   const accountId = options.accountId || actorId;
-  const subscription = { status: options.status || "active", plan: "Premium", app_edition: "premium" };
+  const subscription = { status: options.status || "active", plan: options.directSignup ? "Basic" : "Premium", app_edition: options.directSignup ? "basic" : "premium" };
   const database = {
-    auth: { getUser: async () => ({ data: { user: { id: actorId } }, error: null }) },
+    auth: { getUser: async () => ({ data: { user: { id: actorId, app_metadata: options.directSignup ? { [directSignupPolicy.DIRECT_SIGNUP_METADATA_KEY]: { version: 1, entry: "basique", created_at: "2026-11-19T12:00:00.000Z" } } : {} } }, error: null }) },
     from(table: string) {
       return { select: () => ({ eq: (_column: string, id: string) => ({ maybeSingle: async () => {
         if (table === "subscriptions") return { data: subscription, error: null };
@@ -85,6 +85,15 @@ async function renderLayout(actorRole: Role, accountRole: Role, options: { actor
   assert.ok(accessNode);
   return { edition: editionNode.props, access: accessNode.props, subscription };
 }
+
+test("unpaid direct signup renders the Basic dashboard with paid actions locked", async () => {
+  const result = await renderLayout("user", "user", { actorId: "ordinary-user", status: "incomplete", directSignup: true });
+  assert.equal(result.edition.edition, "basic");
+  assert.equal(result.access.paidActionsLocked, true);
+  const expired = await renderLayout("user", "user", { actorId: "ordinary-user", status: "incomplete_expired", directSignup: true });
+  assert.equal(expired.access.paidActionsLocked, true);
+  await assert.rejects(renderLayout("user", "user", { actorId: "ordinary-user", status: "past_due", directSignup: true }), /redirect:\/activer-mon-compte/);
+});
 
 test("verified Meta reviewer gets every tool and Meta pilot while commercial plan stays Premium and Admin stays false", async () => {
   const result = await renderLayout("reviewer", "reviewer");
