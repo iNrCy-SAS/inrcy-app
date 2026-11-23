@@ -15,8 +15,8 @@ $consent = inrcy_basic_site_consent_html();
         <label><span>Tél. <b aria-hidden="true">*</b></span><input type="tel" name="form_fields[phone]" autocomplete="tel" maxlength="80" required></label>
         <div class="inrcy-basic-honeypot" aria-hidden="true"><label>Site internet<input name="form_fields[website]" tabindex="-1" autocomplete="off"></label></div>
         <label class="inrcy-basic-consent"><input type="checkbox" name="form_fields[consent]" value="1" required <?php disabled(!$legal_ready); ?>><span><?php echo $consent !== '' ? $consent : 'Documents d’abonnement en cours de validation.'; // Already restricted by wp_kses_post. ?></span></label>
-        <button type="submit" <?php disabled(!$configured || !$legal_ready); ?>>Créer mon compte et choisir mon offre <span aria-hidden="true">→</span></button>
-        <p class="basic-site-form-note">Aucun paiement à cette étape. Vous choisissez et confirmez votre pack dans l’application.</p>
+        <button type="submit" <?php disabled(!$configured || !$legal_ready); ?>>Créer mon compte et découvrir iNrCy <span aria-hidden="true">→</span></button>
+        <p class="basic-site-form-note">Aucun paiement à l’inscription. Choisissez un abonnement dans l’application pour activer les actions payantes.</p>
         <p class="inrcy-basic-status" role="status" aria-live="polite"></p>
     </form>
 </section>

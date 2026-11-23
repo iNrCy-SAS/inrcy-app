@@ -1191,7 +1191,7 @@ choix ou connexion de vos principaux canaux, puis prise
 en main des différents outils.
 </p>
 <p>
-Après votre inscription, accédez à votre compte et choisissez votre pack. Vos outils s’activent après confirmation du paiement. Retrouvez le cycle et les conditions présentés avant la confirmation de votre abonnement.
+Après inscription, découvrez l’application. Un abonnement actif est nécessaire pour publier et utiliser les fonctions IA. Le cycle et les conditions sont présentés avant la confirmation de votre abonnement.
 </p>
 </div>
 </div>

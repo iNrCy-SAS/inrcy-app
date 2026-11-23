@@ -1,30 +1,7 @@
-(function registerVisioBooking(start) {
-  if (typeof window === "undefined") return;
-  if (window.inrcyBasicSignupAccessConfig) {
-    start(window.jQuery, window.inrcyBasicSignupAccessConfig);
-    return;
-  }
-  // The app mounts the same dialogs after its authenticated first-arrival claim.
-  // Keep the short-lived capability in memory and dispose on account switches.
-  if (!window.customElements.get("inrcy-paid-booking")) {
-    window.customElements.define("inrcy-paid-booking", class extends HTMLElement {
-      open(token, onContinue) {
-        this.disconnectedCallback();
-        this.dispose = start(null, {
-          logoUrl: "/logo-inrcy.png",
-          availabilityUrl: "/api/public/visio-booking/availability",
-          bookingUrl: "/api/public/visio-booking/book"
-        }, token, onContinue);
-      }
-      disconnectedCallback() {
-        if (this.dispose) this.dispose();
-        this.dispose = null;
-      }
-    });
-  }
-})(function inrcyBasicSignupAccess($, config, paidToken, onPaidClose) {
+(function inrcyBasicSignupAccess($) {
   "use strict";
 
+  var config = window.inrcyBasicSignupAccessConfig || {};
   // wp_localize_script serializes PHP booleans as "1" and "".
   var bookingEnabled = config.showBooking !== false && config.showBooking !== ""
     && config.showBooking !== "0" && config.showBooking !== "false";
@@ -144,7 +121,6 @@
   }
 
   function rememberSessionBookingToken(token) {
-    if (paidToken) return;
     try {
       window.sessionStorage.setItem(BOOKING_TOKEN_STORAGE_KEY, token);
     } catch {}
@@ -152,7 +128,6 @@
 
   function forgetSessionBookingToken() {
     currentToken = "";
-    if (paidToken) return;
     try {
       window.sessionStorage.removeItem(BOOKING_TOKEN_STORAGE_KEY);
     } catch {}
@@ -169,7 +144,6 @@
 
   function rememberCompletedBooking() {
     forgetSessionBookingToken();
-    if (paidToken) return;
     try {
       window.localStorage.setItem(
         BOOKING_COMPLETED_STORAGE_KEY,
@@ -287,7 +261,7 @@
   function showIntro() {
     setDialog([
       '<div class="inrcy-visio-success-icon" aria-hidden="true">✓</div>',
-      '<p class="inrcy-visio-eyebrow">' + (paidToken ? 'VOTRE ABONNEMENT EST ACTIF' : 'VOTRE ESSAI INRCY EST PRÊT') + '</p>',
+      '<p class="inrcy-visio-eyebrow">VOTRE ESSAI INRCY EST PRÊT</p>',
       '<h2 id="inrcy-visio-title">Choisissez votre créneau <span aria-hidden="true">✨</span></h2>',
       '<p class="inrcy-visio-lead">Réservez votre <strong>mise en route personnalisée offerte</strong>. En 30 à 45 minutes, l’équipe iNrCy vous aide à partir sur de bonnes bases.</p>',
       '<div class="inrcy-visio-benefits">',
@@ -298,7 +272,7 @@
       '<p class="inrcy-visio-gift"><span aria-hidden="true">🎁</span> Choisissez maintenant l’heure qui vous convient — votre lien Google Meet arrivera par e-mail.</p>',
       '<div class="inrcy-visio-actions">',
       '<button class="inrcy-visio-primary" data-action="choose" type="button"><span>Réserver ma mise en route offerte</span><i aria-hidden="true">→</i></button>',
-      '<button class="inrcy-visio-secondary" data-action="skip" type="button">' + (paidToken ? 'Continuer dans l’application' : 'Je choisirai plus tard') + '</button>',
+      '<button class="inrcy-visio-secondary" data-action="skip" type="button">Je choisirai plus tard</button>',
       '</div>',
     ].join(""), { step: 1 });
   }
@@ -347,8 +321,7 @@
     if (previouslyFocused && typeof previouslyFocused.focus === "function") {
       previouslyFocused.focus();
     }
-    if (!silent && paidToken) onPaidClose();
-    else if (!silent && !hasCompletedBooking) showReopenButton();
+    if (!silent && !hasCompletedBooking) showReopenButton();
   }
 
   function showSignupAccess() {
@@ -655,7 +628,7 @@
     if (book) book.addEventListener("click", bookSelected);
   }
 
-  function handleDialogKey(event) {
+  document.addEventListener("keydown", function (event) {
     if (!dialogRoot) return;
     if (event.key === "Escape") {
       closeDialog("close");
@@ -673,18 +646,7 @@
       event.preventDefault();
       first.focus();
     }
-  }
-  document.addEventListener("keydown", handleDialogKey);
-
-  if (paidToken) {
-    openDialog(paidToken, "paid_dashboard");
-    return function disposePaidBooking() {
-      bookingSessionId = "";
-      currentToken = "";
-      closeDialog("", true);
-      document.removeEventListener("keydown", handleDialogKey);
-    };
-  }
+  });
 
   if ($) {
     $(document).on("submit_success.inrcyVisioBooking", function (event, response) {
@@ -731,4 +693,4 @@
     if (showingSignupAccess) closeDialog("", true);
     showingSignupAccess = false;
   });
-});
+})(window.jQuery);

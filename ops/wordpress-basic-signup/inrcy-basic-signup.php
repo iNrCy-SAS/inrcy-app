@@ -2,12 +2,12 @@
 /**
  * Plugin Name: iNrCy — Inscription Basique sans essai
  * Description: Espace Basique autonome dans WordPress et inscription directe avec accès immédiat.
- * Version: 1.2.2
+ * Version: 1.2.3
  * Author: iNrCy
  */
 
 if (!defined('ABSPATH')) { exit; }
-define('INRCY_BASIC_SIGNUP_VERSION', '1.2.2');
+define('INRCY_BASIC_SIGNUP_VERSION', '1.2.3');
 define('INRCY_BASIC_SIGNUP_SECRET_OPTION', 'inrcy_basic_signup_server_secret');
 define('INRCY_BASIC_SIGNUP_PAGE_OPTION', 'inrcy_basic_signup_page_id');
 require_once __DIR__ . '/includes/catalogue.php';
