@@ -54,6 +54,26 @@ test("welcome email supplies password only in email content, login pre-fills ema
   assert.throws(() => buildSignupWelcomeEmail({ ...args, appOrigin: "http://evil.invalid" }), /origin_invalid/);
 });
 
+test("direct Basic welcome describes discovery and paid features without changing standard signup", () => {
+  const base = { welcomeId: "synthetic-welcome", userId: "synthetic-user", email: "synthetic@example.invalid", firstName: "Marie", language: "fr", password: "SyntheticPass123!", expiresAt: "2026-12-01T00:00:00Z", appOrigin: "https://app.inrcy.com" };
+  const direct = buildSignupWelcomeEmail({ ...base, navigationEntry: "basique" });
+  for (const content of [direct.text, direct.html]) {
+    assert.match(content, /Découvrez l’application dès votre inscription/);
+    assert.match(content, /Un abonnement actif est nécessaire pour publier et utiliser les fonctions IA/);
+    assert.doesNotMatch(content, /iNr’Assistant vous accompagne/);
+  }
+  assert.match(direct.text, /entry=basique/);
+  const standard = buildSignupWelcomeEmail(base);
+  for (const content of [standard.text, standard.html]) {
+    assert.match(content, /iNr’Assistant vous accompagne pour connecter vos canaux/);
+    assert.doesNotMatch(content, /Un abonnement actif est nécessaire/);
+  }
+  assert.doesNotMatch(standard.text, /entry=basique/);
+  const english = buildSignupWelcomeEmail({ ...base, language: "en", navigationEntry: "basique" });
+  for (const content of [english.text, english.html]) assert.match(content, /An active subscription is required to publish and use AI features/);
+  assert.equal(standard.providerIdempotencyKey, direct.providerIdempotencyKey);
+});
+
 test("presentation reads only server app metadata and recognises expired credentials without showing raw errors", () => {
   const value = createTemporarySignupCredential(now);
   assert.equal(getTemporaryPasswordMetadata({ inrcy_temporary_password: value.metadata })?.expires_at, value.metadata.expires_at);

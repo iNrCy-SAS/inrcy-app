@@ -179,6 +179,7 @@ function isSensitiveApiPath(pathname: string): boolean {
 // and its subscription modal. Unknown endpoints remain blocked.
 const DIRECT_DISCOVERY_READ_PATHS = new Set([
   "/api/ai-memory",
+  "/api/ai-memory/analyze-channels",
   "/api/billing/account-subscription",
   "/api/booster/cta-defaults",
   "/api/booster/metrics",

@@ -74,9 +74,13 @@ export function buildSignupWelcomeEmail(args: {
   const validity = french
     ? `Ce mot de passe est valable 30 jours, jusqu’au ${expiry}. Vous pouvez le modifier dès maintenant dans Mon compte, rubrique Compte. Après cette date, utilisez « Mot de passe oublié » pour en choisir un nouveau.`
     : `This password is valid for 30 days, until ${expiry}. You can change it at any time in My account, under Account. After that date, use “Forgot password” to choose a new one.`;
-  const assistant = french
-    ? "À votre arrivée, iNr’Assistant vous accompagne pour connecter vos canaux et bien démarrer."
-    : "When you arrive, iNr’Assistant will help you connect your channels and get started.";
+  const assistant = args.navigationEntry === "basique"
+    ? french
+      ? "Découvrez l’application dès votre inscription. Un abonnement actif est nécessaire pour publier et utiliser les fonctions IA."
+      : "Explore the application as soon as you sign up. An active subscription is required to publish and use AI features."
+    : french
+      ? "À votre arrivée, iNr’Assistant vous accompagne pour connecter vos canaux et bien démarrer."
+      : "When you arrive, iNr’Assistant will help you connect your channels and get started.";
   const cta = french ? "Se connecter" : "Sign in";
   const privacy = french ? "Cet e-mail contient vos accès personnels. Ne le transférez pas." : "This email contains your personal sign-in details. Do not forward it.";
   const text = [greeting, introduction, `E-mail : ${args.email}`, `${passwordLabel} : ${args.password}`, validity, `${cta} : ${loginUrl}`, assistant, privacy, "L’équipe iNrCy"].join("\n\n");

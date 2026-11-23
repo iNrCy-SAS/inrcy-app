@@ -63,7 +63,7 @@ test("discovery permits only reviewed reads and specific settings writes", async
     assert.equal(expired.status, 200); assert.equal(expired.headers.get("x-middleware-next"), "1");
     assert.equal((await request("/api/booster/generate", "POST", { status: "incomplete_expired", contract })).status, 403);
   }
-  for (const path of ["/api/ai-memory", "/api/billing/account-subscription", "/api/booster/cta-defaults", "/api/booster/metrics", "/api/business-location", "/api/dashboard/cache-status", "/api/integrations/channel-states", "/api/integrations/status", "/api/media-generation/preferences", "/api/media-library/items", "/api/me/role", "/api/multicompte/accounts", "/api/notifications/feed", "/api/notifications/preferences", "/api/profile/versions"]) {
+  for (const path of ["/api/ai-memory", "/api/ai-memory/analyze-channels", "/api/billing/account-subscription", "/api/booster/cta-defaults", "/api/booster/metrics", "/api/business-location", "/api/dashboard/cache-status", "/api/integrations/channel-states", "/api/integrations/status", "/api/media-generation/preferences", "/api/media-library/items", "/api/me/role", "/api/multicompte/accounts", "/api/notifications/feed", "/api/notifications/preferences", "/api/profile/versions"]) {
     const read = await request(path, "GET"); assert.equal(read.status, 200, path);
     const write = await request(path, "POST"); assert.equal(write.status, 403, path);
   }
@@ -76,7 +76,7 @@ test("discovery permits only reviewed reads and specific settings writes", async
 });
 
 test("direct discovery blocks unreviewed APIs by default, including assistant and future expensive routes", async () => {
-  for (const path of ["/api/assistant/chat", "/api/assistant/attachments", "/api/voice/transcribe", "/api/ai-memory/read", "/api/e-reputation/reviews", "/api/agent/actions/prepare-publish", "/api/agent/actions/regenerate-channel", "/api/media-generation/generate", "/api/boutique/order", "/api/loyalty/weekly-summary", "/api/stats/dashboard-bulk", "/api/integrations/pinterest/status", "/api/future-paid-operation"]) {
+  for (const path of ["/api/assistant/chat", "/api/assistant/attachments", "/api/voice/transcribe", "/api/ai-memory/read", "/api/e-reputation/reviews", "/api/agent/actions/prepare-publish", "/api/agent/actions/regenerate-channel", "/api/media-generation/generate", "/api/boutique/order", "/api/bubble-access/ensure", "/api/loyalty/weekly-summary", "/api/stats/dashboard-bulk", "/api/integrations/pinterest/status", "/api/future-paid-operation"]) {
     for (const method of ["GET", "POST"]) {
       const response = await request(path, method); assert.equal(response.status, 403, `${method} ${path}`);
       const body = await response.json(); assert.equal(body.code, "DIRECT_SIGNUP_PAYMENT_REQUIRED"); assert.equal(body.redirectTo, "/dashboard?panel=abonnement");
