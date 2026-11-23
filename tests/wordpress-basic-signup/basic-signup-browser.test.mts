@@ -78,12 +78,12 @@ test("failed signup permits correction/retry and rejects a trial receipt without
   const browser = await chromium.launch({ headless: true });
   try {
     const retry = await fixture(browser, { failFirst: true }); await retry.fill();
-    const submit = retry.page.getByRole("button", { name: "Créer mon compte et choisir mon offre" });
+    const submit = retry.page.getByRole("button", { name: "Créer mon compte et découvrir iNrCy" });
     await submit.click(); await retry.page.getByText("Un compte existe déjà avec cet e-mail.", { exact: true }).waitFor();
     assert.equal(await retry.page.getByRole("dialog").count(), 0); assert.equal(await submit.isEnabled(), true);
     await submit.click(); await retry.page.getByRole("heading", { name: "Votre compte est prêt !" }).waitFor(); assert.equal(retry.posts.length, 2); retry.clean();
     const trial = await fixture(browser, { trialReceipt: true }); await trial.fill();
-    await trial.page.getByRole("button", { name: "Créer mon compte et choisir mon offre" }).click();
+    await trial.page.getByRole("button", { name: "Créer mon compte et découvrir iNrCy" }).click();
     await trial.page.getByText("La création du compte n’a pas pu être confirmée. Réessayez plus tard.", { exact: true }).waitFor();
     assert.equal(await trial.page.getByRole("dialog").count(), 0); trial.clean();
   } finally { await browser.close(); }
@@ -94,7 +94,7 @@ test("empty or expired tickets keep manual login in the Basic entry with only em
   try {
     for (const options of [{ emptyTicket: true }, { expiredTicket: true }]) {
       const f = await fixture(browser, options); await f.fill();
-      await f.page.getByRole("button", { name: "Créer mon compte et choisir mon offre" }).click();
+      await f.page.getByRole("button", { name: "Créer mon compte et découvrir iNrCy" }).click();
       await f.page.getByRole("heading", { name: "Votre compte est prêt !" }).waitFor();
       if (options.expiredTicket) await f.page.getByRole("button", { name: "Accéder à mon compte" }).click();
       const link = f.page.getByRole("link", { name: options.expiredTicket ? "Ouvrir la connexion" : "Accéder à mon compte" });
@@ -166,7 +166,7 @@ test("navigation retains campaign landing and event source across home/features/
       assert.equal(new URL(String(fields["form_fields[event_source_url]"])).pathname, "/basique/inscription/");
       assert.equal(fields["form_fields[meta_tracking_consent]"], String(consent));
       ids.push(String(fields["form_fields[event_id]"]));
-      await f.page.getByRole("button", { name: "Créer mon compte et choisir mon offre" }).click();
+      await f.page.getByRole("button", { name: "Créer mon compte et découvrir iNrCy" }).click();
       await f.page.getByRole("heading", { name: "Votre compte est prêt !" }).waitFor();
       const events = await f.page.evaluate(() => (window as unknown as { __basicPreviewPixel: unknown[][] }).__basicPreviewPixel);
       const leads = events.filter(item => item[1] === "Lead");
