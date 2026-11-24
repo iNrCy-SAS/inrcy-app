@@ -732,7 +732,7 @@
       "analysisLimits": "L’analyse enrichit les informations fiables retrouvées en conservant les saisies manuelles. Les préférences rédactionnelles et les CTA restent à régler dans Ma communication. Gardez l’outil ouvert pour une sélection personnalisée de canaux.",
       "company": "Mon entreprise réunit Coordonnées & logo ; Activité (métier, présentation, prestations et spécialités) ; Clients ; Zones & Horaires (code postal, ville, zones et horaires) ; Identité (mission, forces, valeurs et engagements). Relisez les informations trouvées et complétez celles qui manquent.",
       "communication": "Dans Ma communication : Style et préférences règle la rédaction ; Consignes et exemples regroupe consignes, interdictions, vocabulaire et exemples ; CTA par canal choisit les actions et destinations des futurs contenus ; Objectifs et stratégie et Actualités précisent les sujets à mettre en avant. Vérifiez les possibilités indiquées pour chaque canal.",
-      "autosave": "Les modifications sont enregistrées automatiquement. Attendez la fin de l’enregistrement ; une erreur reste affichée et la sortie vérifie les changements en attente. Relisez toujours le contenu généré avant de publier.",
+      "autosave": "Toutes les 30 secondes, l’ADN enregistre les modifications en attente. Cliquez sur Enregistrer pour les sauvegarder immédiatement. Avant de quitter, iNrCy signale les changements encore en attente.",
       "reset": "Réinitialiser est une action distincte qui demande confirmation. La réinitialisation globale efface aussi les documents : utilisez-la uniquement si vous souhaitez supprimer ces informations."
     }
   },
@@ -1125,7 +1125,10 @@
     "exitWithoutSavingTitle": "Quitter sans enregistrer ?",
     "exitWithoutSavingMessage": "Cette fenêtre contient des modifications non enregistrées. Si vous la fermez maintenant, elles seront perdues.",
     "closeWithoutSaving": "Fermer sans enregistrer",
-    "continueEditing": "Continuer l’édition"
+    "continueEditing": "Continuer l’édition",
+    "pendingChangesTitle": "Des modifications sont en attente",
+    "pendingChangesMessage": "Vos dernières modifications n’ont pas encore été sauvegardées.",
+    "saveAndClose": "Enregistrer et fermer"
   },
   "settingsSections": {
     "activityIdentityTitle": "Secteur et métier",

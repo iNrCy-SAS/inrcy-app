@@ -346,6 +346,41 @@ test("Pinterest keeps the selected board visible across remounts and a fresh pag
   assert.equal(freshPage.render("default", props).resourceLabel, "Nos réalisations");
 });
 
+test("Pinterest status uses the saved public URL from the same snapshot as the dashboard", async () => {
+  const publicProfileUrl = "https://www.pinterest.com/saved-profile/";
+  const providerProfileUrl = "https://www.pinterest.com/provider-profile/";
+  const h = runtime("app/api/integrations/pinterest/status/route.ts", {
+    "next/server": { NextResponse: Response },
+    "@/lib/appBubbleAccessServer": { isAppBubbleEnabledForUser: async () => true },
+    "@/lib/supabaseServer": { createSupabaseServer: async () => ({ auth: { getUser: async () => ({ data: { user: { id: "actor" } } }) } }) },
+    "@/lib/tsSafe": require("../../lib/tsSafe.ts"),
+    "@/lib/multicompte/server": { resolveActiveInrcyAccountId: async () => "fixture" },
+    "@/lib/channelConnectionState": {
+      getChannelConnectionStates: async () => ({
+        pinterest: { accountConnected: true, connection_status: "connected", profile_url: publicProfileUrl },
+      }),
+    },
+    "@/lib/pinterestPreferences": {
+      getPinterestDefaultBoardId: async () => "board-1",
+      getPinterestPublicProfileUrl: async () => { throw new Error("secondary read unavailable"); },
+    },
+    "@/lib/pinterestOAuth": {
+      getPinterestIntegration: async () => ({}),
+      getPinterestApiEnvironment: () => "production",
+      getPinterestAccessToken: async () => "fixture-token",
+      fetchPinterestUserAccount: async () => ({ profileUrl: providerProfileUrl }),
+    },
+  });
+  for (const live of [false, true]) {
+    const response = await h.exports.GET(new Request(`https://app.inrcy.com/api/integrations/pinterest/status${live ? "?live=1" : ""}`));
+    const status = await response.json();
+    assert.equal(response.ok, true);
+    assert.equal(status.connected, true);
+    assert.equal(status.publicProfileUrl, publicProfileUrl);
+    assert.equal(status.profileUrl, live ? providerProfileUrl : publicProfileUrl);
+  }
+});
+
 test("Pinterest's fresh disconnected status overrides the restored display snapshot", async () => {
   let finishStatus!: (response: Props) => void;
   const pending = new Promise<Props>(resolve => { finishStatus = resolve; });

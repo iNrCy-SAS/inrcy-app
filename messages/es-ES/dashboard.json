@@ -824,7 +824,10 @@
     "exitWithoutSavingTitle": "¿Salir sin guardar?",
     "exitWithoutSavingMessage": "Esta ventana contiene cambios no guardados. Si la cierras ahora, se perderán.",
     "closeWithoutSaving": "Cerrar sin guardar",
-    "continueEditing": "Seguir editando"
+    "continueEditing": "Seguir editando",
+    "pendingChangesTitle": "Hay cambios pendientes",
+    "pendingChangesMessage": "Tus últimos cambios aún no se han guardado.",
+    "saveAndClose": "Guardar y cerrar"
   },
   "settingsSections": {
     "activityIdentityTitle": "Sector y profesión",
@@ -1144,7 +1147,7 @@
       "analysisLimits": "El análisis añade información fiable encontrada y conserva las entradas manuales. Las preferencias de redacción y los CTA se configuran aparte en Mi comunicación. Mantén la herramienta abierta al analizar una selección personalizada de canales.",
       "company": "Mi empresa reúne Contacto y logo; Actividad (profesión, presentación, servicios y especialidades); Clientes; Zonas (código postal, ciudad principal, zonas y horarios); e Identidad (misión, fortalezas, valores y compromisos). Revisa lo encontrado y completa los datos que falten.",
       "communication": "En Mi comunicación: Estilo y preferencias ajusta la redacción; Instrucciones y ejemplos reúne instrucciones, prohibiciones, vocabulario y ejemplos; CTA por canal elige acciones y destinos del contenido futuro; Objetivos y estrategia y Actualidad concretan los temas destacados. Comprueba las posibilidades indicadas para cada canal.",
-      "autosave": "Los cambios se guardan automáticamente. Espera a que termine el guardado; los errores permanecen visibles y al salir se comprueban los cambios pendientes. Revisa siempre el contenido generado antes de publicarlo.",
+      "autosave": "El ADN de la empresa guarda los cambios pendientes cada 30 segundos. Pulsa Guardar para guardarlos de inmediato. iNrCy te avisa si quedan cambios pendientes al salir.",
       "reset": "Restablecer es una acción independiente que requiere confirmación. El restablecimiento global elimina también los documentos: úsalo solo si deseas borrar esta información."
     }
   },

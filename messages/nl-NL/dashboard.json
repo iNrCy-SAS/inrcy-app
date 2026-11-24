@@ -824,7 +824,10 @@
     "exitWithoutSavingTitle": "Afsluiten zonder op te slaan?",
     "exitWithoutSavingMessage": "Dit venster bevat niet-opgeslagen wijzigingen. Als je het nu sluit, gaan deze verloren.",
     "closeWithoutSaving": "Sluiten zonder opslaan",
-    "continueEditing": "Doorgaan met bewerken"
+    "continueEditing": "Doorgaan met bewerken",
+    "pendingChangesTitle": "Er zijn openstaande wijzigingen",
+    "pendingChangesMessage": "Je laatste wijzigingen zijn nog niet opgeslagen.",
+    "saveAndClose": "Opslaan en sluiten"
   },
   "settingsSections": {
     "activityIdentityTitle": "Sector en beroep",
@@ -1144,7 +1147,7 @@
       "analysisLimits": "De analyse vult betrouwbare gevonden informatie aan en behoudt handmatige invoer. Schrijfvoorkeuren en CTA’s stel je apart in bij Mijn communicatie. Houd het hulpmiddel open bij een aangepaste selectie van kanalen.",
       "company": "Mijn bedrijf bevat Contact & logo; Activiteit (beroep, presentatie, diensten en specialisaties); Klanten; Regio's (postcode, hoofdplaats, werkgebieden en openingstijden); en Identiteit (missie, sterke punten, waarden en toezeggingen). Controleer gevonden gegevens en vul ontbrekende informatie aan.",
       "communication": "Bij Mijn communicatie bepaalt Stijl en voorkeuren de schrijfvoorkeuren; Instructies en voorbeelden bevat instructies, verboden, woordkeuze en voorbeelden; CTA per kanaal kiest acties en bestemmingen voor toekomstige inhoud; Doelen en strategie en Actualiteit bepalen de onderwerpen. Controleer de mogelijkheden per kanaal.",
-      "autosave": "Wijzigingen worden automatisch opgeslagen. Wacht tot het opslaan klaar is; fouten blijven zichtbaar en bij het verlaten worden openstaande wijzigingen gecontroleerd. Controleer gegenereerde inhoud altijd vóór publicatie.",
+      "autosave": "Bedrijfs-DNA slaat openstaande wijzigingen elke 30 seconden op. Kies Opslaan om ze direct op te slaan. iNrCy waarschuwt je als er bij het verlaten nog wijzigingen openstaan.",
       "reset": "Opnieuw instellen is een aparte actie met bevestiging. Een volledige reset verwijdert ook documenten: gebruik dit alleen als je deze informatie wilt verwijderen."
     }
   },

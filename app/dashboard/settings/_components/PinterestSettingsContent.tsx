@@ -263,20 +263,20 @@ function withPinterestBoardReadiness(
 function mergeSettings(
   saved: PinterestSettings,
   status: any,
+  updateProfile: boolean,
 ): PinterestSettings {
   if (!status?.ok) return saved;
   const liveBoards = normalizeBoards(status.boards);
   const boards = liveBoards.length > 0 ? liveBoards : saved.boards;
   const requiresUpdate = Boolean(status.status === "needs_update" || status.requiresUpdate);
   const accountConnected = Boolean(status.connected && !requiresUpdate);
-  const hasPublicProfileUrl = Object.prototype.hasOwnProperty.call(status, "publicProfileUrl");
-  const publicProfileUrl = hasPublicProfileUrl
+  const publicProfileUrl = updateProfile && Object.prototype.hasOwnProperty.call(status, "publicProfileUrl")
     ? String(status.publicProfileUrl || "")
     : saved.publicProfileUrl;
-  const hasProfileUrl = Object.prototype.hasOwnProperty.call(status, "profileUrl");
-  const profileUrl = hasProfileUrl
-    ? String(status.profileUrl || publicProfileUrl || "")
-    : String(publicProfileUrl || saved.profileUrl || "");
+  const previousLiveProfileUrl = accountConnected && !saved.publicProfileUrl ? saved.profileUrl : "";
+  const profileUrl = updateProfile
+    ? String(status.profileUrl || publicProfileUrl || previousLiveProfileUrl || "")
+    : saved.profileUrl;
   return withPinterestBoardReadiness({
     ...saved,
     accountConnected,
@@ -298,17 +298,19 @@ function mergeSettings(
   });
 }
 
-function emitDashboardUpdate(settings: PinterestSettings, refresh = false) {
+function emitDashboardUpdate(settings: PinterestSettings, refresh = false, profileConfirmed = false) {
   if (typeof window === "undefined") return;
   window.dispatchEvent(
     new CustomEvent("inrcy:pinterest-settings-updated", {
       detail: {
+        accountId: getActiveBrowserUserId(),
         refresh,
         connected: isPinterestBoardReady(settings),
         accountConnected: settings.accountConnected,
         requiresUpdate: settings.requiresUpdate,
         connectionStatus: settings.connectionStatus,
         profileUrl: settings.publicProfileUrl || settings.profileUrl,
+        ...(profileConfirmed ? { publicProfileUrl: settings.publicProfileUrl } : {}),
         accountName: settings.accountName || settings.username,
       },
     }),
@@ -320,7 +322,9 @@ export default function PinterestSettingsContent({ onUnsavedChange, renderBubble
   const mountedRef = useRef(true);
   const pendingDashboardUpdateRef = useRef(false);
   const pendingDashboardRefreshRef = useRef(false);
+  const pendingDashboardProfileUpdateRef = useRef(false);
   const boardMutationVersion = useRef(0);
+  const profileRevisionRef = useRef(0);
   const connectionRevisionRef = useRef(0);
   const disconnectInFlightRef = useRef(false);
   const [settings, setSettings] = useState<PinterestSettings>(() =>
@@ -353,9 +357,11 @@ export default function PinterestSettingsContent({ onUnsavedChange, renderBubble
 
   const load = useCallback(async () => {
     if (disconnectInFlightRef.current) return;
+    const accountId = getActiveBrowserUserId();
     const connectionRevision = connectionRevisionRef.current;
-    const isCurrent = () => mountedRef.current && connectionRevision === connectionRevisionRef.current;
+    const isCurrent = () => mountedRef.current && accountId === getActiveBrowserUserId() && connectionRevision === connectionRevisionRef.current;
     const readVersion = boardMutationVersion.current;
+    const profileRevision = profileRevisionRef.current;
     setLoading(true);
     setError(null);
     try {
@@ -369,10 +375,15 @@ export default function PinterestSettingsContent({ onUnsavedChange, renderBubble
         : null;
 
       if (!isCurrent()) return;
+      if (!status?.ok) {
+        setError({ kind: "load" });
+        return;
+      }
       pendingDashboardUpdateRef.current = true;
+      if (profileRevision === profileRevisionRef.current) pendingDashboardProfileUpdateRef.current = true;
       setSettings((current) => {
         if (!isCurrent()) return current;
-        const merged = mergeSettings(current, status);
+        const merged = mergeSettings(current, status, profileRevision === profileRevisionRef.current);
         const nextSettings = boardMutationVersion.current === readVersion ? merged : withPinterestBoardReadiness({ ...merged, boards: current.boards, defaultBoardId: current.defaultBoardId });
         cachePinterestSettings(nextSettings);
         return nextSettings;
@@ -406,7 +417,9 @@ export default function PinterestSettingsContent({ onUnsavedChange, renderBubble
     pendingDashboardUpdateRef.current = false;
     const refresh = pendingDashboardRefreshRef.current;
     pendingDashboardRefreshRef.current = false;
-    emitDashboardUpdate(settings, refresh);
+    const profileConfirmed = pendingDashboardProfileUpdateRef.current;
+    pendingDashboardProfileUpdateRef.current = false;
+    emitDashboardUpdate(settings, refresh, profileConfirmed);
   }, [settings]);
 
   const connectPinterest = useCallback(() => {
@@ -471,8 +484,10 @@ export default function PinterestSettingsContent({ onUnsavedChange, renderBubble
     void refreshBoards("");
 
     let cancelled = false;
+    const accountId = getActiveBrowserUserId();
     const connectionRevision = connectionRevisionRef.current;
     const readVersion = boardMutationVersion.current;
+    const profileRevision = profileRevisionRef.current;
     void fetch("/api/integrations/pinterest/status?live=1", {
       cache: "no-store" as any,
     })
@@ -481,11 +496,12 @@ export default function PinterestSettingsContent({ onUnsavedChange, renderBubble
         return response.json().catch(() => null);
       })
       .then((status) => {
-        if (cancelled || !status?.ok || connectionRevision !== connectionRevisionRef.current) return;
+        if (cancelled || !status?.ok || accountId !== getActiveBrowserUserId() || connectionRevision !== connectionRevisionRef.current) return;
         pendingDashboardUpdateRef.current = true;
+        if (profileRevision === profileRevisionRef.current) pendingDashboardProfileUpdateRef.current = true;
         setSettings((current) => {
-          if (connectionRevision !== connectionRevisionRef.current) return current;
-          const merged = mergeSettings(current, status);
+          if (accountId !== getActiveBrowserUserId() || connectionRevision !== connectionRevisionRef.current) return current;
+          const merged = mergeSettings(current, status, profileRevision === profileRevisionRef.current);
           const nextSettings = boardMutationVersion.current === readVersion ? merged : withPinterestBoardReadiness({ ...merged, boards: current.boards, defaultBoardId: current.defaultBoardId });
           cachePinterestSettings(nextSettings);
           return nextSettings;
@@ -770,6 +786,7 @@ export default function PinterestSettingsContent({ onUnsavedChange, renderBubble
       cachePinterestSettings(nextSettings);
       pendingDashboardUpdateRef.current = false;
       pendingDashboardRefreshRef.current = false;
+      pendingDashboardProfileUpdateRef.current = false;
       emitDashboardUpdate(nextSettings, true);
       if (!mountedRef.current) return;
       setSettings(nextSettings);
@@ -787,6 +804,7 @@ export default function PinterestSettingsContent({ onUnsavedChange, renderBubble
 
   const boardOptions = useMemo(() => settings.boards, [settings.boards]);
   const pinterestBoardReady = isPinterestBoardReady(settings);
+  const accountId = getActiveBrowserUserId();
 
   const publicLinks = settings.accountConnected ? (
     <EditableChannelUrlField
@@ -795,8 +813,11 @@ export default function PinterestSettingsContent({ onUnsavedChange, renderBubble
       channel="pinterest"
       value={settings.publicProfileUrl || settings.profileUrl}
       onSaved={(url) => {
+        if (!mountedRef.current || accountId !== getActiveBrowserUserId()) return;
+        profileRevisionRef.current++;
         pendingDashboardUpdateRef.current = true;
         pendingDashboardRefreshRef.current = true;
+        pendingDashboardProfileUpdateRef.current = true;
         setSettings((current) => {
           const next = { ...current, publicProfileUrl: url, profileUrl: url };
           cachePinterestSettings(next);

@@ -15,10 +15,10 @@ import DashboardWorkspaceHeader, {
 import { useDashboardEdition } from "../_components/DashboardEditionProvider";
 import { useDashboardI18n } from "../_hooks/useDashboardI18n";
 import { useDashboardUnsavedNavigation } from "../_components/DashboardUnsavedNavigationProvider";
+import { useBusinessDnaExitChoice } from "../_hooks/useBusinessDnaExitChoice";
 import { useUnsavedExitGuard } from "../_hooks/useUnsavedExitGuard";
 import { useDashboardCompletionChecks } from "../_hooks/useDashboardCompletionChecks";
 import AiConfigurationIcon from "../_components/AiConfigurationIcon";
-import { chooseInrcy } from "@/lib/inrcyDialog";
 
 const BUSINESS_DNA_TABS = new Set<AiMemoryWorkspaceTab>([
   "analysis",
@@ -48,6 +48,7 @@ export default function BusinessDnaPage() {
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [voiceBusy, setVoiceBusy] = useState(false);
   const workspaceRef = useRef<AiMemoryContentHandle | null>(null);
+  const { chooseExit, exitChoiceOpen } = useBusinessDnaExitChoice();
 
   useUnsavedExitGuard({
     active: true,
@@ -57,18 +58,7 @@ export default function BusinessDnaPage() {
       if (voiceBusy) return false;
       if (!hasUnsavedChanges) return true;
 
-      const choice = await chooseInrcy({
-        eyebrow: settingsDrawerT("settings"),
-        title: "Des modifications sont en attente",
-        message: "Vos dernières modifications n’ont pas encore été sauvegardées.",
-        choices: [
-          { value: "save", label: "Enregistrer et fermer", tone: "primary" },
-          { value: "continue", label: "Continuer l’édition", tone: "secondary" },
-          { value: "discard", label: "Fermer sans enregistrer", tone: "danger" },
-        ],
-        defaultValue: "save",
-        variant: "warning",
-      });
+      const choice = await chooseExit();
 
       if (choice === "save") {
         return workspaceRef.current?.savePendingChanges() ?? false;
@@ -172,6 +162,7 @@ export default function BusinessDnaPage() {
           }}
           onUnsavedChange={setHasUnsavedChanges}
           onVoiceBusyChange={setVoiceBusy}
+          autoSavePaused={exitChoiceOpen}
         />
       </section>
 

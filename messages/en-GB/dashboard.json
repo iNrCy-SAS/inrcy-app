@@ -824,7 +824,10 @@
     "exitWithoutSavingTitle": "Exit without saving?",
     "exitWithoutSavingMessage": "This window contains unsaved changes. If you close it now, they will be lost.",
     "closeWithoutSaving": "Close without saving",
-    "continueEditing": "Continue editing"
+    "continueEditing": "Continue editing",
+    "pendingChangesTitle": "You have pending changes",
+    "pendingChangesMessage": "Your latest changes haven’t been saved yet.",
+    "saveAndClose": "Save and close"
   },
   "settingsSections": {
     "activityIdentityTitle": "Sector and profession",
@@ -1144,7 +1147,7 @@
       "analysisLimits": "Analysis enriches reliable information it finds while preserving manual entries. Writing preferences and CTAs are configured separately in My communication. Keep the tool open when analysing a custom selection of channels.",
       "company": "My business contains Contact & logo; Activity (profession, presentation, services and specialities); Customers; Areas (postcode, main city, service areas and opening hours); and Identity (mission, strengths, values and commitments). Review the information found and complete missing details.",
       "communication": "In My communication, Style and preferences controls writing preferences; Instructions and examples contains instructions, prohibitions, vocabulary and examples; CTAs by channel selects actions and destinations for future content; Goals and strategy and News define topics to highlight. Check the capabilities displayed for each channel.",
-      "autosave": "Changes save automatically. Wait for saving to finish; errors remain visible and leaving checks for pending changes. Always review generated content before publishing.",
+      "autosave": "Business DNA saves pending changes every 30 seconds. Select Save to save them straight away. iNrCy warns you before you leave with pending changes.",
       "reset": "Reset is a separate action requiring confirmation. A global reset also deletes documents: use it only when you intend to remove this information."
     }
   },

@@ -13,6 +13,7 @@ import { useDashboardEdition } from "../_components/DashboardEditionProvider";
 import { useDashboardUnsavedNavigation } from "../_components/DashboardUnsavedNavigationProvider";
 import { useDashboardCompletionChecks } from "../_hooks/useDashboardCompletionChecks";
 import { useDashboardPreparationScores } from "../_hooks/useDashboardPreparationScores";
+import { useBusinessDnaExitChoice } from "../_hooks/useBusinessDnaExitChoice";
 import { useUnsavedExitGuard } from "../_hooks/useUnsavedExitGuard";
 import type { AiMemoryContentHandle, AiMemoryWorkspaceTab } from "../settings/_components/AiMemoryContent";
 import type { AiConfigurationContentHandle, AiConfigurationTab } from "../settings/_components/AiConfigurationContent";
@@ -45,6 +46,7 @@ export default function PersonalizationPage() {
   const [communicationVoiceBusy, setCommunicationVoiceBusy] = useState(false);
   const companyRef = useRef<AiMemoryContentHandle | null>(null);
   const communicationRef = useRef<AiConfigurationContentHandle | null>(null);
+  const { chooseExit, exitChoiceOpen } = useBusinessDnaExitChoice();
   const [vocabularyTarget, setVocabularyTarget] = useState<HTMLDivElement | null>(null);
   const [memoryTab, setMemoryTab] = useState<AiMemoryWorkspaceTab>(requestedSection === "identity" ? "identity" : initialSection === "company" ? "profile" : "analysis");
   const [communicationTab, setCommunicationTab] = useState<AiConfigurationTab | "strategy" | "news">("parameters");
@@ -58,9 +60,19 @@ export default function PersonalizationPage() {
     onConfirmExit: () => router.push("/dashboard"),
     onBlockedExit: async () => {
       if (voiceBusy) return false;
+      if (companyDirty) {
+        const choice = await chooseExit();
+        if (choice === "discard") {
+          companyRef.current?.discardPendingChanges();
+          communicationRef.current?.discardPendingChanges();
+          return true;
+        }
+        if (choice !== "save" || !await companyRef.current?.savePendingChanges()) return false;
+        return !communicationDirty || await communicationRef.current?.savePendingChanges() === true;
+      }
+
       const communicationSaved = !communicationDirty || await communicationRef.current?.savePendingChanges() === true;
-      const companySaved = !companyDirty || await companyRef.current?.savePendingChanges() === true;
-      if (communicationSaved && companySaved) return true;
+      if (communicationSaved) return true;
       const discard = await confirmInrcy({
         eyebrow: drawerT("settings"),
         title: drawerT("exitWithoutSavingTitle"),
@@ -204,6 +216,7 @@ export default function PersonalizationPage() {
             onActivitySaved={() => { markActivityCompleted(); void checkActivity(); void refreshPreparationScores(); }}
             onUnsavedChange={setCompanyDirty}
             onVoiceBusyChange={setCompanyVoiceBusy}
+            autoSavePaused={exitChoiceOpen}
             onAnalysisCompleted={() => { void refreshPreparationScores(); }}
           />
         </div>

@@ -11,7 +11,7 @@ const root = path.resolve(import.meta.dirname, "../..");
 const screens = {
   agenda: ["app/dashboard/agenda/AgendaClient.tsx", "AgendaClient", "rdvOpen,rdvSummary,rdvEventId,rdvMode,rdvRemindersEnabled,setRdvSummary,openCreateRdv,openEditRdv,selectedDate"],
   reviews: ["app/dashboard/e-reputation/EReputationReviewsClient.tsx", "EReputationReviewsClient", "replyText,selectedId,detailsOpen,refreshing,publishing,setReplyText,setPublishing,openDetails,items"],
-  memory: ["app/dashboard/settings/_components/AiMemoryContent.tsx", "AiMemoryContent", "loaded,memory,analysisJob,analyzing,analysisProgress,workspaceSaving,autoSaveState,setField,setAnalysisProgress,discardAllWorkspaceChanges,saveWorkspace,companyCompletion,completionContext"],
+  memory: ["app/dashboard/settings/_components/AiMemoryContent.tsx", "AiMemoryContent", "loaded,memory,analysisJob,analyzing,analysisProgress,workspaceSaving,hasWorkspaceChanges,setMissionRichField,setAnalysisProgress,discardAllWorkspaceChanges,saveWorkspace,companyCompletion,completionContext"],
 } as const;
 
 function compile(file: string, screen?: keyof typeof screens) {
@@ -104,28 +104,45 @@ test("review refresh preserves a reply and keyboard navigation sees live busy an
   } finally { await browser.close(); }
 });
 
-test("ADN autosave survives unrelated renders, writes once and cancels a discarded draft", async () => {
+test("ADN saves only dirty drafts at fixed 30-second ticks and preserves newer edits", async () => {
   const browser = await chromium.launch({ headless: true });
   try {
     const page = await browser.newPage();
     await setup(page, "memory");
     await page.waitForFunction("window.screenState.loaded");
     assert.equal(await page.evaluate("window.screenState.companyCompletion.maxPoints"), 75);
-    await page.evaluate("window.screenState.setField('mission','New mission')");
-    await page.waitForFunction("window.screenState.autoSaveState === 'scheduled'");
-    await page.clock.runFor(900);
-    await page.evaluate("window.screenState.setAnalysisProgress(9)");
+    const writeCount = () => page.evaluate<number>("window.calls.filter(c=>c.method==='PUT').length");
+    const editMission = (text: string) => page.evaluate(value => {
+      const { screenState } = window as unknown as { screenState: { setMissionRichField: (content: { text: string; html: string }) => void } };
+      screenState.setMissionRichField({ text: value, html: `<p>${value}</p>` });
+    }, text);
+    await page.clock.runFor(31_000);
+    assert.equal(await writeCount(), 0, "A clean workspace makes no save request at the first tick");
+    await editMission("New mission");
+    await page.waitForFunction("window.screenState.hasWorkspaceChanges");
+    await page.clock.runFor(20_000);
+    assert.equal(await writeCount(), 0, "Editing has no immediate save");
+    await page.evaluate("window.delayDnaWrite=true; window.screenState.setAnalysisProgress(9)");
+    await editMission("Second edit");
     await page.waitForFunction("window.screenState.analysisProgress === 9");
-    await page.clock.runFor(101);
-    await page.waitForFunction("window.calls.filter(c=>c.method==='PUT').length === 1 && !window.screenState.workspaceSaving");
-    await page.clock.runFor(2000);
-    assert.equal(await page.evaluate("window.calls.filter(c=>c.method==='PUT').length"), 1);
-    await page.evaluate("window.screenState.setField('mission','Discard this')");
-    await page.waitForFunction("window.screenState.autoSaveState === 'scheduled'");
+    await page.clock.runFor(10_000);
+    assert.equal(await writeCount(), 1, "The tick is fixed even after a recent edit");
+    await page.waitForFunction("window.resolveDnaWrite && window.screenState.workspaceSaving");
+    assert.equal(await page.evaluate("window.calls.find(c=>c.method==='PUT').body.memory.mission"), "Second edit");
+    await editMission("Keep this newer edit");
+    await page.clock.runFor(30_000);
+    assert.equal(await writeCount(), 1, "An in-flight save blocks overlap at the next tick");
+    await page.evaluate("window.delayDnaWrite=false; window.resolveDnaWrite()");
+    await page.waitForFunction("!window.screenState.workspaceSaving && window.screenState.hasWorkspaceChanges");
+    assert.equal(await page.evaluate("window.screenState.memory.mission"), "Keep this newer edit");
+    assert.equal(await page.evaluate("window.screenState.saveWorkspace()"), true);
+    assert.equal(await writeCount(), 2, "Manual save writes immediately");
+    await editMission("Discard this");
+    await page.waitForFunction("window.screenState.hasWorkspaceChanges");
     await page.evaluate("window.screenState.discardAllWorkspaceChanges()");
-    await page.clock.runFor(1200);
-    assert.equal(await page.evaluate("window.screenState.memory.mission"), "New mission");
-    assert.equal(await page.evaluate("window.calls.filter(c=>c.method==='PUT').length"), 1);
+    await page.clock.runFor(31_000);
+    assert.equal(await page.evaluate("window.screenState.memory.mission"), "Keep this newer edit");
+    assert.equal(await writeCount(), 2, "Discarded edits are not submitted at a later tick");
     assert.deepEqual(await page.evaluate("window.errors"), []);
   } finally { await browser.close(); }
 });

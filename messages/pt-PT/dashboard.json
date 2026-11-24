@@ -824,7 +824,10 @@
     "exitWithoutSavingTitle": "Sair sem guardar?",
     "exitWithoutSavingMessage": "Esta janela contém alterações não guardadas. Se a fechar agora, serão perdidas.",
     "closeWithoutSaving": "Fechar sem guardar",
-    "continueEditing": "Continuar a editar"
+    "continueEditing": "Continuar a editar",
+    "pendingChangesTitle": "Há alterações pendentes",
+    "pendingChangesMessage": "As suas últimas alterações ainda não foram guardadas.",
+    "saveAndClose": "Guardar e fechar"
   },
   "settingsSections": {
     "activityIdentityTitle": "Setor e profissão",
@@ -1144,7 +1147,7 @@
       "analysisLimits": "A análise acrescenta informação fiável encontrada e preserva as entradas manuais. As preferências de escrita e os CTA configuram-se separadamente em A minha comunicação. Mantenha a ferramenta aberta para uma seleção personalizada de canais.",
       "company": "A minha empresa reúne Contactos e logótipo; Atividade (profissão, apresentação, serviços e especialidades); Clientes; Zonas (código postal, cidade principal, zonas e horários); e Identidade (missão, pontos fortes, valores e compromissos). Reveja os dados encontrados e complete os que faltam.",
       "communication": "Em A minha comunicação: Estilo e preferências ajusta a escrita; Instruções e exemplos reúne instruções, proibições, vocabulário e exemplos; CTA por canal escolhe ações e destinos dos conteúdos futuros; Objetivos e estratégia e Atualidade definem os assuntos a destacar. Verifique as possibilidades indicadas para cada canal.",
-      "autosave": "As alterações são guardadas automaticamente. Aguarde o fim da gravação; os erros permanecem visíveis e a saída verifica as alterações pendentes. Reveja sempre o conteúdo gerado antes de publicar.",
+      "autosave": "O ADN da empresa guarda as alterações pendentes a cada 30 segundos. Selecione Guardar para as guardar de imediato. O iNrCy avisa se ainda houver alterações pendentes ao sair.",
       "reset": "Repor é uma ação separada que exige confirmação. A reposição global elimina também documentos: utilize-a apenas se pretender apagar estas informações."
     }
   },
