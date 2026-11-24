@@ -222,7 +222,7 @@ export const INR_ASSISTANT_BASIC_GUIDES = [
       "business",
       "dna"
     ],
-    "content": "Découverte : IA et publication verrouillées. iNr’Assistant peut compléter les coordonnées, le nom, l’activité/profession du catalogue, la ville et un logo déjà importé, à partir des informations explicites du professionnel. Il vérifie la version puis relit les champs sauvegardés. Il peut lister les sources et documents ADN, choisir les sources d’analyse demandées et supprimer un document précis après aperçu confirmé. Pour un nouveau fichier local, le choix du fichier et l’autorisation native restent personnels. Les formulaires ouverts permettent les choix locaux, onglets et annulations natives. Pour les champs de texte enrichi, l’assistant peut appliquer gras, italique ou listes au passage littéral unique demandé, ou à tout le champ explicitement désigné, en utilisant la barre native ; la mise en forme ne prouve pas une sauvegarde serveur. La langue de rédaction IA et la langue d’affichage de l’application sont deux réglages distincts.",
+    "content": "Découverte : IA et publication verrouillées. iNr’Assistant peut compléter les coordonnées, le nom, l’activité/profession du catalogue, la ville et un logo déjà importé, à partir des informations explicites du professionnel. Il vérifie la version puis relit les champs sauvegardés. Il peut lister les sources et documents ADN, choisir les sources d’analyse demandées et supprimer un document précis après aperçu confirmé. Pour un nouveau fichier local, le choix du fichier et l’autorisation native restent personnels. Les formulaires ouverts permettent les choix locaux, onglets et annulations natives. Les changements en attente dans l’ADN sont enregistrés toutes les 30 secondes. Le bouton Enregistrer permet de les enregistrer immédiatement. La sortie signale les modifications encore en attente. Pour les champs de texte enrichi, l’assistant peut appliquer gras, italique ou listes au passage littéral unique demandé, ou à tout le champ explicitement désigné, en utilisant la barre native ; la mise en forme ne prouve pas une sauvegarde serveur. La langue de rédaction IA et la langue d’affichage de l’application sont deux réglages distincts.",
     "sourceFiles": [
       "lib/inrAssistantBusinessIdentityTools.ts",
       "lib/businessIdentity.ts",
@@ -230,6 +230,7 @@ export const INR_ASSISTANT_BASIC_GUIDES = [
       "lib/inrAssistantDnaAnalysisTools.ts",
       "app/dashboard/personnalisation/page.tsx",
       "app/dashboard/adn-entreprise/page.tsx",
+      "app/dashboard/_hooks/useBusinessDnaExitChoice.ts",
       "app/dashboard/mon-profil/page.tsx",
       "app/dashboard/settings/profil/page.tsx",
       "app/dashboard/settings/activite/page.tsx",

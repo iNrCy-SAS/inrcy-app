@@ -54,7 +54,10 @@ window.fetch = async (url, options = {}) => {
   if (url.startsWith("/api/e-reputation/google")) return new Promise(resolve => { window.resolveReviews = () => resolve(ok({ connected: true, configured: true, locationName: "location-a", reviews: [{ reviewId: "a", name: "locations/a/reviews/a", reviewer: { displayName: "Client a" }, starRating: "FIVE", comment: "Updated review" }, { reviewId: "b", name: "locations/a/reviews/b", reviewer: { displayName: "Client b" }, starRating: "FIVE", comment: "Review b" }], totalReviewCount: 2 })); });
   if (url === "/api/ai-memory/analyze-channels") return ok({ accountId: window.account, job: window.scenario === "poll" ? window.job : null, channels: [] });
   if (url === "/api/ai-memory") {
-    if (options.method === "PUT") window.serverMemory = { ...window.serverMemory, ...JSON.parse(options.body).memory };
+    if (options.method === "PUT") {
+      if (window.delayDnaWrite) await new Promise(resolve => { window.resolveDnaWrite = resolve; });
+      window.serverMemory = { ...window.serverMemory, ...JSON.parse(options.body).memory };
+    }
     return ok({ accountId: window.account, memory: window.serverMemory, businessKnowledge: {}, strategyEnabled: true });
   }
   throw Error("Unexpected fetch " + url);

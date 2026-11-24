@@ -32,7 +32,6 @@ const CHANNEL_PUBLIC_URL_INTEGRATION_MAPPINGS: Partial<
   linkedin: { provider: "linkedin", source: "linkedin", product: "linkedin", metaKey: "profile_url" },
   tiktok: { provider: "tiktok", source: "tiktok", product: "tiktok", metaKey: "profile_url" },
   youtube_shorts: { provider: "youtube", source: "youtube_shorts", product: "youtube_shorts", metaKey: "channel_url" },
-  pinterest: { provider: "pinterest", source: "pinterest", product: "pinterest", metaKey: "profile_url" },
   x: { provider: "x", source: "x", product: "x", metaKey: "profile_url" },
 };
 
@@ -157,7 +156,8 @@ export async function PATCH(request: Request) {
 
     let mirrorSynced = true;
     let sourceOfTruthUpdated = false;
-    if (channel !== "site_web") {
+    // Pinterest reads the professional's link from the channel settings.
+    if (channel !== "site_web" && channel !== "pinterest") {
       sourceOfTruthUpdated = await updateIntegrationSourceOfTruth(activeUserId, channel, normalized.url, target);
     }
 

@@ -256,11 +256,13 @@ test("personalization guide describes the unified tabs, automatic saving and doc
   assert.match(dna.content, /\/dashboard\/personnalisation/);
   assert.match(dna.content, /Analyse, Mon entreprise et Ma communication/);
   assert.match(dna.content, /trombone[\s\S]*?autorisation/);
-  assert.match(dna.content, /enregistrées automatiquement/);
+  assert.match(dna.content, /enregistre les changements en attente toutes les 30 secondes/);
+  assert.match(dna.content, /Enregistrer et fermer, Continuer l’édition ou Fermer sans enregistrer/);
   assert.match(dna.content, /sélection personnalisée[\s\S]*?outil ouvert/);
   assert.ok(dna.sourceFiles.includes("app/dashboard/personnalisation/page.tsx"));
   assert.match(ai.content, /Ma communication[\s\S]*?Vocabulaire/);
-  assert.match(ai.content, /enregistrement automatique/);
+  assert.match(ai.content, /Les réglages de configuration IA s’enregistrent automatiquement/);
+  assert.match(ai.content, /Le vocabulaire, la stratégie et les actualités suivent la sauvegarde de l’ADN/);
   assert.doesNotMatch(ai.content, /liens site sont incompatibles avec Instagram, TikTok et X/);
 });
 

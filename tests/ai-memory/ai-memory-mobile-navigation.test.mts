@@ -33,19 +33,20 @@ function evaluate(expression: string, globals: Record<string, unknown>) {
   return vm.runInNewContext(ts.transpileModule(`(${expression})`, { compilerOptions: { target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.React } }).outputText, globals);
 }
 
-test("every DNA selector destination retains unsaved edits through the existing autosave handler", () => {
+test("every DNA selector destination changes tabs without saving the pending draft", () => {
   const tabs = evaluate(declaration("tabs"), { t: (key: string) => key, profileLabel: "Profil", visibleTabs: undefined });
   assert.deepEqual(Array.from(tabs, (tab: { key: string }) => tab.key), ["analysis", "profile", "activity", "audience", "local", "identity", "news", "strategy"]);
   assert.match(source, /initialTab === "documents" \? "analysis" : initialTab/, "legacy document links land on the shared analysis tab");
   for (const target of tabs) {
     const events: string[] = [];
     const selectTab = evaluate(declaration("selectTab"), {
+      useCallback: (fn: unknown) => fn,
       voiceTargetRef: { current: null }, activeTab: "previous", hasWorkspaceChanges: true,
-      saveWorkspace: ({ reason }: { reason: string }) => { events.push(`save:${reason}`); return Promise.resolve(); },
+      saveWorkspace: () => events.push("save"),
       changeTab: (key: string) => events.push(`tab:${key}`),
     });
     selectTab(target.key);
-    assert.deepEqual(events, ["save:tab-change", `tab:${target.key}`]);
+    assert.deepEqual(events, [`tab:${target.key}`]);
   }
 });
 
@@ -53,6 +54,7 @@ test("DNA navigation remains locked during voice input and is a no-op for the cu
   for (const voice of [null, "mission"]) {
     const events: string[] = [];
     const selectTab = evaluate(declaration("selectTab"), {
+      useCallback: (fn: unknown) => fn,
       voiceTargetRef: { current: voice }, activeTab: "analysis", hasWorkspaceChanges: true,
       saveWorkspace: () => events.push("save"), changeTab: () => events.push("change"),
     });

@@ -145,6 +145,7 @@ type Props = {
   visibleTabs?: readonly AiMemoryWorkspaceTab[];
   hideNavigation?: boolean;
   assistantActive?: boolean;
+  autoSavePaused?: boolean;
   vocabularyPortalTarget?: HTMLDivElement | null;
   profileLabel?: string;
   onTabChange?: (tab: AiMemoryWorkspaceTab) => void;
@@ -166,9 +167,8 @@ export type AiMemoryContentHandle = {
   selectTab?: (tab: AiMemoryWorkspaceTab) => void;
 };
 
-type WorkspaceSaveReason = "manual" | "auto" | "tab-change" | "analysis" | "exit";
 type WorkspaceSaveOptions = {
-  reason?: WorkspaceSaveReason;
+  background?: boolean;
   /**
    * Une analyse construit son résultat dans le navigateur. Ce brouillon est
    * passé explicitement afin d'être persisté dans la même opération, sans
@@ -239,6 +239,7 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
   visibleTabs,
   hideNavigation = false,
   assistantActive = true,
+  autoSavePaused = false,
   vocabularyPortalTarget = null,
   profileLabel = "Mon profil",
   onTabChange,
@@ -279,14 +280,11 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
   const [loadAttempt, setLoadAttempt] = useState(0);
   const [completedLoadAttempt, setCompletedLoadAttempt] = useState(-1);
   const [saving, setSaving] = useState(false);
-  const [workspaceSaving, setWorkspaceSaving] = useState(false);
+  const [workspaceSaveMode, setWorkspaceSaveMode] = useState<"manual" | "background" | null>(null);
+  const workspaceSaving = workspaceSaveMode !== null;
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
   const [workspaceError, setWorkspaceError] = useState("");
-  const [profileDraftSignature, setProfileDraftSignature] = useState("");
-  const [activityDraftSignature, setActivityDraftSignature] = useState("");
-  const [locationDraftSignature, setLocationDraftSignature] = useState("");
-  const [autoSaveState, setAutoSaveState] = useState<"idle" | "scheduled" | "saving" | "failed">("idle");
   const [analyzing, setAnalyzing] = useState(false);
   const [analysisJob, setAnalysisJob] = useState<BusinessDnaManualAnalysisJob | null>(null);
   const analysisAccountIdRef = useRef("");
@@ -319,12 +317,10 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
   const [activityContentRevision, setActivityContentRevision] = useState(0);
   const [profileContentRevision, setProfileContentRevision] = useState(0);
   const [locationContentRevision, setLocationContentRevision] = useState(0);
-  const autoSaveTimerRef = useRef<number | null>(null);
-  const failedAutoSaveSignatureRef = useRef<string | null>(null);
   const workspaceSavePromiseRef = useRef<Promise<boolean> | null>(null);
-  const profileDraftRef = useRef({ dirty: false, signature: "" });
-  const activityDraftRef = useRef({ dirty: false, signature: "" });
-  const locationDraftRef = useRef({ dirty: false, signature: "" });
+  const profileDraftRef = useRef({ dirty: false });
+  const activityDraftRef = useRef({ dirty: false });
+  const locationDraftRef = useRef({ dirty: false });
   const workspaceOwnerRef = useRef({ accountId: "", browserScope: "" });
   const workspaceMountedRef = useRef(true);
   const memorySaveRunningRef = useRef(false);
@@ -380,18 +376,9 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
   useInrAssistantLocalInterface("dna_sources", { loaded, loading, completedLoadAttempt, error }, {
     retry: { invoke: () => setLoadAttempt(attempt => attempt + 1), matches: snapshot => Boolean(snapshot && typeof snapshot === "object" && "completedLoadAttempt" in snapshot && "loading" in snapshot && "loaded" in snapshot && "error" in snapshot && Number(snapshot.completedLoadAttempt) > loadAttempt && snapshot.loading === false && snapshot.loaded === true && !snapshot.error) },
   }, assistantActive, loading || saving || workspaceSaving || analyzing || voiceTarget !== null || hasWorkspaceChanges || documentUploadState !== "idle" || !error);
-  const workspaceDraftSignature = useMemo(
-    () => [
-      signature,
-      profileDirty ? profileDraftSignature : "",
-      activityDirty ? activityDraftSignature : "",
-      locationDirty ? locationDraftSignature : "",
-    ].join("::"),
-    [activityDirty, activityDraftSignature, locationDirty, locationDraftSignature, profileDirty, profileDraftSignature, signature],
-  );
   const voiceBusy = voiceTarget !== null;
-  assistantBusyRef.current = loading || !loaded || saving || workspaceSaving || analyzing || voiceBusy || documentUploadState !== "idle" || analysisScheduleOpen || autoSaveState === "scheduled" || autoSaveState === "saving";
-  const voiceOperationsLocked = saving || analyzing || loading || !loaded;
+  assistantBusyRef.current = loading || !loaded || saving || workspaceSaving || analyzing || voiceBusy || documentUploadState !== "idle" || analysisScheduleOpen;
+  const voiceOperationsLocked = (saving && workspaceSaveMode !== "background") || analyzing || loading || !loaded;
   const voiceDisabledFor = (target: VoiceTarget) =>
     voiceOperationsLocked || (voiceTarget !== null && voiceTarget !== target);
   const handleVoiceBusyChange = (target: VoiceTarget, busy: boolean) => {
@@ -403,43 +390,38 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
   };
 
   const markWorkspaceDraftUpdated = useCallback(() => {
-    failedAutoSaveSignatureRef.current = null;
     setWorkspaceError("");
-    setAutoSaveState("idle");
   }, []);
 
   const handleProfileUnsavedChange = useCallback(
-    (dirty: boolean, draftSignature = "") => {
-      profileDraftRef.current = { dirty, signature: draftSignature };
+    (dirty: boolean) => {
+      profileDraftRef.current.dirty = dirty;
       setProfileDirty(dirty);
-      setProfileDraftSignature(draftSignature);
       if (dirty) markWorkspaceDraftUpdated();
     },
     [markWorkspaceDraftUpdated],
   );
 
   const handleActivityUnsavedChange = useCallback(
-    (dirty: boolean, draftSignature = "") => {
-      activityDraftRef.current = { dirty, signature: draftSignature };
+    (dirty: boolean) => {
+      activityDraftRef.current.dirty = dirty;
       setActivityDirty(dirty);
-      setActivityDraftSignature(draftSignature);
       if (dirty) markWorkspaceDraftUpdated();
     },
     [markWorkspaceDraftUpdated],
   );
 
   const handleLocationUnsavedChange = useCallback(
-    (dirty: boolean, draftSignature = "") => {
-      locationDraftRef.current = { dirty, signature: draftSignature };
+    (dirty: boolean) => {
+      locationDraftRef.current.dirty = dirty;
       setLocationDirty(dirty);
-      setLocationDraftSignature(draftSignature);
       if (dirty) markWorkspaceDraftUpdated();
     },
     [markWorkspaceDraftUpdated],
   );
 
   useInrAssistantRefresh({ topics: ["business"], scopeKey: analysisAccountIdRef.current, blocked: assistantBusyRef.current || hasWorkspaceChanges, refresh: async ({ accountId, canApply }) => {
-    const canRefresh = () => canApply() && workspaceMountedRef.current && !assistantBusyRef.current && !memorySaveRunningRef.current && !workspaceSavePromiseRef.current && !voiceTargetRef.current && autoSaveTimerRef.current === null
+    const canRefresh = () => canApply() && workspaceMountedRef.current && !assistantBusyRef.current && !memorySaveRunningRef.current && !workspaceSavePromiseRef.current && !voiceTargetRef.current
       && !profileDraftRef.current.dirty && !activityDraftRef.current.dirty && !locationDraftRef.current.dirty
       && workspaceSignature(memoryRef.current, businessKnowledgeRef.current) === savedSignatureRef.current
       && analysisAccountIdRef.current === accountId && workspaceOwnerRef.current.accountId === accountId
@@ -456,10 +438,8 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
     const nextKnowledge = normalizeAiBusinessKnowledge({ ...rawKnowledge, description: rawKnowledge.description ?? nextMemory.detailedDescription, services: rawKnowledge.services ?? rawFoundation.services ?? [], strengths: rawKnowledge.strengths ?? nextMemory.differentiators });
     const synchronizedMemory = normalizeAiMemory({ ...nextMemory, detailedDescription: nextKnowledge.description, differentiators: nextKnowledge.strengths }, { includePremium: nextStrategyEnabled });
     if (!canRefresh()) return false;
-    // Advance the baseline before the React setters: reflecting a server save
-    // is a read, and must never schedule the workspace's autosave back to it.
+    // Update the baseline before displaying the confirmed server data.
     savedSignatureRef.current = workspaceSignature(synchronizedMemory, nextKnowledge);
-    failedAutoSaveSignatureRef.current = null;
     updateMemory(synchronizedMemory);
     updateBusinessKnowledge(nextKnowledge);
     setCompletionContext(payload.completionContext || {});
@@ -472,7 +452,6 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
     setAnalysisSummary(job && (job.status === "succeeded" || job.status === "failed") ? summaryFromAnalysisJob(job) : null);
     setError("");
     setWorkspaceError("");
-    setAutoSaveState("idle");
     setProfileContentRevision(current => current + 1);
     setActivityContentRevision(current => current + 1);
     setLocationContentRevision(current => current + 1);
@@ -972,7 +951,6 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
         updateBusinessKnowledge(nextBusinessKnowledge);
         savedSignatureRef.current = workspaceSignature(nextMemory, nextBusinessKnowledge);
         setSaved(true);
-        setAutoSaveState("idle");
         onUnsavedChange?.(false);
       }
       await invalidateBoosterGenerationContextClient("professional");
@@ -1139,36 +1117,28 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
     if (inFlightSave) return inFlightSave;
     if (!loaded || voiceTargetRef.current || memorySaveRunningRef.current) return false;
 
-    const saveReason = options.reason || "manual";
     const shouldSaveProfile = profileDraftRef.current.dirty;
     const shouldSaveActivity = activityDraftRef.current.dirty;
-    const backgroundSave = saveReason === "auto" || saveReason === "tab-change";
+    const backgroundSave = options.background === true;
     const shouldSaveLocation = locationDraftRef.current.dirty && (!backgroundSave || businessLocationRef.current?.canAutoSave() === true);
     const shouldSaveAiMemory = Boolean(options.aiMemoryDraft) || workspaceSignature(memoryRef.current, businessKnowledgeRef.current) !== savedSignatureRef.current || shouldSaveActivity;
     const reconciliationBase = { memory: memoryRef.current, businessKnowledge: businessKnowledgeRef.current };
 
     if (!shouldSaveProfile && !shouldSaveActivity && !shouldSaveLocation && !shouldSaveAiMemory) {
-      setAutoSaveState("idle");
       return true;
     }
 
-    const shouldSurfaceFailure = saveReason === "manual" || saveReason === "exit" || saveReason === "analysis";
-    const failedDraftSignature = workspaceDraftSignature;
     const run = async (): Promise<boolean> => {
-      setWorkspaceSaving(true);
+      setWorkspaceSaveMode(backgroundSave ? "background" : "manual");
       setSaved(false);
       setError("");
       setWorkspaceError("");
-      if (saveReason === "auto" || saveReason === "tab-change") {
-        setAutoSaveState("saving");
-      }
-
       try {
         if (shouldSaveProfile) {
           const profile = profileContentRef.current;
           if (!profile?.isReady() || !(await profile.save())) {
             setWorkspaceError(t("saveError"));
-            if (shouldSurfaceFailure) changeTab("profile");
+            if (!backgroundSave) changeTab("profile");
             return false;
           }
         }
@@ -1177,7 +1147,7 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
           const location = businessLocationRef.current;
           if (!location?.isReady() || !(await location.save())) {
             setWorkspaceError(t("locationSaveError"));
-            if (shouldSurfaceFailure) changeTab("local");
+            if (!backgroundSave) changeTab("local");
             return false;
           }
         }
@@ -1188,14 +1158,14 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
           const activity = activityContentRef.current;
           if (!activity?.isReady()) {
             setWorkspaceError(t("saveError"));
-            if (shouldSurfaceFailure) changeTab("activity");
+            if (!backgroundSave) changeTab("activity");
             return false;
           }
 
           const activityDraft = activity.getBusinessKnowledgePatch();
           if (!(await activity.save())) {
             setWorkspaceError(t("saveError"));
-            if (shouldSurfaceFailure) changeTab("activity");
+            if (!backgroundSave) changeTab("activity");
             return false;
           }
 
@@ -1229,39 +1199,28 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
           // Une analyse enregistrée peut enrichir les champs affichés dans
           // Activité. Recharge ce sous-formulaire au prochain affichage afin
           // qu'il ne conserve jamais une copie antérieure de l'ADN.
-          if (mountedEmbeddedTabs.has("activity") && !activityDraftRef.current.dirty) {
+          if (!backgroundSave && mountedEmbeddedTabs.has("activity") && !activityDraftRef.current.dirty) {
             setActivityContentRevision((current) => current + 1);
           }
         }
 
-        failedAutoSaveSignatureRef.current = null;
         setWorkspaceError("");
-        setAutoSaveState("idle");
         const stillPending = hasPendingWorkspaceChanges();
         setSaved(!stillPending);
         onUnsavedChange?.(stillPending);
         return true;
       } finally {
-        setWorkspaceSaving(false);
+        setWorkspaceSaveMode(null);
       }
     };
 
     const savePromise = run();
     workspaceSavePromiseRef.current = savePromise;
     try {
-      const savedWorkspace = await savePromise;
-      if (!savedWorkspace && (saveReason === "auto" || saveReason === "tab-change")) {
-        failedAutoSaveSignatureRef.current = failedDraftSignature;
-        setAutoSaveState("failed");
-      }
-      return savedWorkspace;
+      return await savePromise;
     } catch (workspaceSaveError) {
       const message = getSafeClientErrorMessage(workspaceSaveError, t("saveError"));
       setWorkspaceError(message);
-      if (saveReason === "auto" || saveReason === "tab-change") {
-        failedAutoSaveSignatureRef.current = failedDraftSignature;
-        setAutoSaveState("failed");
-      }
       return false;
     } finally {
       if (workspaceSavePromiseRef.current === savePromise) {
@@ -1275,116 +1234,57 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
     mountedEmbeddedTabs,
     onUnsavedChange,
     t,
-    workspaceDraftSignature,
     hasPendingWorkspaceChanges,
   ]);
 
   const discardAllWorkspaceChanges = useCallback(() => {
-    if (autoSaveTimerRef.current !== null) {
-      window.clearTimeout(autoSaveTimerRef.current);
-      autoSaveTimerRef.current = null;
-    }
     profileContentRef.current?.cancelChanges();
     activityContentRef.current?.cancelChanges();
     businessLocationRef.current?.cancelChanges();
     restoreAiMemoryDraft();
-    profileDraftRef.current = { dirty: false, signature: "" };
-    activityDraftRef.current = { dirty: false, signature: "" };
-    locationDraftRef.current = { dirty: false, signature: "" };
-    failedAutoSaveSignatureRef.current = null;
+    profileDraftRef.current.dirty = false;
+    activityDraftRef.current.dirty = false;
+    locationDraftRef.current.dirty = false;
     setProfileDirty(false);
     setActivityDirty(false);
     setLocationDirty(false);
-    setProfileDraftSignature("");
-    setActivityDraftSignature("");
-    setLocationDraftSignature("");
     setWorkspaceError("");
-    setAutoSaveState("idle");
     onUnsavedChange?.(false);
   }, [onUnsavedChange, restoreAiMemoryDraft]);
 
   const cancelActiveTabChanges = async () => {
     if (workspaceSaving || voiceTargetRef.current) return;
     if (activeTab === "profile") {
-      profileDraftRef.current = { dirty: false, signature: "" };
+      profileDraftRef.current.dirty = false;
       profileContentRef.current?.cancelChanges();
       setProfileDirty(false);
-      setProfileDraftSignature("");
     } else if (activeTab === "activity") {
-      activityDraftRef.current = { dirty: false, signature: "" };
+      activityDraftRef.current.dirty = false;
       activityContentRef.current?.cancelChanges();
       setActivityDirty(false);
-      setActivityDraftSignature("");
     } else {
       if (activeTab === "local") {
-        locationDraftRef.current = { dirty: false, signature: "" };
+        locationDraftRef.current.dirty = false;
         businessLocationRef.current?.cancelChanges();
         setLocationDirty(false);
-        setLocationDraftSignature("");
       }
       restoreAiMemoryDraft();
     }
-    failedAutoSaveSignatureRef.current = null;
     setWorkspaceError("");
-    setAutoSaveState("idle");
   };
 
-  useEffect(() => {
-    if (autoSaveTimerRef.current !== null) {
-      window.clearTimeout(autoSaveTimerRef.current);
-      autoSaveTimerRef.current = null;
-    }
-
-    if (
-      !hasWorkspaceChanges ||
-      !loaded ||
-      voiceBusy ||
-      saving ||
-      workspaceSaving ||
-      analyzing
-    ) {
-      if (!hasWorkspaceChanges) setAutoSaveState("idle");
-      return;
-    }
-
-    // Keep an unfinished implantation draft local until it is complete or the
-    // professional explicitly saves it. Navigating to another tab keeps it mounted.
-    if (locationDirty && !memoryDirty && !profileDirty && !activityDirty && !businessLocationRef.current?.canAutoSave()) {
-      setAutoSaveState("idle");
-      return;
-    }
-
-    if (failedAutoSaveSignatureRef.current === workspaceDraftSignature) {
-      setAutoSaveState("failed");
-      return;
-    }
-
-    setAutoSaveState("scheduled");
-    autoSaveTimerRef.current = window.setTimeout(() => {
-      autoSaveTimerRef.current = null;
-      void saveWorkspace({ reason: "auto" });
-    }, 1000);
-
-    return () => {
-      if (autoSaveTimerRef.current !== null) {
-        window.clearTimeout(autoSaveTimerRef.current);
-        autoSaveTimerRef.current = null;
-      }
+  const saveOnIntervalRef = useRef<() => void>(() => {});
+  useLayoutEffect(() => {
+    saveOnIntervalRef.current = () => {
+      if (autoSavePaused || !loaded || loading || voiceBusy || saving || workspaceSaving || analyzing || documentUploadState !== "idle") return;
+      if (hasPendingWorkspaceChanges()) void saveWorkspace({ background: true });
     };
-  }, [
-    analyzing,
-    hasWorkspaceChanges,
-    loaded,
-    locationDirty,
-    memoryDirty,
-    profileDirty,
-    activityDirty,
-    saveWorkspace,
-    saving,
-    voiceBusy,
-    workspaceDraftSignature,
-    workspaceSaving,
-  ]);
+  }, [autoSavePaused, loaded, loading, voiceBusy, saving, workspaceSaving, analyzing, documentUploadState, hasPendingWorkspaceChanges, saveWorkspace]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => saveOnIntervalRef.current(), 30_000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   const resetWorkspace = async (scopeCurrent: BusinessFormActionScope = () => true) => {
     if (voiceTargetRef.current) return false;
@@ -1414,6 +1314,11 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
     return true;
   };
 
+  const selectTab = useCallback((tab: AiMemoryWorkspaceTab) => {
+    if (voiceTargetRef.current || tab === activeTab) return;
+    changeTab(tab);
+  }, [activeTab, changeTab]);
+
   const runAssistantAction = useInrAssistantBusinessFormCommands({ id: "business_dna", view: activeTab === "documents" ? "analysis" : activeTab, enabled: assistantActive, publish: !hideNavigation,
     snapshot: { signature, activeTab, resetDialogTab, profileDirty, activityDirty, locationDirty, loading, analyzing }, pendingChanges: hasWorkspaceChanges,
     busy: loading || !loaded || saving || workspaceSaving || analyzing || voiceBusy || documentUploadState !== "idle",
@@ -1440,18 +1345,14 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
       if (inFlight && !await inFlight) return false;
       for (let attempt = 0; attempt < 3; attempt += 1) {
         if (!hasPendingWorkspaceChanges()) return true;
-        if (!await saveWorkspace({ reason: "exit" })) return false;
+        if (!await saveWorkspace()) return false;
       }
       return !hasPendingWorkspaceChanges();
     },
     discardPendingChanges: discardAllWorkspaceChanges,
     runAssistantAction: (patch, scopeCurrent) => runAssistantAction(patch, scopeCurrent),
-    selectTab: (tab) => {
-      if (voiceTargetRef.current || tab === activeTab) return;
-      if (hasWorkspaceChanges) void saveWorkspace({ reason: "tab-change" });
-      changeTab(tab);
-    },
-  }), [activeTab, changeTab, discardAllWorkspaceChanges, hasPendingWorkspaceChanges, hasWorkspaceChanges, runAssistantAction, saveWorkspace]);
+    selectTab,
+  }), [discardAllWorkspaceChanges, hasPendingWorkspaceChanges, runAssistantAction, saveWorkspace, selectTab]);
 
 
   const visibleAnalysisChannels = analysisChannels.filter((channel) => channel.key !== "threads" || metaPilotEnabled);
@@ -1466,7 +1367,7 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
     setSaved(false);
     let backgroundAccepted = false;
     try {
-      if (!(await saveWorkspace({ reason: "analysis" }))) throw new Error(t("saveError"));
+      if (!(await saveWorkspace())) throw new Error(t("saveError"));
       const response = await fetch(selectiveAnalysis ? "/api/ai-memory/analyze-channels" : "/api/ai-memory/analyze-channels?background=1", {
         method: "POST",
         credentials: "include",
@@ -1521,7 +1422,6 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
       updateBusinessKnowledge(merged.businessKnowledge);
       markWorkspaceDraftUpdated();
       const analysisSaved = await saveWorkspace({
-        reason: "analysis",
         aiMemoryDraft: {
           memory: merged.memory,
           businessKnowledge: merged.businessKnowledge,
@@ -1611,8 +1511,18 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
       })
     : "";
 
-  // The unified page places these same controlled fields between instructions
-  // and examples. Keep a single draft and persistence queue for the ADN data.
+  const saveButton = (
+    <button
+      type="button"
+      disabled={saving || voiceBusy || workspaceSaving}
+      aria-busy={workspaceSaving}
+      onClick={() => void saveWorkspace()}
+      style={{ ...primaryButtonStyle, opacity: workspaceSaving || saving || voiceBusy ? 0.7 : 1 }}
+    >
+      {workspaceSaving || saving ? t("saving") : t("save")}
+    </button>
+  );
+  // Keep the vocabulary form on the same draft and save queue as the rest of the ADN.
   const vocabularySection = (
     <div data-identity-vocabulary data-personalization-vocabulary style={identityVocabularySectionStyle}>
       {!hideNavigation ? <div data-identity-vocabulary-heading style={identityVocabularyHeadingStyle}>
@@ -1633,11 +1543,10 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
           </div>
         </div>
       </div>
-      {vocabularyPortalTarget ? (
-        workspaceError || error ? <div role="alert" style={errorStyle}>{workspaceError || error}</div>
-          : autoSaveState === "saving" ? <small role="status" style={autoSaveStatusStyle}>{t("saving")}</small>
-          : saved ? <small role="status" style={autoSaveStatusStyle}>{t("saved")}</small> : null
-      ) : null}
+      {vocabularyPortalTarget ? <>
+        {workspaceError || error ? <div role="alert" style={errorStyle}>{workspaceError || error}</div> : null}
+        {hasWorkspaceChanges ? saveButton : saved ? <small role="status" style={saveStatusStyle}>{t("saved")}</small> : null}
+      </> : null}
     </div>
   );
 
@@ -1819,13 +1728,6 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
   const activeTabIndex = Math.max(0, tabs.findIndex((tab) => tab.key === activeTab));
   const activeTabDefinition = tabs[activeTabIndex] ?? tabs[0];
   const activeTabRequiresAiMemory = activeTab !== "profile" && activeTab !== "activity";
-  const selectTab = (tab: AiMemoryWorkspaceTab) => {
-    if (voiceTargetRef.current || tab === activeTab) return;
-    // Le changement d'onglet reste instantané : les modifications partent en
-    // arrière-plan et ne bloquent jamais la navigation du professionnel.
-    if (hasWorkspaceChanges) void saveWorkspace({ reason: "tab-change" });
-    changeTab(tab);
-  };
   const selectTabAt = (index: number) => {
     const next = tabs[index];
     if (next) selectTab(next.key);
@@ -2345,9 +2247,6 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
       ) : null}
       {activeTabRequiresAiMemory && error ? <div style={errorStyle}>{error}</div> : null}
       {saved ? <div style={successStyle}>{t("saved")}</div> : null}
-      {autoSaveState === "saving" ? (
-        <div aria-live="polite" style={autoSaveStatusStyle}>{t("saving")}</div>
-      ) : null}
 
       <BusinessDnaAnalysisScheduleModal
         open={analysisScheduleOpen}
@@ -2356,7 +2255,7 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
         onClose={() => setAnalysisScheduleOpen(false)}
       />
 
-      {!loading && loaded && hasWorkspaceChanges ? (
+      {!vocabularyPortalTarget && !loading && loaded && hasWorkspaceChanges ? (
         <div
           data-ai-memory-actions
           style={{
@@ -2385,15 +2284,7 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
           >
             {t("cancelChanges")}
           </button>
-          <button
-            type="button"
-              disabled={saving || voiceBusy || workspaceSaving}
-            aria-busy={workspaceSaving}
-            onClick={() => void saveWorkspace()}
-            style={{ ...primaryButtonStyle, opacity: workspaceSaving || saving || voiceBusy ? 0.7 : 1 }}
-          >
-            {workspaceSaving || saving ? t("saving") : t("save")}
-          </button>
+          {saveButton}
         </div>
       ) : null}
 
@@ -2846,4 +2737,4 @@ const dangerButtonStyle: CSSProperties = { minHeight: 38, borderRadius: 11, bord
 const primaryButtonStyle: CSSProperties = { minHeight: 38, borderRadius: 11, border: "1px solid rgba(196,181,253,0.38)", background: "linear-gradient(100deg, #0ea5e9, #7c3aed 55%, #ec4899)", color: "white", padding: "8px 11px", cursor: "pointer", fontSize: 12.5, fontWeight: 950, boxShadow: "0 10px 24px rgba(124,58,237,0.18)" };
 const errorStyle: CSSProperties = { padding: "11px 13px", borderRadius: 12, border: "1px solid rgba(248,113,113,0.30)", background: "rgba(127,29,29,0.18)", color: "#fecaca", fontSize: 13, fontWeight: 800 };
 const successStyle: CSSProperties = { padding: "11px 13px", borderRadius: 12, border: "1px solid rgba(103,232,249,0.28)", background: "rgba(8,145,178,0.14)", color: "#a5f3fc", fontSize: 13, fontWeight: 850 };
-const autoSaveStatusStyle: CSSProperties = { padding: "8px 11px", borderRadius: 10, border: "1px solid rgba(103,232,249,0.20)", background: "rgba(8,145,178,0.08)", color: "rgba(165,243,252,.88)", fontSize: 11, fontWeight: 800, justifySelf: "end" };
+const saveStatusStyle: CSSProperties = { padding: "8px 11px", borderRadius: 10, border: "1px solid rgba(103,232,249,0.20)", background: "rgba(8,145,178,0.08)", color: "rgba(165,243,252,.88)", fontSize: 11, fontWeight: 800, justifySelf: "end" };

@@ -824,7 +824,10 @@
     "exitWithoutSavingTitle": "Uscire senza salvare?",
     "exitWithoutSavingMessage": "Questa finestra contiene modifiche non salvate. Se la chiudi ora, andranno perse.",
     "closeWithoutSaving": "Chiudi senza salvare",
-    "continueEditing": "Continua a modificare"
+    "continueEditing": "Continua a modificare",
+    "pendingChangesTitle": "Ci sono modifiche in sospeso",
+    "pendingChangesMessage": "Le ultime modifiche non sono ancora state salvate.",
+    "saveAndClose": "Salva e chiudi"
   },
   "settingsSections": {
     "activityIdentityTitle": "Settore e professione",
@@ -1144,7 +1147,7 @@
       "analysisLimits": "L’analisi integra le informazioni affidabili trovate e conserva gli inserimenti manuali. Le preferenze di scrittura e i CTA si impostano separatamente in La mia comunicazione. Mantieni aperto lo strumento per una selezione personalizzata di canali.",
       "company": "La mia azienda comprende Contatti e logo; Attività (professione, presentazione, servizi e specialità); Clienti; Zone (CAP, città principale, zone e orari); e Identità (missione, punti di forza, valori e impegni). Controlla i dati trovati e completa quelli mancanti.",
       "communication": "In La mia comunicazione: Stile e preferenze regola la scrittura; Istruzioni ed esempi riunisce istruzioni, divieti, vocabolario ed esempi; CTA per canale sceglie azioni e destinazioni dei contenuti futuri; Obiettivi e strategia e Novità definiscono gli argomenti da valorizzare. Controlla le possibilità indicate per ciascun canale.",
-      "autosave": "Le modifiche vengono salvate automaticamente. Attendi la fine del salvataggio: gli errori restano visibili e l’uscita verifica le modifiche in sospeso. Rileggi sempre i contenuti generati prima di pubblicarli.",
+      "autosave": "Il DNA aziendale salva le modifiche in sospeso ogni 30 secondi. Seleziona Salva per salvarle subito. iNrCy ti avvisa se ci sono modifiche in sospeso quando esci.",
       "reset": "Reimposta è un’azione distinta che richiede conferma. Il ripristino globale elimina anche i documenti: usalo soltanto se vuoi cancellare queste informazioni."
     }
   },

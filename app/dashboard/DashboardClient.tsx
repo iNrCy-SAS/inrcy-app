@@ -289,11 +289,17 @@ export default function DashboardClient({
       ? initialDashboardChannelState.pinterestRequiresUpdate
       : readCachedDashboardBoolean("pinterestRequiresUpdate")
   ));
-  const [pinterestUrl, setPinterestUrl] = useState(() => (
+  const [pinterestPublicUrl, setPinterestUrl] = useState(() => (
     typeof initialDashboardChannelState?.pinterestUrl === "string"
       ? initialDashboardChannelState.pinterestUrl
       : readCachedDashboardString("pinterestUrl")
   ));
+  const [pinterestLiveProfile, setPinterestLiveProfile] = useState<{ accountId: string; url: string } | null>(null);
+  const pinterestUrl = pinterestPublicUrl || (
+    pinterestConnected && !pinterestRequiresUpdate && pinterestLiveProfile?.accountId === activeAccountId
+      ? pinterestLiveProfile.url
+      : ""
+  );
   const [xConnected, setXConnected] = useState(() => initialDashboardChannelState?.xConnected === true);
   const [xRequiresUpdate, setXRequiresUpdate] = useState(() => initialDashboardChannelState?.xRequiresUpdate === true);
   const [xConnectionStatus, setXConnectionStatus] = useState<ConnectionDisplayStatus>(() => (
@@ -1365,14 +1371,21 @@ const resetAccountScopedDashboardState = useCallback(() => {
 useEffect(() => {
   const handlePinterestUpdate = (event: Event) => {
     const detail = (event as CustomEvent)?.detail ?? {};
+    const accountId = getActiveBrowserUserId();
+    if (!accountId || detail.accountId !== accountId || accountId !== activeAccountId) return;
     const requiresUpdate = Boolean(detail.requiresUpdate || detail.connectionStatus === "needs_update");
     const connected = Boolean(detail.connected && !requiresUpdate);
     const profileUrl = typeof detail.profileUrl === "string" ? detail.profileUrl : "";
+    const publicProfileUrl = typeof detail.publicProfileUrl === "string" ? detail.publicProfileUrl : null;
     const accountName = typeof detail.accountName === "string" ? detail.accountName : "";
     setPinterestConnected(connected);
     setPinterestRequiresUpdate(requiresUpdate);
-    setPinterestUrl(profileUrl);
-    mergeCachedDashboardChannelState({ pinterestConnected: connected, pinterestRequiresUpdate: requiresUpdate, pinterestUrl: profileUrl });
+    if (publicProfileUrl !== null) setPinterestUrl(publicProfileUrl);
+    if (!detail.accountConnected || requiresUpdate) {
+      setPinterestLiveProfile(null);
+    } else if (publicProfileUrl === "" && profileUrl) {
+      setPinterestLiveProfile(current => current?.accountId === accountId && current.url === profileUrl ? current : { accountId, url: profileUrl });
+    }
     patchChannelConnectionLocallyRef.current("pinterest", {
       connected,
       accountConnected: connected,
@@ -1383,7 +1396,7 @@ useEffect(() => {
       connectionStatus: requiresUpdate ? "needs_update" : connected ? "connected" : "disconnected",
       resourceId: connected ? (accountName || profileUrl || null) : null,
       resourceLabel: connected ? (accountName || null) : null,
-      resourceUrl: connected ? (profileUrl || null) : null,
+      ...(publicProfileUrl !== null ? { resourceUrl: publicProfileUrl || null } : {}),
     }, { clearData: !connected, clearError: true });
     if (detail.refresh !== false) void triggerChannelRefreshRef.current("pinterest").catch((error) => {
       console.warn("[pinterest] channel refresh failed", error);
@@ -1426,10 +1439,10 @@ useEffect(() => {
     window.removeEventListener("inrcy:pinterest-settings-updated", handlePinterestUpdate);
     window.removeEventListener("inrcy:inr-search-settings-updated", handleInrSearchUpdate);
   };
-}, [notifyStatsRefresh]);
+}, [activeAccountId, notifyStatsRefresh]);
 
 useEffect(() => {
-  if (!canAccessPinterest || !pinterestConnected || pinterestUrl) return;
+  if (!activeAccountId || !canAccessPinterest || !pinterestConnected || pinterestRequiresUpdate || pinterestUrl) return;
 
   let cancelled = false;
   void fetch("/api/integrations/pinterest/status?live=1", { cache: "no-store" })
@@ -1438,23 +1451,18 @@ useEffect(() => {
       return response.json().catch(() => null);
     })
     .then((status) => {
-      if (cancelled || !status?.ok) return;
-      const profileUrl = String(
-        status.publicProfileUrl || status.profileUrl || "",
-      ).trim();
-      if (!profileUrl) return;
-      setPinterestUrl(profileUrl);
-      mergeCachedDashboardChannelState({
-        pinterestConnected: true,
-        pinterestUrl: profileUrl,
-      });
+      if (cancelled || getActiveBrowserUserId() !== activeAccountId || !status?.ok || !status.connected) return;
+      const publicProfileUrl = String(status.publicProfileUrl || "").trim();
+      const liveProfileUrl = String(status.profileUrl || "").trim();
+      if (publicProfileUrl) setPinterestUrl(current => current || publicProfileUrl);
+      else if (liveProfileUrl) setPinterestLiveProfile({ accountId: activeAccountId, url: liveProfileUrl });
     })
     .catch(() => null);
 
   return () => {
     cancelled = true;
   };
-}, [canAccessPinterest, pinterestConnected, pinterestUrl]);
+}, [activeAccountId, canAccessPinterest, pinterestConnected, pinterestRequiresUpdate, pinterestUrl]);
 
 useEffect(() => {
   let cancelled = false;
@@ -3175,6 +3183,7 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
     refreshFallback: () => latestFallbackToServerSyncThenGlobalRef.current?.(),
     onAccountChange: () => {
       channelResponseGateRef.current.changeScope();
+      setPinterestLiveProfile(null);
       canonicalChannelStatesReadyRef.current = false;
       confirmedChannelStateRef.current = null;
       confirmedChannelAccountRef.current = getActiveBrowserUserId();

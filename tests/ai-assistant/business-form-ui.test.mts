@@ -90,7 +90,7 @@ test("Basic ADN discard invokes the visible tab cancellation and preserves other
   const file = "app/dashboard/settings/_components/AiMemoryContent.tsx", calls: string[] = [], profile = { current: { dirty: true, signature: "profile-edit" } }, activity = { current: { dirty: true, signature: "activity-edit" } }, location = { current: { dirty: true, signature: "location-edit" } };
   const cancel = bind<() => Promise<void>>(expression(file, "cancelActiveTabChanges"), { workspaceSaving: false, voiceTargetRef: { current: null }, activeTab: "profile", profileDraftRef: profile, activityDraftRef: activity, locationDraftRef: location,
     profileContentRef: { current: { cancelChanges: () => calls.push("profile") } }, activityContentRef: { current: { cancelChanges: () => calls.push("activity") } }, businessLocationRef: { current: { cancelChanges: () => calls.push("location") } },
-    restoreAiMemoryDraft: () => calls.push("memory"), setProfileDirty: () => {}, setProfileDraftSignature: () => {}, setActivityDirty: () => {}, setActivityDraftSignature: () => {}, setLocationDirty: () => {}, setLocationDraftSignature: () => {}, failedAutoSaveSignatureRef: { current: "failed" }, setWorkspaceError: () => {}, setAutoSaveState: () => {} });
+    restoreAiMemoryDraft: () => calls.push("memory"), setProfileDirty: () => {}, setActivityDirty: () => {}, setLocationDirty: () => {}, setWorkspaceError: () => {} });
   let approved = false;
   const apply = bind<Apply>(formOption(file, "apply"), { hasWorkspaceChanges: true, confirmInrcy: async () => approved, t: catalogTranslator("dashboard.aiMemory"), cancelActiveTabChanges: cancel });
   assert.equal(await apply({ businessFormAction: "discard" }, () => true), false); assert.deepEqual(calls, []); approved = true;

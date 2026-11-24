@@ -824,7 +824,10 @@
     "exitWithoutSavingTitle": "Beenden, ohne zu speichern?",
     "exitWithoutSavingMessage": "Dieses Fenster enthält nicht gespeicherte Änderungen. Wenn Sie es jetzt schließen, gehen diese verloren.",
     "closeWithoutSaving": "Ohne Speichern schließen",
-    "continueEditing": "Weiter bearbeiten"
+    "continueEditing": "Weiter bearbeiten",
+    "pendingChangesTitle": "Ausstehende Änderungen",
+    "pendingChangesMessage": "Ihre letzten Änderungen wurden noch nicht gespeichert.",
+    "saveAndClose": "Speichern und schließen"
   },
   "settingsSections": {
     "activityIdentityTitle": "Branche und Beruf",
@@ -1144,7 +1147,7 @@
       "analysisLimits": "Die Analyse ergänzt verlässlich gefundene Informationen und behält manuelle Eingaben bei. Schreibpräferenzen und CTAs werden gesondert unter Meine Kommunikation eingestellt. Lassen Sie das Werkzeug bei einer individuellen Kanalauswahl geöffnet.",
       "company": "Mein Unternehmen umfasst Kontakt & Logo; Tätigkeit (Beruf, Vorstellung, Leistungen und Fachgebiete); Kunden; Gebiete (Postleitzahl, Hauptort, Einsatzgebiete und Öffnungszeiten); sowie Identität (Mission, Stärken, Werte und Zusagen). Prüfen Sie gefundene Angaben und ergänzen Sie fehlende Informationen.",
       "communication": "Unter Meine Kommunikation regelt Stil und Einstellungen die Schreibpräferenzen; Vorgaben und Beispiele bündelt Vorgaben, Verbote, Wortwahl und Beispiele; CTA je Kanal bestimmt Aktionen und Ziele künftiger Inhalte; Ziele und Strategie und Aktuelles legen wichtige Themen fest. Beachten Sie die Möglichkeiten des jeweiligen Kanals.",
-      "autosave": "Änderungen werden automatisch gespeichert. Warten Sie das Speichern ab; Fehler bleiben sichtbar und beim Verlassen werden ausstehende Änderungen geprüft. Prüfen Sie generierte Inhalte vor jeder Veröffentlichung.",
+      "autosave": "Die Unternehmens-DNA speichert ausstehende Änderungen alle 30 Sekunden. Wählen Sie Speichern, um sie sofort zu speichern. Beim Verlassen weist iNrCy Sie auf ausstehende Änderungen hin.",
       "reset": "Zurücksetzen ist eine gesonderte Aktion mit Bestätigung. Ein vollständiges Zurücksetzen löscht auch Dokumente: verwenden Sie es nur, wenn diese Informationen entfernt werden sollen."
     }
   },
