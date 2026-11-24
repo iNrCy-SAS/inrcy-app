@@ -33,6 +33,7 @@ test("schedule notes preserve typed word spaces through autosave on mobile and d
   try {
     for (const viewport of [{ width: 390, height: 844 }, { width: 1366, height: 768 }]) {
       const page = await browser.newPage({ viewport });
+      await page.clock.install();
       await page.route("**/*", route => {
         if (route.request().resourceType() === "document") return route.fulfill({ contentType: "text/html", body: html });
         const asset = path.resolve(ROOT, "public", `.${new URL(route.request().url()).pathname}`);
@@ -42,7 +43,11 @@ test("schedule notes preserve typed word spaces through autosave on mobile and d
       await page.goto("https://personalization.fixture.invalid/dashboard/personnalisation");
       await page.addScriptTag({ content: fixture });
       await page.locator("[data-business-dna-channel-analysis]").waitFor();
-      await page.evaluate(() => { (window as unknown as { allowWrites: boolean }).allowWrites = true; });
+      await page.evaluate(() => {
+        const state = window as unknown as { allowWrites: boolean; holdWrites: boolean };
+        state.allowWrites = true;
+        state.holdWrites = true;
+      });
       await page.locator("[data-dashboard-workspace-navigation]").getByRole("button", { name: "Mon entreprise", exact: true }).click();
       await page.getByRole("navigation", { name: "Mon entreprise", exact: true }).getByRole("button", { name: "Zones & Horaires", exact: true }).click();
       const notes = page.getByLabel("Précisions utiles", { exact: true });
@@ -59,10 +64,20 @@ test("schedule notes preserve typed word spaces through autosave on mobile and d
         fixtureWrites: Array<{ kind: string; resolved: boolean; payload: { businessKnowledge?: { weeklySchedule?: { notes?: string } } } }>;
       }).fixtureWrites.some(write => write.kind === "ai-memory" && write.resolved && write.payload.businessKnowledge?.weeklySchedule?.notes === expected), text);
       await type("Sur ");
+      await page.clock.runFor(30_000);
+      await page.waitForFunction(() => (window as unknown as { fixtureWrites: Array<{ kind: string }> }).fixtureWrites.some(write => write.kind === "ai-memory"));
+      assert.equal(await notes.evaluate(node => (node as HTMLTextAreaElement).readOnly), false, "Background save keeps the notes editable");
+      await type("rendez-");
+      await page.evaluate(() => {
+        const state = window as unknown as { holdWrites: boolean; fixtureWrites: Array<{ kind: string }>; releaseFixtureWrite: (index: number) => void };
+        state.holdWrites = false;
+        state.releaseFixtureWrite(state.fixtureWrites.findIndex(write => write.kind === "ai-memory"));
+      });
       await saved("Sur");
       await page.waitForFunction(() => !(document.querySelector("#business-dna-schedule-notes") as HTMLTextAreaElement).readOnly);
-      assert.equal(await notes.inputValue(), "Sur ", "the canonical autosave echo preserves the pending separator");
-      await type("rendez-vous uniquement");
+      assert.equal(await notes.inputValue(), "Sur rendez-", "The response preserves what was typed during the save");
+      await type("vous uniquement");
+      await page.clock.runFor(30_000);
       await saved("Sur rendez-vous uniquement");
       assert.equal(await notes.inputValue(), "Sur rendez-vous uniquement");
       await page.close();

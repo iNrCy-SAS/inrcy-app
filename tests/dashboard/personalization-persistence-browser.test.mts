@@ -12,12 +12,14 @@ type FixtureWindow = Window & {
   fixtureWrites: Write[];
   authWaiters: unknown[];
   navigationCalls: string[];
+  exitChoice: "save" | null;
   releaseFixtureWrite: (index: number) => void;
   releaseFixtureAuth: (index: number) => void;
 };
 
 async function setup(page: Page) {
   page.setDefaultTimeout(7_000);
+  await page.clock.install();
   const errors: string[] = []; page.on("pageerror", error => errors.push(error.message));
   await page.route("**/*", route => route.request().resourceType() === "document" ? route.fulfill({ contentType: "text/html", body: html }) : route.abort());
   await page.goto("https://personalization.fixture.invalid/dashboard/personnalisation");
@@ -46,7 +48,7 @@ test("a tag edited during an ADN save is retained and flushed before leaving", {
     await page.getByRole("navigation", { name: "Mon entreprise", exact: true }).getByRole("button", { name: "Clients", exact: true }).click();
     const audience = page.locator('[data-ai-memory-tab="audience"]');
     await audience.waitFor();
-    await page.evaluate(() => {const state=window as unknown as FixtureWindow;state.allowWrites=true;state.holdWrites=true;});
+    await page.evaluate(() => {const state=window as unknown as FixtureWindow;state.allowWrites=true;state.holdWrites=true;state.exitChoice="save";});
     const addTag = async (text: string) => {
       const input = audience.locator('input:not([type="checkbox"])');
       if (!await input.isVisible()) await audience.getByRole("button", { name: "+ Ajouter une clientèle", exact: true }).click();
@@ -54,6 +56,7 @@ test("a tag edited during an ADN save is retained and flushed before leaving", {
       await audience.getByText(text, { exact: true }).waitFor();
     };
     await addTag("Clientèle avant requête");
+    await page.clock.runFor(30_000);
     await waitForWrite(page, "ai-memory", 1);
     await addTag("Clientèle pendant requête");
     await page.getByRole("button", { name: "Fermer", exact: true }).click();
@@ -76,8 +79,9 @@ test("profile typing during an upsert survives and a second save completes befor
     const page = await browser.newPage({ viewport: { width: 1366, height: 768 } });
     const errors = await setup(page);
     const company = page.locator('[data-profile-form-grid] input[autocomplete="organization"]');
-    await page.evaluate(() => {const state=window as unknown as FixtureWindow;state.allowWrites=true;state.holdWrites=true;});
+    await page.evaluate(() => {const state=window as unknown as FixtureWindow;state.allowWrites=true;state.holdWrites=true;state.exitChoice="save";});
     await company.fill("Atelier première version");
+    await page.clock.runFor(30_000);
     await waitForWrite(page, "profiles", 1);
     await company.fill("Atelier dernière version");
     await page.getByRole("button", { name: "Fermer", exact: true }).click();
@@ -101,6 +105,7 @@ test("changing the active account during profile authentication cannot write the
     const errors = await setup(page);
     await page.evaluate(() => {const state=window as unknown as FixtureWindow;state.allowWrites=true;state.holdAuth=true;});
     await page.locator('[data-profile-form-grid] input[autocomplete="organization"]').fill("Brouillon du compte précédent");
+    await page.clock.runFor(30_000);
     await page.waitForFunction(() => (window as unknown as FixtureWindow).authWaiters.length === 1, undefined, { timeout: 7_000 });
     await page.evaluate(() => {
       const state=window as unknown as FixtureWindow;
@@ -122,8 +127,9 @@ test("profession changes during an activity save are retained and flushed togeth
     await page.getByRole("button", { name: "Parcourir les secteurs et métiers manuellement", exact: true }).click();
     const profession = page.getByRole("textbox", { name: /^Métier/ });
     await profession.waitFor();
-    await page.evaluate(() => {const state=window as unknown as FixtureWindow;state.allowWrites=true;state.holdWrites=true;});
+    await page.evaluate(() => {const state=window as unknown as FixtureWindow;state.allowWrites=true;state.holdWrites=true;state.exitChoice="save";});
     await profession.fill("Conseil première version");
+    await page.clock.runFor(30_000);
     await waitForWrite(page, "business_profiles", 1);
     await profession.fill("Conseil dernière version");
     await page.getByRole("button", { name: "Fermer", exact: true }).click();

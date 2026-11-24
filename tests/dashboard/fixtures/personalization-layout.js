@@ -54,7 +54,7 @@ const known={
  'lib/boosterGenerationContextClient':{invalidateBoosterGenerationContextClient:async()=>true},
  'lib/publicProfileRefreshClient':{PUBLIC_PROFILE_DATA_SAVED_EVENT:'inrcy:public-profile-data-saved',refreshPublicProfileDependents:async()=>true},
  'lib/universalMediaUploadClient':{uploadFileToPreparedStorageIntent:()=>{throw Error('No upload allowed in layout fixture')}},
- 'lib/inrcyDialog':{confirmInrcy:async options=>{window.confirmations.push(options);return false},chooseInrcy:async()=>null},
+ 'lib/inrcyDialog':{confirmInrcy:async options=>{window.confirmations.push(options);return false},chooseInrcy:async options=>{window.confirmations.push(options);return window.exitChoice??null}},
  'app/dashboard/_components/DashboardViewerAccessProvider':{useDashboardViewerAccess:()=>({metaPilotEnabled:true,actorUserId:account,activeAccountId:account})},
  'app/dashboard/_components/DashboardEditionProvider':{useDashboardEdition:()=>"premium"},
  'app/dashboard/_components/DashboardUnsavedNavigationProvider':{useDashboardUnsavedNavigation:()=>({requestNavigation:async fn=>{if(!window.exitGuard?.shouldBlock||await window.exitGuard.onBlockedExit())fn()}})},

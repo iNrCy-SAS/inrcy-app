@@ -280,7 +280,8 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
   const [loadAttempt, setLoadAttempt] = useState(0);
   const [completedLoadAttempt, setCompletedLoadAttempt] = useState(-1);
   const [saving, setSaving] = useState(false);
-  const [workspaceSaving, setWorkspaceSaving] = useState(false);
+  const [workspaceSaveMode, setWorkspaceSaveMode] = useState<"manual" | "background" | null>(null);
+  const workspaceSaving = workspaceSaveMode !== null;
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
   const [workspaceError, setWorkspaceError] = useState("");
@@ -377,7 +378,7 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
   }, assistantActive, loading || saving || workspaceSaving || analyzing || voiceTarget !== null || hasWorkspaceChanges || documentUploadState !== "idle" || !error);
   const voiceBusy = voiceTarget !== null;
   assistantBusyRef.current = loading || !loaded || saving || workspaceSaving || analyzing || voiceBusy || documentUploadState !== "idle" || analysisScheduleOpen;
-  const voiceOperationsLocked = saving || analyzing || loading || !loaded;
+  const voiceOperationsLocked = (saving && workspaceSaveMode !== "background") || analyzing || loading || !loaded;
   const voiceDisabledFor = (target: VoiceTarget) =>
     voiceOperationsLocked || (voiceTarget !== null && voiceTarget !== target);
   const handleVoiceBusyChange = (target: VoiceTarget, busy: boolean) => {
@@ -1128,7 +1129,7 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
     }
 
     const run = async (): Promise<boolean> => {
-      setWorkspaceSaving(true);
+      setWorkspaceSaveMode(backgroundSave ? "background" : "manual");
       setSaved(false);
       setError("");
       setWorkspaceError("");
@@ -1209,7 +1210,7 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
         onUnsavedChange?.(stillPending);
         return true;
       } finally {
-        setWorkspaceSaving(false);
+        setWorkspaceSaveMode(null);
       }
     };
 

@@ -635,7 +635,7 @@
     "app/dashboard/settings/_components/AiChannelCtaPanel.tsx": "1e06afca1ad07f72a52077cc4050c2c7588c411502007f318ea2c2d985dcf9cd",
     "app/dashboard/settings/_components/AiConfigurationContent.module.css": "22f8b9490d168a56f6890d23ae9b6a501f6c3bd8fa04a3e5b62a0f6a97cdc6e3",
     "app/dashboard/settings/_components/AiConfigurationContent.tsx": "2946b6a8ab6ad86878cb9f7e083c40d7dd81f7ea495f038f9dc16fc9f8988384",
-    "app/dashboard/settings/_components/AiMemoryContent.tsx": "7bc67be6f35a9bbf16b98930a5e9959ada4fccf23df39281cb7a13b12235efcb",
+    "app/dashboard/settings/_components/AiMemoryContent.tsx": "c9b1b24612b4aa228b4ece2d83e8a206c20426f09e8498a5eabcb1d09abbee93",
     "app/dashboard/settings/_components/AppAppearancePicker.tsx": "5408ba8f4f0e04bdb74dc46acb350b56d4193a16cb41d21c0c47fc3fd616a3dc",
     "app/dashboard/settings/_components/BasicSubscriptionCard.tsx": "7fdad22bbef63da3ba5833fc2aac1a23824e1b498cba37e58605c75c5c8c1dd7",
     "app/dashboard/settings/_components/BoutiqueContent.module.css": "05577d1070a0808741bccf666620fc77ee21afa2dbb839a12089508c82486c3b",
@@ -1240,7 +1240,7 @@
     "lib/inrAssistantClientContext.ts": "c10dddeaae52d8ae631a188868abd7e78aee20fa81ee515db65c7b578e91a5b1",
     "lib/inrAssistantClientStream.ts": "90482c1589bbb4cc072878fc841b19a8d29a23b354904e269911ca9aec92880d",
     "lib/inrAssistantClock.ts": "821d5394814c09b0481815d6db958036842ca54e84a6ef8c45761e7db5201065",
-    "lib/inrAssistantCodeIndex.generated.ts": "b03b28d2b6227189f36d2951166e93b186920fe2536b3bfce86518c1828f7ada",
+    "lib/inrAssistantCodeIndex.generated.ts": "1635cdebea432569d4aec975c47576e4121ae9ad3015cf2db8c08e54d79dd7f1",
     "lib/inrAssistantCommandRegistry.ts": "977519362eeaa8bd09a4f95718dab9949d0f0ec6fe41bc20d811513fecdf1713",
     "lib/inrAssistantCommercialTools.ts": "adf43e53336059c901c489d72ec6ae431ca32acd388183fe7c9812aec1649c3b",
     "lib/inrAssistantCommunicationIntent.ts": "1fa38fc900c244ce8fc5fc1f2a0be6686ee52dd533aacb37ae0cffaf8d06aad5",
@@ -8694,7 +8694,7 @@
         "app/dashboard/settings/_components/AiMemoryContent.tsx"
       ],
       "gateAnchor": "const strategyEnabled = true;",
-      "sourceDigest": "7bc67be6f35a9bbf16b98930a5e9959ada4fccf23df39281cb7a13b12235efcb",
+      "sourceDigest": "c9b1b24612b4aa228b4ece2d83e8a206c20426f09e8498a5eabcb1d09abbee93",
       "controlIds": [
         "app/dashboard/settings/_components/AiMemoryContent.tsx#EditableTags:a8c0db01a589302e:1",
         "app/dashboard/settings/_components/AiMemoryContent.tsx#button:a91739965d3ee270:1",
