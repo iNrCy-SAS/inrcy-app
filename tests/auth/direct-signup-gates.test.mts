@@ -87,6 +87,16 @@ test("direct discovery blocks unreviewed APIs by default, including assistant an
   assert.equal(new URL(forged.headers.get("location")!).pathname, policy.DIRECT_SIGNUP_ACTIVATION_PATH);
 });
 
+test("dashboard activity reaches its route for discovery, trials and paid accounts", async () => {
+  const path = "/api/profile/last-active";
+  for (const options of [{}, { status: "incomplete_expired" }, { legacyTrial: true }, { paid: true }, { secondary: true }]) {
+    const response = await request(path, "POST", options);
+    assert.equal(response.headers.get("x-middleware-next"), "1", JSON.stringify(options));
+  }
+  assert.equal((await request(path, "GET")).status, 403);
+  assert.equal((await request(`${path}/other`, "POST")).status, 403);
+});
+
 test("contract recovery and forged active statuses cannot acquire discovery access", async () => {
   for (const options of [{ status: "past_due", contract: true }, { activeWithoutContract: true }, { status: "canceled" }]) {
     const response = await request("/dashboard", "GET", options);
