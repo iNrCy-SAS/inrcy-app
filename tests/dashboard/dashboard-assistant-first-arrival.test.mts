@@ -23,7 +23,7 @@ const SIGN_OUT_EVENT = "inrcy:browser-sign-out-start";
 const flush = () => new Promise<void>(resolve => setImmediate(resolve));
 
 /** Real hook/module lifetime, isolated React effect lifetimes, no browser or external requests. */
-function harness() {
+function harness(hasNativeTimeout = true) {
   let activeAccount: string | null = accountA;
   let signingOut = false;
   let currentView: HookView | undefined;
@@ -35,6 +35,7 @@ function harness() {
   });
   const calls: FetchCall[] = [];
   const timeouts: { milliseconds: number; controller: AbortController }[] = [];
+  const fallbackTimers = new Map<number, { milliseconds: number; run: () => void }>();
   const dependencies: Record<string, unknown> = {
     react: {
       useRef(initial: unknown) {
@@ -51,7 +52,7 @@ function harness() {
     "@/lib/browserSignOutState": { BROWSER_SIGN_OUT_START_EVENT: SIGN_OUT_EVENT, isBrowserSignOutInProgress: () => signingOut },
     "@/lib/multicompte/constants": { ACTIVE_INRCY_ACCOUNT_EVENT: ACCOUNT_EVENT },
   };
-  const compiled = ts.transpileModule(readFileSync(new URL("../../app/dashboard/_hooks/useAssistantFirstArrival.ts", import.meta.url), "utf8"), {
+  const compile = (path: string) => ts.transpileModule(readFileSync(new URL(`../../${path}`, import.meta.url), "utf8"), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
   }).outputText;
   const moduleRecord = { exports: {} as { useAssistantFirstArrival: typeof useAssistantFirstArrival } };
@@ -73,10 +74,21 @@ function harness() {
       calls.push({ accountId: body.accountId as string, signal, resolve: finish, reject: fail });
     });
   };
-  vm.runInNewContext(`(function(require,module,exports){${compiled}\n})`, {
+  const browserContext = vm.createContext({
     window, fetch: fetcher,
-    AbortSignal: { timeout(milliseconds: number) { const controller = new AbortController(); timeouts.push({ milliseconds, controller }); return controller.signal; } },
-  })((name: string) => {
+    AbortController, DOMException,
+    AbortSignal: hasNativeTimeout ? { timeout(milliseconds: number) { const controller = new AbortController(); timeouts.push({ milliseconds, controller }); return controller.signal; } } : {},
+    setTimeout(run: () => void, milliseconds: number) {
+      const id = ++timerId;
+      fallbackTimers.set(id, { milliseconds, run });
+      return id;
+    },
+    clearTimeout(id: number) { fallbackTimers.delete(id); },
+  });
+  const timeoutModule = { exports: {} };
+  vm.runInContext(`(function(exports){${compile("lib/browserRequestTimeout.ts")}\n})`, browserContext)(timeoutModule.exports);
+  dependencies["@/lib/browserRequestTimeout"] = timeoutModule.exports;
+  vm.runInContext(`(function(require,module,exports){${compile("app/dashboard/_hooks/useAssistantFirstArrival.ts")}\n})`, browserContext)((name: string) => {
     assert.ok(Object.hasOwn(dependencies, name), `Unexpected first-arrival dependency: ${name}`);
     return dependencies[name];
   }, moduleRecord, moduleRecord.exports);
@@ -110,13 +122,35 @@ function harness() {
     };
   };
   return {
-    calls, timeouts, mount, timers,
+    calls, timeouts, mount, timers, fallbackTimers,
     account(value: string | null, notify = true) { activeAccount = value; if (notify) window.dispatchEvent(new Event(ACCOUNT_EVENT)); },
     signOut(value = true, notify = true) { signingOut = value; if (value && notify) window.dispatchEvent(new Event(SIGN_OUT_EVENT)); },
     notifyAccount() { window.dispatchEvent(new Event(ACCOUNT_EVENT)); },
     respond(index: number, value: unknown, status = 200) { calls[index].resolve(Response.json(value, { status })); },
   };
 }
+
+test("first arrival also claims successfully without AbortSignal.timeout and bounds a stalled request", async () => {
+  const h = harness(false), view = h.mount();
+  assert.equal(h.calls.length, 1);
+  assert.equal(h.fallbackTimers.values().next().value?.milliseconds, 15_000);
+  assert.equal(h.calls[0].signal.aborted, false);
+  h.respond(0, { accountId: accountA, show: true });
+  await flush();
+  assert.equal(view.welcomes, 1);
+  assert.equal(h.fallbackTimers.size, 0);
+  view.unmount();
+
+  const stalled = harness(false), stalledView = stalled.mount();
+  const timer = stalled.fallbackTimers.values().next().value;
+  assert.ok(timer);
+  timer.run();
+  await flush();
+  assert.equal(stalled.calls[0].signal.reason.name, "TimeoutError");
+  assert.equal(stalledView.welcomes, 0);
+  assert.equal(stalled.fallbackTimers.size, 0);
+  stalledView.unmount();
+});
 
 test("first arrival performs one private durable claim and Strict Mode replay cannot consume or duplicate the welcome", async () => {
   const h = harness(), view = h.mount();

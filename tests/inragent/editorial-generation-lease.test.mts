@@ -3,6 +3,7 @@ import test from "node:test";
 import { readFileSync } from "node:fs";
 import ts from "typescript";
 import { inrAgentEditorialRetryDecision } from "../../lib/inrAgentEditorialRetryPolicy.ts";
+import { INR_AGENT_MEDIA_UNREADABLE, isPermanentlyUnreadableInrAgentMedia } from "../../lib/inrAgentMediaUnderstandingError.ts";
 import { isAiMediaContentPolicyRejection } from "../../lib/aiMediaGenerationPublicErrors.ts";
 import {
   INR_AGENT_EDITORIAL_GENERATION_LEASE_MS,
@@ -184,8 +185,8 @@ function coordinator(db: ReturnType<typeof database>, provider: "success" | "fai
     if (provider === "contended") db.actions[0].status = "prepared";
     return new Response(provider === "success" ? "{}" : JSON.stringify({ error: "provider unavailable" }), { status: provider === "success" ? 200 : 503 });
   };
-  const prepare = new Function("withInrAgentEditorialGenerationLease", "EDITORIAL_ACTION_SELECT", "buildInternalCronHeaders", "fetch", "inrAgentEditorialRetryDecision", "isAiMediaContentPolicyRejection", `${compiled};return prepareNextInrAgentEditorialSlot;`)(
-    withInrAgentEditorialGenerationLease, "id,status,metadata,payload", () => ({}), fetch, inrAgentEditorialRetryDecision, isAiMediaContentPolicyRejection,
+  const prepare = new Function("withInrAgentEditorialGenerationLease", "EDITORIAL_ACTION_SELECT", "buildInternalCronHeaders", "fetch", "inrAgentEditorialRetryDecision", "isAiMediaContentPolicyRejection", "INR_AGENT_MEDIA_UNREADABLE", "isPermanentlyUnreadableInrAgentMedia", `${compiled};return prepareNextInrAgentEditorialSlot;`)(
+    withInrAgentEditorialGenerationLease, "id,status,metadata,payload", () => ({}), fetch, inrAgentEditorialRetryDecision, isAiMediaContentPolicyRejection, INR_AGENT_MEDIA_UNREADABLE, isPermanentlyUnreadableInrAgentMedia,
   ) as (args: { supabase: typeof db.client; userId: string; origin: string; now: Date }) => Promise<{ status: string; generationStarted: boolean; actionId?: string | null }>;
   return { run: () => prepare({ supabase: db.client, userId: "account", origin: "https://isolated.invalid", now: new Date("2026-11-21T09:00:00Z") }), calls: () => providerCalls };
 }

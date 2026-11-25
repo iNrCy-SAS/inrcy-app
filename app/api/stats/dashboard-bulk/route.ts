@@ -12,6 +12,9 @@ import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { getChannelConnectionStates } from '@/lib/channelConnectionState';
 import { buildStatsConnectionSignature } from '@/lib/stats/connectionSignature';
 import { createInrcyPublishedActivityLoader } from '@/lib/stats/buildOverview.activity';
+import { createOverviewCacheBatch } from '@/lib/stats/overviewCacheBatch';
+import { OVERVIEW_CACHE_SOURCE } from '@/lib/stats/overviewPreservation';
+import { createStatsOverviewRequestContext } from '@/lib/stats/overviewRequestContext';
 import { applyLinkedInFallbackToStatsRecords, readLastGoodLinkedInGeneratorBlock } from '@/lib/linkedinStatsFallback';
 import { buildChannelBlocks, type InrstatsChannelBlocksByChannel } from '@/lib/inrstats/channelBlocks';
 import { DASHBOARD_CHANNEL_KEYS } from '@/lib/dashboardChannels';
@@ -78,6 +81,10 @@ async function dashboardStatsBulkHandler(req: Request) {
     const snapshotDate = (searchParams.get('snapshotDate') || '').trim() || null;
     const cookie = req.headers.get('cookie') || '';
     const inrcyPublishedActivityLoader = createInrcyPublishedActivityLoader({ supabase, userId });
+    const overviewContext = {
+      ...createStatsOverviewRequestContext({ supabase, userId }),
+      readOverviewCache: createOverviewCacheBatch({ supabase, userId, source: OVERVIEW_CACHE_SOURCE }),
+    };
 
     const overviews = await fetchCubeOverviews({
       origin,
@@ -88,6 +95,7 @@ async function dashboardStatsBulkHandler(req: Request) {
       userId,
       snapshotDate,
       inrcyPublishedActivityLoader,
+      overviewContext,
 
       metaPilotEnabled,
     });
@@ -106,6 +114,7 @@ async function dashboardStatsBulkHandler(req: Request) {
             userId,
             snapshotDate,
             inrcyPublishedActivityLoader,
+            overviewContext,
 
             metaPilotEnabled,
           }),
@@ -120,6 +129,7 @@ async function dashboardStatsBulkHandler(req: Request) {
             userId,
             snapshotDate,
             inrcyPublishedActivityLoader,
+            overviewContext,
 
             metaPilotEnabled,
           }),

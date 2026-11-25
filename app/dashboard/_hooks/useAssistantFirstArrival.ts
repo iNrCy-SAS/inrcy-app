@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { getActiveBrowserUserId } from "@/lib/browserAccountCache";
+import { withBrowserRequestTimeout } from "@/lib/browserRequestTimeout";
 import { BROWSER_SIGN_OUT_START_EVENT, isBrowserSignOutInProgress } from "@/lib/browserSignOutState";
 import { ACTIVE_INRCY_ACCOUNT_EVENT } from "@/lib/multicompte/constants";
 
@@ -14,11 +15,11 @@ function claimFirstArrival(actorUserId: string, accountId: string): Promise<Welc
   const key = `${actorUserId}:${accountId}`;
   const existing = inFlight.get(key);
   if (existing) return existing;
-  const request = fetch("/api/dashboard/setup-intro", {
-    method: "POST", credentials: "include", cache: "no-store",
-    headers: { "Content-Type": "application/json" }, body: JSON.stringify({ accountId }),
-    signal: AbortSignal.timeout(15_000),
-  }).then(async response => {
+  const request = withBrowserRequestTimeout(15_000, async signal => {
+    const response = await fetch("/api/dashboard/setup-intro", {
+      method: "POST", credentials: "include", cache: "no-store",
+      headers: { "Content-Type": "application/json" }, body: JSON.stringify({ accountId }), signal,
+    });
     if (!response.ok) return null;
     const value: unknown = await response.json();
     if (!value || typeof value !== "object") return null;

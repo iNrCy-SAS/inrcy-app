@@ -102,6 +102,7 @@ const nativeSources = {
   studioMemoryFixture: compile(read("tests/helpers/studio-reference-memory-fixture.mts")),
   rawStudioReferenceMemoryClient: compile(read("lib/studioReferenceMemoryClient.ts")),
   ...Object.fromEntries(["aiMediaExactDialogue", "mediaExactDialogueEditor", "studioReferences"].map(name => ["@/lib/" + name, compile(read("lib/" + name + ".ts"))])),
+  "@/lib/browserRequestTimeout": compile(read("lib/browserRequestTimeout.ts")),
   ...Object.fromEntries(["aiMediaModelCatalog", "aiMediaGenerationContracts", "aiMediaVideoSpeechBudget", "aiMediaSpokenScript", "studioInspirationImagePolicy", "aiMediaVideoTimeline", "aiMediaVideoClientOptions", "aiMediaNarrationVoices", "mediaRules", "inrStudioModalPolicy", "aiMediaCharacterVoiceClient", "aiMediaCharacterVoices", "aiMediaSoundtrackDefinitions", "inrAssistantStudioFormSelection", "inrAssistantStudioModifierSelection", "inrAssistantMediaUiClient", "mediaUploadPolicy"].map(name => ["@/lib/" + name, compile(read("lib/" + name + ".ts"))])),
 };
 const nativeFixture = `

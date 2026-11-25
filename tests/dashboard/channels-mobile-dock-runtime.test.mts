@@ -16,7 +16,7 @@ function clientLibSources(entry: string, output: Record<string, string> = {}) {
  const key='@/lib/'+entry;if(output[key])return output;const file='lib/'+entry+'.ts',raw=read(file);output[key]=compile(raw);const ast=ts.createSourceFile(file,raw,ts.ScriptTarget.Latest,true);
  for(const node of ast.statements)if(ts.isImportDeclaration(node)&&!node.importClause?.isTypeOnly&&ts.isStringLiteral(node.moduleSpecifier)){const name=node.moduleSpecifier.text;if(name.startsWith('./')&&name.endsWith('.ts'))clientLibSources(name.slice(2,-3),output)}return output;
 }
-const modules={react:packageSource("react","react.production.js"),"react/jsx-runtime":packageSource("react","react-jsx-runtime.production.js"),"react-dom":packageSource("react-dom","react-dom.production.js"),"react-dom/client":packageSource("react-dom","react-dom-client.production.js"),scheduler:packageSource("scheduler","scheduler.production.js"),channels:compile(read("app/dashboard/_components/DashboardChannelsModal.tsx")),presentation:compile(read("app/dashboard/_components/dashboard-channel-presentation.ts")),nav:compile(`export default function Dock(){const ${toggleMenu.getText(source)};return (${nav!.getText(source)});}`),"../_hooks/useInrAssistantLocalInterface":compile(read("app/dashboard/_hooks/useInrAssistantLocalInterface.ts")),...clientLibSources('inrAssistantLocalInterface'),...clientLibSources('elementStyleLock')};
+const modules={react:packageSource("react","react.production.js"),"react/jsx-runtime":packageSource("react","react-jsx-runtime.production.js"),"react-dom":packageSource("react-dom","react-dom.production.js"),"react-dom/client":packageSource("react-dom","react-dom-client.production.js"),scheduler:packageSource("scheduler","scheduler.production.js"),channels:compile(read("app/dashboard/_components/DashboardChannelsModal.tsx")),presentation:compile(read("app/dashboard/_components/dashboard-channel-presentation.ts")),nav:compile(`export default function Dock(){const ${toggleMenu.getText(source)};return (${nav!.getText(source)});}`),"../_hooks/useInrAssistantLocalInterface":compile(read("app/dashboard/_hooks/useInrAssistantLocalInterface.ts")),...clientLibSources('inrAssistantLocalInterface'),...clientLibSources('elementStyleLock'),...clientLibSources('browserModalDialog')};
 const fixture=`
 const sources=${JSON.stringify(modules)},messages=${JSON.stringify(JSON.parse(read("messages/fr-FR/dashboard.json")))},loaded={};window.fixtureError=null;window.addEventListener("error",event=>window.fixtureError=String(event.error?.stack||event.message));
 function require(name){
@@ -110,4 +110,39 @@ test("Mes canaux switches desktop modal semantics at the dock breakpoint without
   await page.setViewportSize({width:390,height:844});await page.waitForFunction(()=>document.querySelector('[data-dashboard-channels-dialog]')?.matches(':modal')===false);assert.equal(await page.locator('[data-dashboard-mobile-nav]').isVisible(),true);
   await page.evaluate(()=>document.querySelector<HTMLDialogElement>('#blocking')!.showModal());await page.setViewportSize({width:1440,height:900});assert.equal(await page.locator('#blocking').evaluate(element=>element.matches(':modal')),true);assert.equal(await channels.evaluate(element=>element.matches(':modal')),false,"A resize must not raise the channel cockpit over the confirmation");await page.getByRole('button',{name:'Fermer la confirmation'}).click();await page.waitForFunction(()=>document.querySelector('[data-dashboard-channels-dialog]')?.matches(':modal')===true);await page.close();
  }finally{await browser.close()}
+});
+
+test("Mes canaux remains usable when the browser supports dialogs but rejects :modal", async () => {
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
+    const errors: string[] = [];
+    page.on("pageerror", error => errors.push(error.message));
+    await page.addInitScript(() => {
+      const querySelector = Document.prototype.querySelector;
+      Document.prototype.querySelector = function(selector: string) {
+        if (selector === "dialog:modal") throw new DOMException("Unsupported selector", "SyntaxError");
+        return querySelector.call(this, selector);
+      };
+      const matches = Element.prototype.matches;
+      Element.prototype.matches = function(selector: string) {
+        if (selector === ":modal") throw new DOMException("Unsupported selector", "SyntaxError");
+        return matches.call(this, selector);
+      };
+    });
+    await mount(page);
+    const channels = page.locator("[data-dashboard-channels-dialog]");
+    await channels.waitFor();
+    assert.equal(await channels.getAttribute("aria-modal"), "false");
+    await page.evaluate(() => document.querySelector<HTMLDialogElement>("#blocking")!.showModal());
+    await page.setViewportSize({ width: 1440, height: 900 });
+    assert.equal(await channels.getAttribute("aria-modal"), "false", "The active confirmation stays in front");
+    await page.getByRole("button", { name: "Fermer la confirmation" }).click();
+    await page.waitForFunction(() => document.querySelector("[data-dashboard-channels-dialog]")?.getAttribute("aria-modal") === "true");
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.waitForFunction(() => document.querySelector("[data-dashboard-channels-dialog]")?.getAttribute("aria-modal") === "false");
+    await page.locator("[data-dashboard-mobile-home]").click();
+    await channels.waitFor({ state: "hidden" });
+    assert.deepEqual(errors, []);
+  } finally { await browser.close(); }
 });

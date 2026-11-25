@@ -83,6 +83,8 @@
   "agent_loyalty_campaign_prepared": "\"Retain\" campaign prepared by iNr’Agent.",
   "agent_operation_aria": "How it works iNr’Agent",
   "agent_publication_prepare_failed": "Unable to prepare the publication.",
+  "agent_publication_media_unreadable": "A selected file is missing or unreadable. Replace it in the media library or choose another media source before trying again.",
+  "agent_publication_media_analysis_unavailable": "Media analysis is temporarily unavailable. Try again in a moment.",
   "agent_publication_prepared": "Publication Booster prepared by iNr’Agent.",
   "agent_settings_save_failed": "Unable to save settings iNr’Agent.",
   "agent_settings_saved": "Settings iNr’Agent saved.",

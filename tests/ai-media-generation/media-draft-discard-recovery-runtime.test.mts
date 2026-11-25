@@ -1,4 +1,5 @@
 import { userFacingErrorsFixture, aiMediaPublicErrorsFixture } from "../helpers/user-facing-errors-fixture.mts";
+import * as browserRequestTimeout from "../../lib/browserRequestTimeout.ts";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
@@ -45,6 +46,7 @@ function harness() {
     assert.fail(`Unexpected native refresh dependency: ${name}`);
   });
   const modules = new Map<string, unknown>([
+    ["@/lib/browserRequestTimeout", browserRequestTimeout],
     ["./useInrAssistantRefresh", refreshModule.exports],
     ["react", react], ["@/lib/multicompte/constants", { ACTIVE_INRCY_ACCOUNT_EVENT: "account-change" }],
     ["@/lib/aiMediaGenerationContracts", contracts], ["@/lib/aiMediaModelCatalog", models],

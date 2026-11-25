@@ -3,6 +3,8 @@ import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { isValidElement, type ReactElement, type ReactNode } from "react";
 import ts from "typescript";
+import * as browserModalDialog from "../../lib/browserModalDialog.ts";
+import * as browserRequestTimeout from "../../lib/browserRequestTimeout.ts";
 import * as clientContext from "../../lib/inrAssistantClientContext.ts";
 import * as clientStream from "../../lib/inrAssistantClientStream.ts";
 import * as errorCopy from "../../app/dashboard/_components/dashboardAssistantErrorCopy.ts";
@@ -105,6 +107,8 @@ export function harness(providerOnly = false, storage = new Map<string, string>(
       return entry.exports;
     }
     if (name === "react/jsx-runtime") return require(name);
+    if (name === "@/lib/browserModalDialog") return browserModalDialog;
+    if (name === "@/lib/browserRequestTimeout") return browserRequestTimeout;
     if (name === "next/image") return { __esModule: true, default: "img" };
     if (name === "next/dynamic") return { __esModule: true, default: () => "MediaLibraryPicker" };
     if (name === "@/lib/inrAssistantAttachments") return attachmentPolicy;

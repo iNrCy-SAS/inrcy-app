@@ -83,6 +83,8 @@
   "agent_loyalty_campaign_prepared": "忠诚度活动由 iNr’Agent 准备。",
   "agent_operation_aria": "它是如何工作的 iNr’Agent",
   "agent_publication_prepare_failed": "无法准备出版。",
+  "agent_publication_media_unreadable": "所选文件丢失或无法读取。请在媒体库中替换该文件，或选择其他媒体来源后重试。",
+  "agent_publication_media_analysis_unavailable": "媒体分析暂时不可用。请稍后重试。",
   "agent_publication_prepared": "出版物Booster由iNr’Agent编写。",
   "agent_settings_save_failed": "无法保存设置 iNr’Agent。",
   "agent_settings_saved": "iNr’Agent 设置已保存。",

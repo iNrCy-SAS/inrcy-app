@@ -14,6 +14,7 @@ type SentryLikeEvent = {
   exception?: { values?: Array<{ type?: string; value?: string; mechanism?: { handled?: boolean; type?: string } }> };
   breadcrumbs?: Array<{ message?: string; data?: Record<string, unknown> }>;
   extra?: Record<string, unknown>;
+  tags?: Record<string, unknown>;
   transaction?: string;
   contexts?: Record<string, unknown>;
   spans?: SentryLikeSpan[];
@@ -181,6 +182,35 @@ function shouldDropNoisyEvent(event: SentryLikeEvent): boolean {
     text.includes("socket hang up");
 }
 
+function recordNextRouterStateError(event: SentryLikeEvent): void {
+  const reportedByNext = event.exception?.values?.some((item) =>
+    item.value === "The router state header was sent but could not be parsed." &&
+    item.mechanism?.type === "auto.function.nextjs.on_request_error",
+  );
+  if (!reportedByNext) return;
+
+  const reportedHeaders = new Set<string>();
+  const headers = event.request?.headers;
+  for (const name of Object.keys(headers ?? {})) {
+    const lowerName = name.toLowerCase();
+    reportedHeaders.add(lowerName);
+    if (headers && (lowerName === "next-router-state-tree" || lowerName === "next-url" || lowerName === "next-action" || lowerName === "x-deployment-id")) {
+      delete headers[name];
+    }
+  }
+
+  // Framework request headers can be stripped before the hook sees the request.
+  // Record only reported signals, without retaining route state or action IDs.
+  const requestKind = reportedHeaders.has("next-action") ? "server_action" : reportedHeaders.has("rsc") ? "rsc" : "unknown";
+  event.tags = {
+    ...event.tags,
+    next_router_error: "invalid_state_header",
+    next_router_request: requestKind,
+    next_router_state_reported: reportedHeaders.has("next-router-state-tree"),
+    next_deployment_reported: reportedHeaders.has("x-deployment-id"),
+  };
+}
+
 export function filterSentryEvent<T>(event: T, options: FilterOptions = {}): T | null {
   const mutableEvent = event as unknown as SentryLikeEvent;
 
@@ -193,11 +223,14 @@ export function filterSentryEvent<T>(event: T, options: FilterOptions = {}): T |
     delete mutableEvent.user.username;
   }
 
-  if (options.scrubHeaders && mutableEvent.request?.headers) {
-    delete mutableEvent.request.headers.authorization;
-    delete mutableEvent.request.headers.Authorization;
-    delete mutableEvent.request.headers.cookie;
-    delete mutableEvent.request.headers.Cookie;
+  if (options.scrubHeaders) {
+    recordNextRouterStateError(mutableEvent);
+    if (mutableEvent.request?.headers) {
+      delete mutableEvent.request.headers.authorization;
+      delete mutableEvent.request.headers.Authorization;
+      delete mutableEvent.request.headers.cookie;
+      delete mutableEvent.request.headers.Cookie;
+    }
   }
 
   if (mutableEvent.request) {

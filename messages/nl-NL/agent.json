@@ -83,6 +83,8 @@
   "agent_loyalty_campaign_prepared": "Loyaliteitscampagne voorbereid door iNr’Agent.",
   "agent_operation_aria": "Hoe iNr’Agent werkt",
   "agent_publication_prepare_failed": "Publicatie kon niet worden voorbereid.",
+  "agent_publication_media_unreadable": "Een geselecteerd bestand ontbreekt of is onleesbaar. Vervang het in de mediabibliotheek of kies een andere mediabron en probeer het opnieuw.",
+  "agent_publication_media_analysis_unavailable": "Media-analyse is tijdelijk niet beschikbaar. Probeer het zo opnieuw.",
   "agent_publication_prepared": "Booster-bericht voorbereid door iNr’Agent.",
   "agent_settings_save_failed": "iNr’Agent-instellingen konden niet worden opgeslagen.",
   "agent_settings_saved": "iNr’Agent-instellingen opgeslagen.",

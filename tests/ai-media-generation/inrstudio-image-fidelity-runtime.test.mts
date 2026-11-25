@@ -188,3 +188,47 @@ test("edit-master client keeps original dimensions separate from the bounded PNG
     await assert.rejects(client.prepareMediaImageEditMaster(original), /copie de travail.*invalide/);
   } finally { globalThis.fetch = previousFetch; }
 });
+
+test("the compatible edit-master deadline still cancels a stalled PNG body and cleans up the same source", async t => {
+  const previousFetch = globalThis.fetch;
+  const nativeTimeout = Object.getOwnPropertyDescriptor(AbortSignal, "timeout")!;
+  const storagePath = "users/account-a/studio-identity-reference/image/a.tiff";
+  const client = loadRuntime<typeof import("../../lib/mediaImageEditMasterClient.ts")>("lib/mediaImageEditMasterClient.ts", new Map([
+    ["@/lib/universalMediaUploadClient", { uploadUniversalMediaFile: async () => ({ storagePath, contentType: "image/tiff" }) }],
+  ]));
+  const signals: AbortSignal[] = [];
+  let startReading!: () => void;
+  const reading = new Promise<void>(resolve => { startReading = resolve; });
+  const cleanup: string[] = [];
+  Object.defineProperty(AbortSignal, "timeout", { ...nativeTimeout, value: undefined });
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  try {
+    globalThis.fetch = async (_input, init) => {
+      if (init?.method === "DELETE") {
+        cleanup.push(JSON.parse(String(init.body)).storagePath);
+        return Response.json({ ok: true });
+      }
+      const signal = init?.signal;
+      assert.ok(signal);
+      signals.push(signal);
+      const response = new Response(null, { headers: { "content-type": "image/png" } });
+      response.blob = () => new Promise<Blob>((_resolve, reject) => {
+        signal.addEventListener("abort", () => reject(signal.reason), { once: true });
+        startReading();
+      });
+      return response;
+    };
+    const original = new File(["original"], "source.tiff", { type: "image/tiff" });
+    const rejected = assert.rejects(client.prepareMediaImageEditMaster(original), { name: "TimeoutError" });
+    await reading;
+    t.mock.timers.tick(119_999);
+    assert.equal(signals[0]?.aborted, false);
+    t.mock.timers.tick(1);
+    await rejected;
+    assert.deepEqual(cleanup, [storagePath]);
+    assert.equal(await original.text(), "original");
+  } finally {
+    Object.defineProperty(AbortSignal, "timeout", nativeTimeout);
+    globalThis.fetch = previousFetch;
+  }
+});

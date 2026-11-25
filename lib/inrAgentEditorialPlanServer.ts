@@ -36,6 +36,7 @@ import {
 } from "@/lib/inrAgentPublicationIdeaSelection";
 import { getBoosterGenerationContext } from "@/lib/boosterGenerationContext";
 import { isAiMediaContentPolicyRejection } from "@/lib/aiMediaGenerationPublicErrors";
+import { INR_AGENT_MEDIA_UNREADABLE, isPermanentlyUnreadableInrAgentMedia } from "@/lib/inrAgentMediaUnderstandingError";
 import {
   inrAgentEditorialRetryDecision,
   isTerminalInrAgentEditorialFailure,
@@ -1742,6 +1743,9 @@ export async function prepareNextInrAgentEditorialSlot(args: {
       nowMs: now.getTime(),
     });
     const { retry, retryAt, quotaLimited: isQuotaLimited } = retryDecision;
+    const retryReason = isAiMediaContentPolicyRejection(cause) ? "content_policy"
+      : isPermanentlyUnreadableInrAgentMedia(cause) ? INR_AGENT_MEDIA_UNREADABLE
+      : isQuotaLimited ? "quota" : "transient_error";
     // La préparation peut avoir figé les parties d'un carrousel avant un
     // échec partiel. Conserver ces données récentes pour reprendre sans débit double.
     const latest = await args.supabase.from("inr_agent_actions")
@@ -1763,7 +1767,7 @@ export async function prepareNextInrAgentEditorialSlot(args: {
           editorialIdeaReservationTerminal: !retry,
           editorialLastError: message,
           editorialLastErrorAt: new Date().toISOString(),
-          editorialRetryReason: isAiMediaContentPolicyRejection(cause) ? "content_policy" : isQuotaLimited ? "quota" : "transient_error",
+          editorialRetryReason: retryReason,
         },
         updated_at: new Date().toISOString(),
       })

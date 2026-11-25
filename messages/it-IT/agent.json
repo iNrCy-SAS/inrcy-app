@@ -83,6 +83,8 @@
   "agent_loyalty_campaign_prepared": "Campagna Fidelizza preparata da iNr’Agent.",
   "agent_operation_aria": "Operazione iNr’Agent",
   "agent_publication_prepare_failed": "Impossibile preparare la pubblicazione.",
+  "agent_publication_media_unreadable": "Un file selezionato è mancante o illeggibile. Sostituiscilo nella libreria multimediale oppure scegli un’altra origine e riprova.",
+  "agent_publication_media_analysis_unavailable": "L’analisi del contenuto multimediale è temporaneamente non disponibile. Riprova tra poco.",
   "agent_publication_prepared": "Pubblicazione Booster preparata da iNr’Agent.",
   "agent_settings_save_failed": "Impossibile salvare le impostazioni iNr’Agent.",
   "agent_settings_saved": "Impostazioni iNr’Agent salvate.",

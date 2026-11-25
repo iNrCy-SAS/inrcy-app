@@ -4,6 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { useLocale } from "next-intl";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { getActiveBrowserUserId } from "@/lib/browserAccountCache";
+import { withBrowserRequestTimeout } from "@/lib/browserRequestTimeout";
 import { ACTIVE_INRCY_ACCOUNT_EVENT } from "@/lib/multicompte/constants";
 import { createClient } from "@/lib/supabaseClient";
 import { getInrAssistantClientScreen, selectInrAssistantClientScreen, parseInrAssistantClientContext, type InrAssistantClientScreen } from "@/lib/inrAssistantClientContext";
@@ -196,9 +197,14 @@ export default function DashboardAssistantProvider({ children }: { children: Rea
       try {
         let href: string, filename: string;
         if (command.command === "download_media") {
-          const response = await fetch("/api/media-library/download", { method: "POST", credentials: "same-origin", headers: { "content-type": "application/json" }, body: JSON.stringify({ ids: command.mediaIds }), signal: AbortSignal.timeout(30_000) });
-          const data = await response.json();
-          if (!response.ok || data?.ok !== true || typeof data.downloadUrl !== "string" || !stillCurrent()) return false;
+          const { ok, data } = await withBrowserRequestTimeout(30_000, async signal => {
+            const response = await fetch("/api/media-library/download", {
+              method: "POST", credentials: "same-origin", headers: { "content-type": "application/json" },
+              body: JSON.stringify({ ids: command.mediaIds }), signal,
+            });
+            return { ok: response.ok, data: await response.json() };
+          });
+          if (!ok || data?.ok !== true || typeof data.downloadUrl !== "string" || !stillCurrent()) return false;
           const url = new URL(data.downloadUrl, window.location.origin);
           if (url.origin !== window.location.origin || url.pathname !== "/api/media-library/download") return false;
           href = url.href; filename = "mes-medias.zip";

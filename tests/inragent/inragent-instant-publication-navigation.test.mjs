@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 import test from "node:test";
 import { runInNewContext } from "node:vm";
 import ts from "typescript";
+import { INR_AGENT_MEDIA_UNREADABLE, INR_AGENT_MEDIA_UNDERSTANDING_UNAVAILABLE } from "../../lib/inrAgentMediaUnderstandingError.ts";
 
 const ROOT = resolve(import.meta.dirname, "../..");
 
@@ -59,6 +60,7 @@ function createController({ selectedId = "previous-publication", selectedKey = "
     },
     "@/lib/inrAgentSettings": {},
     "@/lib/inrAgentMonthSchedule": {},
+    "@/lib/inrAgentMediaUnderstandingError": { INR_AGENT_MEDIA_UNREADABLE, INR_AGENT_MEDIA_UNDERSTANDING_UNAVAILABLE },
     "../_lib/agent.config": { automations: [{ key: "publish" }], pendingActionStatuses: new Set() },
     "../_lib/agent.settings": { connectedChannelsForAutomation: () => ["siteWeb"] },
     "../_lib/agent.i18n": {},
@@ -211,6 +213,21 @@ test("sans sélection précédente, l'échec retire proprement la case provisoir
   await runtime.finish();
   assert.equal(runtime.snapshot().selectedId, null);
   assert.equal(runtime.snapshot().actions.length, 2);
+});
+
+test("les deux échecs média affichent chacun leur message localisé et restaurent la sélection", async () => {
+  for (const [code, notice] of [
+    [INR_AGENT_MEDIA_UNREADABLE, "agent_publication_media_unreadable"],
+    [INR_AGENT_MEDIA_UNDERSTANDING_UNAVAILABLE, "agent_publication_media_analysis_unavailable"],
+  ]) {
+    const runtime = createController();
+    runtime.controller.testAutomationNow("publish");
+    await runtime.respond(false, { code });
+    await runtime.finish();
+    assert.equal(runtime.snapshot().selectedId, "previous-publication");
+    assert.ok(runtime.notices.includes(notice));
+    assert.ok(!runtime.notices.includes("agent_publication_prepare_failed"));
+  }
 });
 
 test("changer de mission pendant la création est conservé à la réussite comme à l'échec", async () => {

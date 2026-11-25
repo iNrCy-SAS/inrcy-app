@@ -1,4 +1,5 @@
 import { userFacingErrorsFixture, aiMediaPublicErrorsFixture } from "../helpers/user-facing-errors-fixture.mts";
+import * as browserRequestTimeout from "../../lib/browserRequestTimeout.ts";
 import * as nativeRefresh from "../../lib/inrAssistantRefresh.ts";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -99,6 +100,7 @@ function harness(sessionStorage?: Pick<Storage, "getItem" | "setItem" | "removeI
   }).outputText;
   const record = { exports: {} as { default: () => Hook } };
   new Function("module", "exports", "require", "window", "fetch", output)(record, record.exports, (id: string) => {
+    if (id === "@/lib/browserRequestTimeout") return browserRequestTimeout;
     if (id === "@/lib/userFacingErrors") return userFacingErrorsFixture;
     if (id === "@/lib/aiMediaGenerationPublicErrorI18n") return aiMediaPublicErrorsFixture;
     if (id === "react") return react;

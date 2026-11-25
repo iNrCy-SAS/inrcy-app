@@ -9,6 +9,7 @@ import { buildVideoAiContextReference } from "@/lib/videoAiContextReference";
 import { type BoosterAiImage } from "@/lib/boosterPublishGeneration";
 import { type ImageBankAsset, type InrAgentPublicationPreparationContext } from "@/lib/inrAgentPublicationPreparationTypes";
 import { cleanText, cleanLongContext, cleanList } from "@/lib/inrAgentPublicationPreparationPolicy";
+import { InrAgentMediaUnderstandingError, isPermanentlyUnreadableInrAgentMedia } from "@/lib/inrAgentMediaUnderstandingError";
 
 const AGENT_AI_IMAGE_MAX_BYTES = 8 * 1024 * 1024;
 
@@ -17,14 +18,11 @@ const AGENT_AI_IMAGE_SOURCE_MAX_BYTES = 50 * 1024 * 1024;
 const AGENT_AI_IMAGE_FETCH_TIMEOUT_MS = 12_000;
 
 async function prepareAgentSelectedImageForAI(
-  media: ImageBankAsset | null
+  media: ImageBankAsset
 ): Promise<BoosterAiImage[]> {
-  const mediaKind = media?.mediaType || media?.kind || "image";
-  const sourceUrl = cleanText(media?.url, 4_000);
-  const bucket = cleanText(media?.bucket, 120);
-  const storagePath = cleanText(media?.storagePath, 1_000);
-  if (!media || mediaKind !== "image" || (!sourceUrl && !storagePath))
-    return [];
+  const sourceUrl = cleanText(media.url, 4_000);
+  const bucket = cleanText(media.bucket, 120);
+  const storagePath = cleanText(media.storagePath, 1_000);
 
   if (/^data:image\//i.test(sourceUrl)) {
     return [{ dataUrl: sourceUrl, detail: "low" }];
@@ -36,17 +34,21 @@ async function prepareAgentSelectedImageForAI(
     AGENT_AI_IMAGE_FETCH_TIMEOUT_MS
   );
   try {
+    if (!sourceUrl && !(bucket && storagePath)) {
+      throw new InrAgentMediaUnderstandingError("missing");
+    }
     let buffer: Buffer;
     let mimeType: string;
 
     if (bucket && storagePath) {
       const probe = await probeStorageObject(bucket, storagePath);
-      if (probe !== "exists") throw new Error(`image_storage_${probe}`);
+      if (probe === "missing") throw new InrAgentMediaUnderstandingError("missing");
+      if (probe === "unknown") throw new InrAgentMediaUnderstandingError("storage");
       const download = await supabaseAdmin.storage
         .from(bucket)
         .download(storagePath);
       if (download.error || !download.data) {
-        throw new Error(download.error?.message || "image_storage_download");
+        throw new InrAgentMediaUnderstandingError("storage", download.error);
       }
       buffer = Buffer.from(await download.data.arrayBuffer());
       mimeType =
@@ -56,7 +58,10 @@ async function prepareAgentSelectedImageForAI(
         ).split(";")[0] || "image/jpeg";
     } else {
       const response = await fetch(sourceUrl, { signal: controller.signal });
-      if (!response.ok) throw new Error(`image_download_${response.status}`);
+      if (response.status === 404 || response.status === 410) {
+        throw new InrAgentMediaUnderstandingError("missing");
+      }
+      if (!response.ok) throw new InrAgentMediaUnderstandingError("storage");
 
       const declaredLength = Number(
         response.headers.get("content-length") || 0
@@ -65,7 +70,7 @@ async function prepareAgentSelectedImageForAI(
         Number.isFinite(declaredLength) &&
         declaredLength > AGENT_AI_IMAGE_SOURCE_MAX_BYTES
       ) {
-        throw new Error("image_too_large");
+        throw new InrAgentMediaUnderstandingError("invalid_image");
       }
 
       mimeType =
@@ -78,24 +83,40 @@ async function prepareAgentSelectedImageForAI(
       buffer = Buffer.from(await response.arrayBuffer());
     }
 
-    if (!mimeType.startsWith("image/")) throw new Error("invalid_image_mime");
-
-    if (!buffer.length || buffer.length > AGENT_AI_IMAGE_SOURCE_MAX_BYTES) {
-      throw new Error(buffer.length ? "image_too_large" : "image_empty");
+    if (!mimeType.startsWith("image/") || !buffer.length || buffer.length > AGENT_AI_IMAGE_SOURCE_MAX_BYTES) {
+      throw new InrAgentMediaUnderstandingError("invalid_image");
     }
-    // A valid library original may exceed the vision provider's input budget.
-    // Resize a temporary analysis copy; never alter the publication's original.
-    if (buffer.length > AGENT_AI_IMAGE_MAX_BYTES ||
-      !["image/jpeg", "image/png", "image/webp", "image/gif"].includes(mimeType)) {
+    const needsPreview = buffer.length > AGENT_AI_IMAGE_MAX_BYTES ||
+      !["image/jpeg", "image/png", "image/webp", "image/gif"].includes(mimeType);
+    const isJpeg = mimeType === "image/jpeg" || mimeType === "image/jpg";
+    if (needsPreview || (isJpeg && media.source !== "ai_media_generation")) {
       const { default: sharp } = await import("sharp");
-      buffer = await sharp(buffer, { failOn: "error" })
-        .rotate()
-        .resize({ width: 1600, height: 1600, fit: "inside", withoutEnlargement: true })
-        .flatten({ background: "#ffffff" })
-        .jpeg({ quality: 85 })
-        .toBuffer();
-      mimeType = "image/jpeg";
-      if (buffer.length > AGENT_AI_IMAGE_MAX_BYTES) throw new Error("image_preview_too_large");
+      try {
+        const reader = sharp(buffer, { failOn: "error" });
+        if (needsPreview) {
+          // Some originals exceed the vision provider's input budget.
+          buffer = await reader.rotate()
+            .resize({ width: 1600, height: 1600, fit: "inside", withoutEnlargement: true })
+            .flatten({ background: "#ffffff" })
+            .jpeg({ quality: 85 })
+            .toBuffer();
+          mimeType = "image/jpeg";
+        } else {
+          // Read a tiny sample to detect a truncated JPEG without modifying its bytes.
+          await reader.resize({ width: 1, height: 1, fit: "inside" }).raw().toBuffer();
+        }
+      } catch (error) {
+        if (error instanceof Error && (
+          /input image exceeds pixel limit/i.test(error.message) ||
+          (isJpeg && /VipsJpeg: [^\r\n]*(premature end|truncated|corrupt|bogus (?:huffman|marker)|not a JPEG)/i.test(error.message))
+        )) {
+          throw new InrAgentMediaUnderstandingError("invalid_image", error);
+        }
+        throw error;
+      }
+      if (buffer.length > AGENT_AI_IMAGE_MAX_BYTES) {
+        throw new InrAgentMediaUnderstandingError("invalid_image");
+      }
     }
 
     return [
@@ -105,18 +126,47 @@ async function prepareAgentSelectedImageForAI(
       },
     ];
   } catch (error) {
+    const failure = error instanceof InrAgentMediaUnderstandingError
+      ? error
+      : new InrAgentMediaUnderstandingError("storage", error);
     console.warn(
       "[inr-agent] selected image unavailable for AI understanding",
       {
         mediaId: media.id || undefined,
         source: media.librarySource || media.source || undefined,
-        message: error instanceof Error ? error.message : String(error),
+        reason: failure.reason,
+        message: failure.cause instanceof Error ? failure.cause.message : failure.message,
       }
     );
-    return [];
+    throw failure;
   } finally {
     clearTimeout(timer);
   }
+}
+
+export async function prepareInrAgentExistingPublicationImages(
+  selected: ImageBankAsset[],
+  selectAlternative: (excluded: ImageBankAsset[]) => Promise<ImageBankAsset | null>,
+) {
+  const assets = [...selected];
+  const excluded = [...selected];
+  const prepared = await Promise.allSettled(assets.map(prepareAgentSelectedImageForAI));
+  let replaced = false;
+  const imagesForAI = new Map<ImageBankAsset, BoosterAiImage[]>();
+  for (const [index, result] of prepared.entries()) {
+    if (result.status === "fulfilled") {
+      imagesForAI.set(assets[index], result.value);
+      continue;
+    }
+    if (!isPermanentlyUnreadableInrAgentMedia(result.reason)) throw result.reason;
+    const alternative = await selectAlternative(excluded);
+    if (!alternative) throw result.reason;
+    imagesForAI.set(alternative, await prepareAgentSelectedImageForAI(alternative));
+    excluded.push(alternative);
+    assets[index] = alternative;
+    replaced = true;
+  }
+  return { assets, imagesForAI, replaced };
 }
 
 function buildAgentSelectedMediaContext(
@@ -189,6 +239,7 @@ export async function prepareInrAgentSelectedMediaAnalysis(args: {
   images: ImageBankAsset[];
   video: ImageBankAsset | null;
   mediaSubjectSource: AiMediaSubjectSource;
+  preparedImages?: ReadonlyMap<ImageBankAsset, BoosterAiImage[]>;
 }) {
   const { media, images, video, mediaSubjectSource } = args;
   const userId = args.context.accountId;
@@ -215,13 +266,14 @@ export async function prepareInrAgentSelectedMediaAnalysis(args: {
   }
 
   const imagePreparationStartedAt = Date.now();
-  const imagePreparations = video ? [] : await Promise.all(
-    images.map((asset) => prepareAgentSelectedImageForAI(asset)),
+  const imagePreparations = video ? [] : await Promise.allSettled(
+    images.map((asset) => args.preparedImages?.get(asset) ?? prepareAgentSelectedImageForAI(asset)),
   );
-  const imagesForAI = video ? videoPreparation?.frames || [] : imagePreparations.flat();
-  if (mediaSubjectSource === "media" && imagePreparations.some((result) => !result.length)) {
-    throw new Error("inr_agent_media_understanding_unavailable");
-  }
+  const imagesForAI = video ? videoPreparation?.frames || [] : imagePreparations.flatMap((result) => {
+    if (result.status === "fulfilled") return result.value;
+    if (mediaSubjectSource === "media") throw result.reason;
+    return [];
+  });
   imagePreparationMs = video ? 0 : Date.now() - imagePreparationStartedAt;
   const selectedMediaContext = buildAgentSelectedMediaContext(
     media,

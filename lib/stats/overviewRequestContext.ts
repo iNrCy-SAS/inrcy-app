@@ -1,8 +1,10 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { OverviewCacheReader } from "@/lib/stats/overviewCacheBatch";
 
 type OverviewContextKey = "metaPilot" | "integrations" | "proTools" | "businessProfile" | "channelStates:0" | "channelStates:1";
 export type StatsOverviewRequestContext = {
   read<T>(client: SupabaseClient, accountId: string, key: OverviewContextKey, load: () => Promise<T>): Promise<T>;
+  readOverviewCache?: OverviewCacheReader;
 };
 
 /** One refresh, one account, one authenticated client; never a process-wide cache. */

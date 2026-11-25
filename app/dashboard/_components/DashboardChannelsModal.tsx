@@ -15,6 +15,7 @@ import MetaOAuthCallbackNotice from "./MetaOAuthCallbackNotice";
 import { useInrAssistantScreen } from "./DashboardAssistantScreenContext";
 import { useInrAssistantLocalInterface } from "../_hooks/useInrAssistantLocalInterface";
 import { acquireElementStyleLock } from "@/lib/elementStyleLock";
+import { findOpenBrowserModal } from "@/lib/browserModalDialog";
 
 type Props = {
   items: DashboardFluxBubbleData[];
@@ -61,10 +62,11 @@ export default function DashboardChannelsModal({ items, onClose, onOpenHelp, sum
       // A phone channel cockpit is a workspace above the shared navigation.
       // showModal would put the dock (and its Assistant) behind an inert layer.
       // Keep desktop modal semantics and let a nested confirmation stay on top.
-      const blockingDialog = document.querySelector("dialog:modal");
+      const blockingDialog = findOpenBrowserModal(document);
       if (blockingDialog && blockingDialog !== dialog) return;
       const shouldBeModal = !mobile.matches;
-      if (dialog.open && dialog.matches(":modal") === shouldBeModal) return;
+      const isModal = blockingDialog === dialog;
+      if (dialog.open && isModal === shouldBeModal) return;
       if (dialog.open) dialog.close();
       dialog.setAttribute("aria-modal", String(shouldBeModal));
       if (shouldBeModal) dialog.showModal(); else dialog.show();
@@ -89,7 +91,7 @@ export default function DashboardChannelsModal({ items, onClose, onOpenHelp, sum
 
   useEffect(() => {
     const mobile = window.matchMedia("(max-width: 1100px)");
-    const hasBlockingModal = () => Boolean(document.querySelector("dialog:modal"));
+    const hasBlockingModal = () => Boolean(findOpenBrowserModal(document));
     const keepWorkspaceFocus = (event: FocusEvent) => {
       if (!mobile.matches || hasBlockingModal() || !(event.target instanceof Element)) return;
       if (dialogRef.current?.contains(event.target) || event.target.closest('[data-dashboard-mobile-nav], [data-dashboard-mobile-nav-menu], dialog[open], [role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"]')) return;

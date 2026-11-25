@@ -5,6 +5,7 @@ import { createRequire } from "node:module";
 import test from "node:test";
 import sharp from "sharp";
 import ts from "typescript";
+import { InrAgentMediaUnderstandingError, INR_AGENT_MEDIA_UNDERSTANDING_UNAVAILABLE } from "../../lib/inrAgentMediaUnderstandingError.ts";
 
 const source = ts.createSourceFile("route.ts", readAgentPublicationPreparationSource(), ts.ScriptTarget.Latest, true);
 const require = createRequire(import.meta.url);
@@ -19,14 +20,20 @@ const compiled = ts.transpileModule(`${constants}\n${declaration("cleanText")}\n
 }).outputText;
 async function analyze(original: Buffer, type: string) {
   let reads = 0, failures = 0;
-  const prepare = new Function("require", "supabaseAdmin", "probeStorageObject", "console", compiled)(require,
+  const prepare = new Function("require", "supabaseAdmin", "probeStorageObject", "console", "InrAgentMediaUnderstandingError", compiled)(require,
     { storage: { from: (bucket: string) => { assert.equal(bucket, "private-library"); return { download: async (path: string) => { assert.equal(path, "business/original"); reads++; return { data: new Blob([new Uint8Array(original)], { type }) }; } }; } } },
-    async () => "exists", { warn: () => { failures++; } });
+    async () => "exists", { warn: () => { failures++; } }, InrAgentMediaUnderstandingError);
   const before = createHash("sha256").update(original).digest("hex");
-  const result = await prepare({ id: "fixture", bucket: "private-library", storagePath: "business/original", mimeType: type, mediaType: "image", librarySource: "pro_media_library" });
+  let result: Array<{ dataUrl: string }> = [];
+  let error: unknown;
+  try {
+    result = await prepare({ id: "fixture", bucket: "private-library", storagePath: "business/original", mimeType: type, mediaType: "image", librarySource: "pro_media_library" });
+  } catch (failure) {
+    error = failure;
+  }
   assert.equal(createHash("sha256").update(original).digest("hex"), before, "analysis cannot change the publication original");
   assert.equal(reads, 1);
-  return { result: result as Array<{ dataUrl: string }>, failures };
+  return { result, failures, error };
 }
 
 test("a valid library photo above 8 MiB gets a readable temporary JPEG analysis copy while its original is preserved", async () => {
@@ -50,7 +57,9 @@ test("a TIFF outside the vision provider formats is rotated and converted for an
   assert.equal(metadata.format, "jpeg"); assert.equal(metadata.width, 80); assert.equal(metadata.height, 120);
 });
 
-test("an unreadable selected file cannot turn filename metadata into visual observations", async () => {
-  const { result, failures } = await analyze(Buffer.from("not an image"), "image/tiff");
+test("an ambiguous decoder error never sends bytes to vision or classifies the media as permanently corrupt", async () => {
+  const { result, failures, error } = await analyze(Buffer.from("not an image"), "image/tiff");
   assert.deepEqual(result, []); assert.equal(failures, 1);
+  assert.ok(error instanceof InrAgentMediaUnderstandingError);
+  assert.equal(error.code, INR_AGENT_MEDIA_UNDERSTANDING_UNAVAILABLE);
 });

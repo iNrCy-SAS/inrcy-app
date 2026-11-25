@@ -56,6 +56,7 @@ const sources = {
   "@/app/dashboard/_components/MediaGeneratorModal": compile("app/dashboard/_components/MediaGeneratorModal.tsx"),
   "./MediaModifier": compile("app/dashboard/_components/MediaModifier.tsx"),
   "@/lib/aiMediaExactDialogue": compile("lib/aiMediaExactDialogue.ts"),
+  "@/lib/browserRequestTimeout": compile("lib/browserRequestTimeout.ts"),
   ...Object.fromEntries(["inrStudioNavigation", "inrStudioViewport", "inrStudioModalPolicy", "inrAssistantStudioHandoff", "inrAssistantStudioDraft", "aiMediaModelCatalog", "aiMediaGenerationContracts", "aiMediaSoundtrackDefinitions", "aiMediaVideoSpeechBudget", "aiMediaSpokenScript", "aiMediaVideoTimeline", "studioInspirationImagePolicy", "aiMediaNarrationVoices", "mediaRules", "aiMediaCharacterVoices", "inrAssistantStudioModifierSelection", "inrAssistantMediaUiClient", "mediaUploadPolicy", "userFacingErrors", "aiMediaGenerationPublicErrorI18n", "aiMediaGenerationPublicErrorCopy", "appLanguage", "publicationErrorFrench", "metaGraphErrorClassification"].map(name => ["@/lib/" + name, compile("lib/" + name + ".ts")])),
 };
 const dictionaries = { booster: JSON.parse(read("messages/fr-FR/booster.json")), media: JSON.parse(read("messages/fr-FR/media.json")), shell: JSON.parse(read("messages/fr-FR/shell.json")) };

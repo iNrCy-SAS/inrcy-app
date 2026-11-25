@@ -3,12 +3,17 @@ import { createHash, randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import ts from "typescript";
+import sharp from "sharp";
 import { normalizeAiMediaGeneratorPreferences } from "../../lib/aiMediaGenerationPreferences.ts";
 import { inrAgentEditorialRetryDecision } from "../../lib/inrAgentEditorialRetryPolicy.ts";
 import { getAiMediaGenerationPublicError, isAiMediaContentPolicyRejection } from "../../lib/aiMediaGenerationPublicErrors.ts";
 import { buildInrAgentMediaFormatPlan, bindInrAgentMediaFormatVariants } from "../../lib/inrAgentMediaFormats.ts";
 import { MEDIA_FIRST_PUBLICATION_IDEA } from "../../lib/aiMediaSubject.ts";
 import { blocksInrAgentReferenceFallback } from "../../lib/inrAgentMediaReferences.ts";
+import {
+  INR_AGENT_MEDIA_UNREADABLE, INR_AGENT_MEDIA_UNDERSTANDING_UNAVAILABLE,
+  InrAgentMediaUnderstandingError, isPermanentlyUnreadableInrAgentMedia,
+} from "../../lib/inrAgentMediaUnderstandingError.ts";
 import { runtimeModules } from "./runtime-module-loader.mts";
 
 const { requiresManualValidation, getExecutionPolicy, getInitialStatus } = runtimeModules()<Pick<typeof import("../../lib/inrAgentPublicationPreparationPolicy.ts"), "requiresManualValidation" | "getExecutionPolicy" | "getInitialStatus">>("lib/inrAgentPublicationPreparationPolicy.ts");
@@ -28,7 +33,9 @@ assert.notEqual(quotaStart, -1);
 const body = post.body.statements.slice(quotaStart).map((node) => node.getText(route)).join("\n");
 const services = [
   ["lib/inrAgentPublicationMediaSelection.ts", "selectInrAgentPublicationMedia"],
+  ["lib/inrAgentPublicationMediaSelection.ts", "selectInrAgentReplacementImage"],
   ["lib/inrAgentPublicationMediaAnalysis.ts", "prepareInrAgentSelectedMediaAnalysis"],
+  ["lib/inrAgentPublicationMediaAnalysis.ts", "prepareInrAgentExistingPublicationImages"],
 ].map(([file, name]) => {
   const source = ts.createSourceFile(file, readFileSync(new URL(`../../${file}`, import.meta.url), "utf8"), ts.ScriptTarget.Latest, true);
   const declaration = source.statements.find((node) => ts.isFunctionDeclaration(node) && node.name?.text === name);
@@ -37,7 +44,7 @@ const services = [
 }).join("\n");
 const compiled = ts.transpileModule(`${services}\nasync function run(){${body}}`, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText;
 
-function harness(options: { accountId?: string; ghostOnly?: boolean; ghostMixed?: boolean; refusedCredits?: boolean; failedSnapshot?: boolean; failedPart?: number; mediaFailureOutcome?: string; failedText?: boolean; failedPersistence?: boolean; existingAssets?: Media[]; imageCount?: 1 | 3; imageReadFailure?: boolean } = {}) {
+function harness(options: { accountId?: string; ghostOnly?: boolean; ghostMixed?: boolean; refusedCredits?: boolean; failedSnapshot?: boolean; failedPart?: number; mediaFailureOutcome?: string; failedText?: boolean; failedPersistence?: boolean; existingAssets?: Media[]; alternativeAssets?: Media[]; imageCount?: 1 | 3; unreadableImages?: Set<string>; temporaryStorageError?: boolean } = {}) {
   const accountId = options.accountId || "account";
   const events: string[] = [];
   const generated = new Map<string, { item: Media; request: string }>();
@@ -87,6 +94,7 @@ function harness(options: { accountId?: string; ghostOnly?: boolean; ghostMixed?
     fallbackIndex = 0;
     const scope: Record<string, unknown> = {
       createHash, randomUUID, normalizeAiMediaGeneratorPreferences, MEDIA_FIRST_PUBLICATION_IDEA, blocksInrAgentReferenceFallback,
+      InrAgentMediaUnderstandingError, isPermanentlyUnreadableInrAgentMedia,
       getAiMediaGenerationPublicError,
       preparationContext: { accountId, actorAuthUserId: "actor", isCron: true },
       supabase, supabaseAdmin: supabase, userId: accountId, quotaAccountId: accountId, actorUserId: "actor", authUserId: "actor",
@@ -114,7 +122,11 @@ function harness(options: { accountId?: string; ghostOnly?: boolean; ghostMixed?
       rollbackAiCredits: async (reservation: { state: string } | null) => { if (reservation?.state === "reserved") { credits.rolledBack++; reservation.state = "rolled_back"; events.push("rollback"); } },
       loadRecentMediaUsage: async () => ({ proMediaIds: new Set(), imageBankIds: new Set(), storageKeys: new Set() }),
       buildMediaDiversificationTrace: () => ({}),
-      pickDiversifiedMedia: async () => ({ media: fallbackAssets[fallbackIndex++] || null, diversificationTrace: {}, proCandidate: null, imageBankCandidate: null }),
+      pickDiversifiedMedia: async ({ recentMediaUsage }: { recentMediaUsage: { proMediaIds: Set<string>; imageBankIds: Set<string> } }) => {
+        const fallback = fallbackAssets[fallbackIndex++];
+        const alternate = options.alternativeAssets?.find((asset) => !recentMediaUsage.proMediaIds.has(asset.id) && !recentMediaUsage.imageBankIds.has(asset.id));
+        return { media: fallback || alternate || null, diversificationTrace: {}, proCandidate: null, imageBankCandidate: null };
+      },
       getMediaSourceKey: (source: string, path: string) => `${source}:${path}`,
       generateInrAgentMedia: async (args: RecordValue) => {
         assert.ok(metadata.editorialMediaGeneration, "snapshot must persist before any media generation");
@@ -131,7 +143,12 @@ function harness(options: { accountId?: string; ghostOnly?: boolean; ghostMixed?
       buildInrAgentMediaFormatPlan, bindInrAgentMediaFormatVariants,
       generatedPickerItemToAgentMedia: ({ item }: { item: Media }) => item,
       getRecentMediaTrace: () => ({}), isRecentlyUsedMediaRow: () => false, isValidJobForSector: () => true,
-      prepareAgentSelectedImageForAI: async (asset: Media) => { events.push(`vision:${asset.id}`); return options.imageReadFailure ? [] : [{ id: asset.id }]; },
+      prepareAgentSelectedImageForAI: async (asset: Media) => {
+        events.push(`vision:${asset.id}`);
+        if (options.temporaryStorageError) throw new InrAgentMediaUnderstandingError("storage");
+        if (options.unreadableImages?.has(asset.id)) throw new InrAgentMediaUnderstandingError("invalid_image");
+        return [{ id: asset.id }];
+      },
       releaseInrAgentPublicationIdea: async () => { events.push("release-idea"); },
       buildAgentSelectedMediaContext: () => ({}), channelMediaReadiness: (_channel: string, media: unknown) => ({ mediaRequired: Boolean(media) }), channelMediaAdaptation: (_channel: string, media: unknown) => ({ mediaType: media ? "image" : "none" }),
       videoAiContextReferenceAliases: () => ({}),
@@ -221,12 +238,85 @@ for (const source of ["pro_media_library", "inrcy_image_bank"]) {
 
 test("un original bibliothèque illisible ne produit aucun texte à partir des seuls tags", async () => {
   const asset: Media = { id: "unreadable", mediaType: "image", kind: "image", source: "pro_media_library", librarySource: "pro_media_library", storagePath: "account/image.jpg" };
-  const h = harness({ existingAssets: [asset], imageCount: 1, imageReadFailure: true });
-  await assert.rejects(h.run(), /inr_agent_media_understanding_unavailable/);
+  const h = harness({ existingAssets: [asset], imageCount: 1, unreadableImages: new Set([asset.id]) });
+  const response = await h.run();
+  assert.equal(response.status, 422);
+  assert.equal(response.body.code, INR_AGENT_MEDIA_UNREADABLE);
   assert.equal(h.textCalls.length, 0);
   assert.equal(h.storedAction, null);
   assert.equal(h.credits.rolledBack, 1);
   assert.equal(h.credits.committed, 0);
+});
+
+test("un JPEG corrompu du planning est remplacé dans le snapshot sans générer de média payant", async () => {
+  const broken: Media = { id: "broken", mediaType: "image", kind: "image", source: "bank", librarySource: "inrcy_image_bank", storagePath: "bank/broken.jpg" };
+  const alternate = { ...broken, id: "alternate", storagePath: "bank/alternate.jpg" };
+  for (const frozen of [false, true]) {
+    const options = {
+      existingAssets: [broken], alternativeAssets: [broken, alternate],
+      imageCount: 1 as const, unreadableImages: new Set<string>(), failedText: frozen,
+    };
+    const h = harness(options);
+    if (frozen) {
+      await assert.rejects(h.run(), /text_failed/);
+      assert.deepEqual((h.metadata.editorialMediaGeneration as RecordValue).existingAssets, [broken]);
+      options.failedText = false;
+    }
+    options.unreadableImages.add(broken.id);
+    assert.equal((await h.run()).status, 200);
+    assert.deepEqual((h.metadata.editorialMediaGeneration as RecordValue).existingAssets, [alternate]);
+    assert.deepEqual((h.textCalls.at(-1)?.imagesForAI as unknown[]), [{ id: alternate.id }]);
+    assert.equal(h.events.filter((event) => event === `vision:${alternate.id}`).length, 1);
+    assert.equal(h.mediaCalls.length, 0);
+  }
+});
+
+test("un fichier corrompu est contrôlé avant la génération payante des autres images", async () => {
+  const asset: Media = { id: "broken", mediaType: "image", kind: "image", source: "pro_media_library", librarySource: "pro_media_library", storagePath: "account/broken.jpg" };
+  const h = harness({ existingAssets: [asset], unreadableImages: new Set([asset.id]) });
+  assert.equal((await h.run()).status, 422);
+  assert.equal(h.mediaCalls.length, 0);
+  assert.equal(h.credits.rolledBack, 1);
+});
+
+test("une panne du stockage conserve la sélection et attend une reprise", async () => {
+  const asset: Media = { id: "file", mediaType: "image", kind: "image", source: "pro_media_library", librarySource: "pro_media_library", storagePath: "account/file.jpg" };
+  const h = harness({ existingAssets: [asset], imageCount: 1, temporaryStorageError: true });
+  const response = await h.run();
+  assert.equal(response.status, 503);
+  assert.equal(response.body.code, INR_AGENT_MEDIA_UNDERSTANDING_UNAVAILABLE);
+  assert.deepEqual((h.metadata.editorialMediaGeneration as RecordValue).existingAssets, [asset]);
+  assert.deepEqual(h.events.filter((event) => event.startsWith("vision:")), ["vision:file"]);
+  assert.equal(h.credits.rolledBack, 1);
+});
+
+test("le vrai décodeur détecte un JPEG tronqué et transmet uniquement l’alternative lisible", async () => {
+  const jpeg = await sharp({ create: { width: 64, height: 64, channels: 3, background: "red" } }).jpeg().toBuffer();
+  const truncated = jpeg.subarray(0, jpeg.length - 5);
+  const downloads: string[] = [];
+  const { prepareInrAgentExistingPublicationImages } = runtimeModules({
+    "@/lib/safeStorageSignedUrl": { probeStorageObject: async () => "exists" },
+    "@/lib/supabaseAdmin": { supabaseAdmin: { storage: { from: () => ({ download: async (path: string) => {
+      downloads.push(path);
+      const bytes = path === "bank/truncated.jpg" ? truncated : jpeg;
+      return { data: new Blob([new Uint8Array(bytes)], { type: "image/jpeg" }), error: null };
+    } }) } } },
+    "@/lib/inrAgentVideoPreparation": {},
+    "@/lib/inrAgentVideoContextCache": {},
+  })<typeof import("../../lib/inrAgentPublicationMediaAnalysis.ts")>("lib/inrAgentPublicationMediaAnalysis.ts");
+  const broken = {
+    id: "truncated", bucket: "test-bank", storagePath: "bank/truncated.jpg",
+    url: "", title: "", sector: "", job: "", tags: [], orientation: "",
+    source: "bank", librarySource: "inrcy_image_bank" as const, mediaType: "image" as const,
+  };
+  const alternate = { ...broken, id: "readable", storagePath: "bank/readable.jpg" };
+  const result = await prepareInrAgentExistingPublicationImages([broken], async (excluded) => {
+    assert.deepEqual(excluded, [broken]);
+    return alternate;
+  });
+  assert.deepEqual(result.assets, [alternate]);
+  assert.equal(result.imagesForAI.get(alternate)?.[0]?.dataUrl, `data:image/jpeg;base64,${jpeg.toString("base64")}`);
+  assert.deepEqual(downloads, [broken.storagePath, alternate.storagePath]);
 });
 
 test("une vidéo existante transmet ses captures et ses paroles avant la rédaction", async () => {
@@ -335,7 +425,7 @@ function retryCoordinatorHarness(options: { readFailure?: boolean; concurrentCom
   const scope = {
     EDITORIAL_ACTION_SELECT: "id,status,metadata,payload", inrAgentEditorialRetryDecision,
     withInrAgentEditorialGenerationLease: async (_args: unknown, prepare: () => Promise<unknown>) => prepare(),
-    isAiMediaContentPolicyRejection,
+    isAiMediaContentPolicyRejection, INR_AGENT_MEDIA_UNREADABLE, isPermanentlyUnreadableInrAgentMedia,
     asRecord: (value: unknown) => value && typeof value === "object" ? value : {},
     cleanText: (value: unknown, length: number) => String(value || "").trim().slice(0, length),
     errorMessage: (error: unknown) => error instanceof Error ? error.message : String(error),
@@ -401,6 +491,16 @@ test("the coordinator preserves the refusal code across HTTP and never schedules
   assert.equal((await h.run()).status, "failed");
   const metadata = h.row.metadata as RecordValue;
   assert.equal(metadata.editorialRetryReason, "content_policy");
+  assert.equal(metadata.editorialNextRetryAt, null);
+  assert.equal(metadata.editorialIdeaReservationTerminal, true);
+  assert.deepEqual(metadata.editorialMediaGeneration, h.snapshot);
+});
+
+test("the coordinator stops immediately for an unreadable file and keeps the saved media snapshot", async () => {
+  const h = retryCoordinatorHarness({ error: "Le fichier sélectionné est illisible.", code: INR_AGENT_MEDIA_UNREADABLE });
+  assert.equal((await h.run()).status, "failed");
+  const metadata = h.row.metadata as RecordValue;
+  assert.equal(metadata.editorialRetryReason, INR_AGENT_MEDIA_UNREADABLE);
   assert.equal(metadata.editorialNextRetryAt, null);
   assert.equal(metadata.editorialIdeaReservationTerminal, true);
   assert.deepEqual(metadata.editorialMediaGeneration, h.snapshot);

@@ -30,6 +30,7 @@ import { useDashboardViewerAccess } from "./DashboardViewerAccessProvider";
 import DashboardAssistantMessageContent from "./DashboardAssistantMessageContent";
 import { TURN_ID_PATTERN, sessionStorageKey, storedMessages, requestMessages, readStoredSession, parseAssistantMedia, type ChatMessage, type StoredSession } from "./dashboardAssistantSessionState";
 import styles from "./DashboardAssistantProvider.module.css";
+import { findOpenBrowserModal } from "@/lib/browserModalDialog";
 
 const MediaLibraryPickerModal = dynamic(() => import("./MediaLibraryPickerModal"), { ssr: false });
 const MediaLibraryAudioPickerModal = dynamic<MediaLibraryAudioPickerProps>(() => import("./MediaLibraryPickerModal").then(({ default: Picker }) => function AudioPicker(props: MediaLibraryAudioPickerProps) { return <Picker {...props} />; }), { ssr: false });
@@ -106,7 +107,7 @@ export default function AssistantSession({ actorUserId, activeAccountId, allowed
   useEffect(() => {
     if (!open) return;
     const syncHost = () => {
-      const next = document.querySelector<HTMLDialogElement>("dialog:modal") || document.body;
+      const next = findOpenBrowserModal(document) || document.body;
       setPortalHost(current => current === next ? current : next);
     };
     syncHost();
@@ -445,7 +446,7 @@ export default function AssistantSession({ actorUserId, activeAccountId, allowed
   };
 
   return open && allowed ? createPortal(<dialog
-      ref={dialogRef} id="inrcy-assistant-dialog" className={styles.dialog} aria-labelledby="inrcy-assistant-title"
+      ref={dialogRef} id="inrcy-assistant-dialog" className={styles.dialog} aria-modal="false" aria-labelledby="inrcy-assistant-title"
       data-position={position}
       data-disable-pull-refresh="true" data-testid="dashboard-assistant"
       onCancel={(event) => { event.preventDefault(); event.stopPropagation(); close(); }}

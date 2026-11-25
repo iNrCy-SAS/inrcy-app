@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import ts from "typescript";
+import * as browserRequestTimeout from "../../lib/browserRequestTimeout.ts";
 import type { ReactNode } from "react";
 import { elements, find, invoke, harness } from "./dashboard-assistant-runtime-harness.mts";
 
@@ -101,6 +102,7 @@ function firstArrivalHook() {
   const dependencies: Record<string, unknown> = {
     react: { useRef: (initial: unknown) => refs[index++] ||= { current: initial }, useEffect: (callback: typeof effect) => { effect = callback; } },
     "@/lib/browserAccountCache": { getActiveBrowserUserId: () => browser.accountId },
+    "@/lib/browserRequestTimeout": browserRequestTimeout,
     "@/lib/browserSignOutState": { BROWSER_SIGN_OUT_START_EVENT: "sign-out", isBrowserSignOutInProgress: () => browser.signingOut },
     "@/lib/multicompte/constants": { ACTIVE_INRCY_ACCOUNT_EVENT: "account-switch" },
   };

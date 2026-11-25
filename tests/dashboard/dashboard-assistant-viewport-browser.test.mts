@@ -51,6 +51,8 @@ function browserLibSources(entry: string, output: Record<string, string> = {}) {
 }
 const sources = {
   "@/lib/elementStyleLock": compile("lib/elementStyleLock.ts"),
+  "@/lib/browserModalDialog": compile("lib/browserModalDialog.ts"),
+  "@/lib/browserRequestTimeout": compile("lib/browserRequestTimeout.ts"),
   react: packageSource("react", "react.production.js"),
   "react/jsx-runtime": packageSource("react", "react-jsx-runtime.production.js"),
   "react-dom": packageSource("react-dom", "react-dom.production.js"),
@@ -311,6 +313,46 @@ test("mobile assistant fills the visible viewport across keyboard resize, browse
     await desktop.getByRole("dialog").waitFor({ state: "visible" });
     const rect = await desktop.getByRole("dialog").boundingBox();
     assert.ok(rect && rect.x > 800 && rect.y === 16 && Math.abs(rect.height - 868) <= 2, "Desktop retains its floating window layout");
+  } finally { await browser.close(); }
+});
+
+test("the Assistant follows a blocking dialog and preserves its draft without :modal support", async () => {
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
+    const errors: string[] = [];
+    page.on("pageerror", error => errors.push(error.message));
+    await page.addInitScript(() => {
+      const querySelector = Document.prototype.querySelector;
+      Document.prototype.querySelector = function(selector: string) {
+        if (selector === "dialog:modal") throw new DOMException("Unsupported selector", "SyntaxError");
+        return querySelector.call(this, selector);
+      };
+    });
+    await page.route("**/*", route => route.request().resourceType() === "document"
+      ? route.fulfill({ contentType: "text/html", body: html }) : route.abort());
+    await page.goto("https://fixture.invalid/assistant");
+    await page.addScriptTag({ content: fixture });
+    const assistant = page.locator("#inrcy-assistant-dialog");
+    const composer = assistant.getByRole("textbox");
+    await composer.fill("Mon brouillon");
+    await page.evaluate(() => {
+      const workspace = document.createElement("dialog");
+      workspace.id = "workspace";
+      workspace.setAttribute("aria-modal", "false");
+      document.body.append(workspace);
+      workspace.show();
+      const blocking = document.createElement("dialog");
+      blocking.id = "blocking";
+      document.body.append(blocking);
+      blocking.showModal();
+    });
+    await page.locator("#blocking #inrcy-assistant-dialog").waitFor();
+    assert.equal(await composer.inputValue(), "Mon brouillon");
+    await page.evaluate(() => document.querySelector<HTMLDialogElement>("#blocking")!.close());
+    await page.locator("body > #inrcy-assistant-dialog").waitFor();
+    assert.equal(await composer.inputValue(), "Mon brouillon");
+    assert.deepEqual(errors, []);
   } finally { await browser.close(); }
 });
 

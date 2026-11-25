@@ -29,11 +29,12 @@ const effects = {
 };
 const fixture = `
 const module={exports:{}};new Function('module','exports',${JSON.stringify(compile(read("lib/elementStyleLock.ts")))})(module,module.exports);
+const browserModal={exports:{}};new Function('exports',${JSON.stringify(compile(read("lib/browserModalDialog.ts")))})(browserModal.exports);
 const acquireElementStyleLock=module.exports.acquireElementStyleLock,effects=${JSON.stringify(effects)},releases={};
 window.lockStyle=acquireElementStyleLock;
 window.openOverlay=(name,overrides={})=>{
  const dialogElement=document.getElementById(name);
- const scope={acquireElementStyleLock,dialogRef:{current:dialogElement},closeButtonRef:{current:null},composerRef:{current:null},previousFocusRef:{current:null},isOpen:true,open:true,mounted:true,portalTarget:document.body,dialog:{type:'alert',options:{}},finish(){},inputRef:{current:null},...overrides};
+ const scope={acquireElementStyleLock,...browserModal.exports,dialogRef:{current:dialogElement},closeButtonRef:{current:null},composerRef:{current:null},previousFocusRef:{current:null},isOpen:true,open:true,mounted:true,portalTarget:document.body,dialog:{type:'alert',options:{}},finish(){},inputRef:{current:null},...overrides};
  const run=new Function(...Object.keys(scope),effects[name])(...Object.values(scope));
  releases[name]=run();
 };
