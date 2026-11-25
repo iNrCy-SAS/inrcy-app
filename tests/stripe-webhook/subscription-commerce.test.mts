@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import ts from "typescript";
 
 import {
   PREMIUM_SUBSCRIPTION_OFFER,
@@ -358,6 +359,74 @@ test("la résiliation et sa réactivation couvrent les deux cadences commerciale
   assert.match(cancellationService, /proration_behavior", "none"/);
   assert.match(cancellationService, /cancel_at: ""/);
   assert.match(cancellationService, /cancel_at_period_end: "false"/);
+});
+
+test("Stripe reçoit un seul paramètre de résiliation, à la programmation comme à la réactivation", async () => {
+  const periodEnd = Date.parse("2026-12-18T09:46:16Z") / 1000;
+  const noticeEnd = Date.parse("2027-01-18T09:46:16Z") / 1000;
+  const file = source("lib/scheduleSubscriptionCancellation.ts");
+  const compiled = ts.transpileModule(file, {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+  }).outputText;
+  for (const scenario of [
+    { interval: "month", status: "active", policy: "one_additional_monthly_renewal", end: "2027-01-18", schedule: { cancel_at: String(noticeEnd), proration_behavior: "none" }, restore: { cancel_at: "", proration_behavior: "none" } },
+    { interval: "year", status: "active", policy: "current_annual_period_end", end: "2026-12-18", schedule: { cancel_at_period_end: "true" }, restore: { cancel_at_period_end: "false", proration_behavior: "none" } },
+    { interval: "month", status: "trialing", policy: "trial_end_without_charge", end: "2026-12-18", schedule: { cancel_at_period_end: "true" }, restore: { cancel_at_period_end: "false", proration_behavior: "none" } },
+  ]) {
+    const requests: Array<Record<string, string>> = [];
+    const patches: Array<Record<string, unknown>> = [];
+    const row = { stripe_subscription_id: "sub_fixture", billing_provider: "stripe" };
+    const subscription = {
+      id: row.stripe_subscription_id,
+      status: scenario.status,
+      cancel_at: null as number | null,
+      cancel_at_period_end: false,
+      items: { data: [{ current_period_end: periodEnd, price: { recurring: { interval: scenario.interval, interval_count: 1 } } }] },
+    };
+    const mocks: Record<string, unknown> = {
+      "server-only": {},
+      "@/lib/stripeSubscription": { stripeSubscriptionPeriodEndUnix },
+      "@/lib/subscriptionCancellation": { stripeCancellationSchedule },
+      "@/lib/accountBillingSubscriptionServer": { getApprovedAccountSubscription: async () => null },
+      "@/lib/supabaseAdmin": { supabaseAdmin: { from: (table: string) => {
+        assert.equal(table, "subscriptions");
+        return {
+          select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: row }) }) }),
+          update: (patch: Record<string, unknown>) => ({ eq: async () => { patches.push(patch); return {}; } }),
+        };
+      } } },
+      "@/lib/stripeRest": {
+        stripeGet: async () => ({ ...subscription }),
+        stripePost: async (path: string, params: URLSearchParams) => {
+          assert.equal(path, `/subscriptions/${row.stripe_subscription_id}`);
+          assert.notEqual(params.has("cancel_at"), params.has("cancel_at_period_end"), "Stripe accepte un seul de ces paramètres");
+          requests.push(Object.fromEntries(params));
+          subscription.cancel_at_period_end = params.get("cancel_at_period_end") === "true";
+          subscription.cancel_at = subscription.cancel_at_period_end ? periodEnd : Number(params.get("cancel_at")) || null;
+          return { ...subscription };
+        },
+      },
+    };
+    const service = {} as {
+      scheduleSubscriptionCancellationForUser: (id: string) => Promise<{ endDate: string; policy: string; nextRenewalDate: string }>;
+      restoreSubscriptionRenewalForUser: (id: string) => Promise<unknown>;
+    };
+    new Function("exports", "require", compiled)(service, (name: string) => {
+      assert.ok(name in mocks, name);
+      return mocks[name];
+    });
+
+    const scheduled = await service.scheduleSubscriptionCancellationForUser("user-fixture");
+    assert.equal(scheduled.policy, scenario.policy);
+    assert.equal(scheduled.endDate, scenario.end);
+    assert.equal(scheduled.nextRenewalDate, "2026-12-18");
+    assert.equal(patches[0].end_date, scenario.end);
+    await service.restoreSubscriptionRenewalForUser("user-fixture");
+    assert.deepEqual(requests, [scenario.schedule, scenario.restore]);
+    assert.equal(subscription.cancel_at, null);
+    assert.equal(patches[1].cancel_requested_at, null);
+    assert.equal(patches[1].end_date, null);
+  }
 });
 
 test("les relances et le blocage d'essai restent pilotés côté serveur", () => {

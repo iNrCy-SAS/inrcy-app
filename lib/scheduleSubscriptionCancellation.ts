@@ -206,7 +206,6 @@ export async function scheduleSubscriptionCancellationForUser(
   const cancellationParams = new URLSearchParams();
 
   if (schedule.mode === "custom") {
-    cancellationParams.set("cancel_at_period_end", "false");
     cancellationParams.set("cancel_at", String(schedule.cancelAtUnix));
     cancellationParams.set("proration_behavior", "none");
   } else {
@@ -345,27 +344,30 @@ export async function restoreSubscriptionRenewalForUser(userId: string, accountI
     );
   }
 
-  if (row.account_id) {
-    const live = await stripeGet(`/subscriptions/${encodeURIComponent(stripeSubscriptionId)}`);
-    if (live?.id !== stripeSubscriptionId || live?.customer !== row.stripe_customer_id) throw new Error("ACCOUNT_SUBSCRIPTION_IDENTITY_CONFLICT");
+  const path = `/subscriptions/${encodeURIComponent(stripeSubscriptionId)}`;
+  const currentSubscription = await stripeGet(path);
+  if (row.account_id && (currentSubscription?.id !== stripeSubscriptionId || currentSubscription?.customer !== row.stripe_customer_id)) {
+    throw new Error("ACCOUNT_SUBSCRIPTION_IDENTITY_CONFLICT");
   }
 
-  const updated = await stripePost(
-    `/subscriptions/${encodeURIComponent(stripeSubscriptionId)}`,
-    new URLSearchParams({
-      cancel_at: "",
-      cancel_at_period_end: "false",
-      proration_behavior: "none",
-    }),
-  );
+  if (["canceled", "incomplete_expired"].includes(normalize(currentSubscription.status))) {
+    throw new SubscriptionCancellationError("NO_ACTIVE_SUBSCRIPTION", "Cet abonnement a déjà pris fin.");
+  }
+
+  let updated = currentSubscription;
+  if (currentSubscription.cancel_at_period_end === true) {
+    updated = await stripePost(path, new URLSearchParams({ cancel_at_period_end: "false", proration_behavior: "none" }));
+  } else if (currentSubscription.cancel_at) {
+    updated = await stripePost(path, new URLSearchParams({ cancel_at: "", proration_behavior: "none" }));
+  }
+
+  const periodEndUnix = stripeSubscriptionPeriodEndUnix(updated);
 
   await updateSubscriptionCancellation(userId, {
     cancel_requested_at: null,
     end_date: null,
     status: updated.status,
-    next_renewal_date: stripeSubscriptionPeriodEndUnix(updated)
-      ? ymdFromDate(new Date(stripeSubscriptionPeriodEndUnix(updated)! * 1000))
-      : null,
+    next_renewal_date: periodEndUnix ? ymdFromDate(new Date(periodEndUnix * 1000)) : null,
   }, row);
 
   return { billingProvider: "stripe" as const };

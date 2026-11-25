@@ -1,4 +1,8 @@
 {
+  "subscription_cancel_notice_monthly": "Il tuo prossimo pagamento mensile sarà l’ultimo. Coprirà un mese intero di preavviso. L’accesso resterà attivo fino alla fine di quel mese.",
+  "subscription_cancel_notice_yearly": "Manterrai l’accesso fino alla fine del periodo già pagato. Non è previsto un altro addebito annuale.",
+  "subscription_cancel_notice_trial": "La prova terminerà alla data prevista senza addebiti.",
+  "subscription_cancel_view_basic": "Vedi il piano Base",
   "activity_job_services_choice_title": "Quali servizi vuoi mantenere?",
   "activity_job_services_choice_message": "Puoi scegliere la nuova professione mantenendo i servizi attuali, anche quelli compilati da iNrAnalyse. Puoi anche sostituirli con i suggerimenti per questa professione.",
   "activity_job_services_keep": "Mantieni i miei servizi",

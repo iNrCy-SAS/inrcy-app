@@ -1,7 +1,7 @@
 "use client";
 import { getClientUserFacingErrorMessage as getSafeClientErrorMessage } from "@/lib/userFacingErrors";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode, type Ref } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { currentSubscriptionOffer, annualSubscriptionSavingRate, type BillingCycle } from "@/lib/subscriptionOffers";
 import { canStartSubscriptionCheckout } from "@/lib/subscriptionCheckoutPolicy";
@@ -21,10 +21,11 @@ type Quote = {
   scheduled?: boolean;
 };
 
-export default function BasicSubscriptionCard({ subscription, platform, onRefresh, onManageBilling, onApplied, management, discovery = false }: {
+export default function BasicSubscriptionCard({ subscription, platform, onRefresh, onManageBilling, onApplied, sectionRef, management, discovery = false }: {
   subscription: Subscription; platform: ClientBillingPlatform | null; onRefresh: () => void;
   onManageBilling: () => void;
   onApplied: (cycle: BillingCycle, priceId: string) => Promise<void>;
+  sectionRef?: Ref<HTMLElement>;
   management?: ReactNode;
   discovery?: boolean;
 }) {
@@ -113,7 +114,7 @@ export default function BasicSubscriptionCard({ subscription, platform, onRefres
     catch (caught) { setError(getSafeClientErrorMessage(caught, t("subscription_change_failed"))); }
     finally { setBusy(false); }
   }
-  return <section className={`${styles.planCard} ${styles.basicCard}`} aria-label={`iNrCy ${t("subscription_basic_name")}`}>
+  return <section ref={sectionRef} tabIndex={sectionRef ? -1 : undefined} className={`${styles.planCard} ${styles.basicCard}`} aria-label={`iNrCy ${t("subscription_basic_name")}`}>
     <header className={styles.planHeader}>
       <div><span className={styles.planEyebrow}>{t("subscription_basic_eyebrow")}</span><h2>iNrCy {t("subscription_basic_name")}</h2></div>
       {isCurrent ? <span className={styles.currentBadge}>{t(status === "trialing" ? "subscription_selected_plan" : "subscription_current_plan")}</span> : null}

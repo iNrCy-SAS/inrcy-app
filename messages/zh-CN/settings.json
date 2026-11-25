@@ -1,4 +1,8 @@
 {
+  "subscription_cancel_notice_monthly": "下一笔月费将是最后一笔，涵盖一个完整月的通知期。您可以继续使用到该月结束。",
+  "subscription_cancel_notice_yearly": "您可以继续使用到已付费周期结束。之后不会再收取年度费用。",
+  "subscription_cancel_notice_trial": "试用将在预定日期结束，不会扣费。",
+  "subscription_cancel_view_basic": "查看基础版",
   "activity_job_services_choice_title": "您想保留哪些服务？",
   "activity_job_services_choice_message": "您可以选择新职业并保留现有服务，包括 iNrAnalyse 填写的内容。也可以将其替换为该职业的推荐服务。",
   "activity_job_services_keep": "保留我的服务",

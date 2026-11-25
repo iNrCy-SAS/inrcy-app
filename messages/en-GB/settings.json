@@ -1,4 +1,8 @@
 {
+  "subscription_cancel_notice_monthly": "Your next monthly payment will be your last. It covers a full month’s notice. You’ll keep access until that month ends.",
+  "subscription_cancel_notice_yearly": "You’ll keep access until the end of the period you’ve already paid for. No further annual payment is scheduled.",
+  "subscription_cancel_notice_trial": "Your trial will end on its scheduled date without a charge.",
+  "subscription_cancel_view_basic": "View the Basic plan",
   "activity_job_services_choice_title": "Which services would you like to keep?",
   "activity_job_services_choice_message": "You can select the new profession and keep your existing services, including those filled in by iNrAnalyse. You can also replace them with suggestions for this profession.",
   "activity_job_services_keep": "Keep my services",

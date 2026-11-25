@@ -1,4 +1,8 @@
 {
+  "subscription_cancel_notice_monthly": "Je volgende maandbetaling is de laatste. Deze dekt een volledige maand opzegtermijn. Je behoudt toegang tot het einde van die maand.",
+  "subscription_cancel_notice_yearly": "Je behoudt toegang tot het einde van de periode die je al hebt betaald. Er staat geen nieuwe jaarlijkse betaling gepland.",
+  "subscription_cancel_notice_trial": "Je proefperiode eindigt op de geplande datum zonder kosten.",
+  "subscription_cancel_view_basic": "Bekijk het Basis-abonnement",
   "activity_job_services_choice_title": "Welke diensten wil je behouden?",
   "activity_job_services_choice_message": "Je kunt het nieuwe beroep kiezen en je bestaande diensten behouden, ook de diensten die iNrAnalyse heeft ingevuld. Je kunt ze ook vervangen door suggesties voor dit beroep.",
   "activity_job_services_keep": "Mijn diensten behouden",

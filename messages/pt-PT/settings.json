@@ -1,4 +1,8 @@
 {
+  "subscription_cancel_notice_monthly": "A tua próxima mensalidade será a última. Cobre um mês completo de pré-aviso. Manténs o acesso até ao fim desse mês.",
+  "subscription_cancel_notice_yearly": "Manténs o acesso até ao fim do período já pago. Não está prevista outra cobrança anual.",
+  "subscription_cancel_notice_trial": "O teu período experimental termina na data prevista, sem cobrança.",
+  "subscription_cancel_view_basic": "Ver o plano Básico",
   "activity_job_services_choice_title": "Que serviços pretende manter?",
   "activity_job_services_choice_message": "Pode escolher a nova profissão e manter os serviços atuais, incluindo os preenchidos pelo iNrAnalyse. Também pode substituí-los pelas sugestões desta profissão.",
   "activity_job_services_keep": "Manter os meus serviços",

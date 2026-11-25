@@ -1,4 +1,8 @@
 {
+  "subscription_cancel_notice_monthly": "Deine nächste Monatszahlung ist die letzte. Sie deckt einen vollen Monat Kündigungsfrist ab. Bis zum Ende dieses Monats behältst du deinen Zugang.",
+  "subscription_cancel_notice_yearly": "Dein Zugang bleibt bis zum Ende des bereits bezahlten Zeitraums aktiv. Es ist keine weitere Jahreszahlung geplant.",
+  "subscription_cancel_notice_trial": "Dein Testzeitraum endet zum vorgesehenen Termin ohne Abbuchung.",
+  "subscription_cancel_view_basic": "Basis-Tarif ansehen",
   "activity_job_services_choice_title": "Welche Leistungen möchten Sie behalten?",
   "activity_job_services_choice_message": "Sie können den neuen Beruf auswählen und Ihre bisherigen Leistungen behalten, auch die von iNrAnalyse ergänzten. Alternativ können Sie diese durch die Vorschläge für diesen Beruf ersetzen.",
   "activity_job_services_keep": "Meine Leistungen behalten",

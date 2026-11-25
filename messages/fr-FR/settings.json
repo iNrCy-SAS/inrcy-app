@@ -1,4 +1,8 @@
 {
+  "subscription_cancel_notice_monthly": "Votre prochaine mensualité sera la dernière. Elle couvrira un mois complet de préavis. Vous garderez votre accès jusqu’à la fin de ce mois.",
+  "subscription_cancel_notice_yearly": "Vous garderez votre accès jusqu’à la fin de la période déjà payée. Aucun nouveau prélèvement annuel n’est prévu.",
+  "subscription_cancel_notice_trial": "Votre essai se terminera à son échéance, sans prélèvement.",
+  "subscription_cancel_view_basic": "Voir l’offre Basique",
   "activity_job_services_choice_title": "Quelles prestations conserver ?",
   "activity_job_services_choice_message": "Le nouveau métier peut être enregistré sans modifier vos prestations actuelles, y compris celles remplies par iNrAnalyse. Vous pouvez aussi les remplacer par les suggestions de ce métier.",
   "activity_job_services_keep": "Garder mes prestations",

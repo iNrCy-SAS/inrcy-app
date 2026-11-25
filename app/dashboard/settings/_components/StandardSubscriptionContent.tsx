@@ -29,6 +29,7 @@ import {
 } from "@/lib/clientSubscriptionBilling";
 import { openNativeSubscriptionManagement } from "@/lib/nativeBillingManagement";
 import { getSubscriptionBillingPresentation } from "@/lib/subscriptionBillingPresentation";
+import { chooseInrcy, confirmInrcy } from "@/lib/inrcyDialog";
 import SubscriptionWorkspace, { SubscriptionDetails } from "./SubscriptionWorkspace";
 import { SubscriptionPlanFeatures } from "./SubscriptionComparison";
 import BasicSubscriptionCard from "./BasicSubscriptionCard";
@@ -130,6 +131,7 @@ export default function StandardSubscriptionContent({ onOpenContact }: Props) {
   const [busyAction, setBusyAction] = useState<"checkout" | "portal" | "cancel" | "uncancel" | "quote" | "change-plan" | null>(null);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const basicOfferCard = useRef<HTMLElement>(null);
   const [clientBillingPlatform, setClientBillingPlatform] = useState<ClientBillingPlatform | null>(null);
   const [storePrices, setStorePrices] = useState<StandardSubscriptionStorePrices | null>(null);
   const [storePriceError, setStorePriceError] = useState("");
@@ -570,7 +572,7 @@ export default function StandardSubscriptionContent({ onOpenContact }: Props) {
     }
   }
 
-  async function updateCancellation(action: "cancel" | "uncancel") {
+  async function updateCancellation(action: "cancel" | "uncancel", detailsDialog: HTMLDialogElement | null) {
     if (view.hasNativeSubscription && (view.billingProvider === "app_store" || view.billingProvider === "play_store")) {
       setError("");
       setMessage(i18nT("native_subscription_management_message"));
@@ -588,21 +590,65 @@ export default function StandardSubscriptionContent({ onOpenContact }: Props) {
     setMessage("");
     setBusyAction(action);
     try {
+      if (action === "cancel") {
+        const title = i18nT("confirmer_la_resiliation_893151df");
+        const notice = i18nT(view.status === "trialing" ? "subscription_cancel_notice_trial"
+          : view.billingCycle === "yearly" ? "subscription_cancel_notice_yearly" : "subscription_cancel_notice_monthly");
+        const cancelLabel = i18nT("resilier_1b922dae");
+        const canOfferBasic = clientBillingPlatform === "web"
+          && (view.edition === "standard" || view.edition === "premium")
+          && (view.status === "active" || view.status === "trialing")
+          && !subscription?.native_product_id && !subscription?.cancel_requested_at;
+
+        if (canOfferBasic) {
+          const choice = await chooseInrcy({
+            title,
+            message: notice,
+            choices: [
+              { value: "basic", label: i18nT("subscription_cancel_view_basic") },
+              { value: "cancel", label: cancelLabel, tone: "danger" },
+            ],
+          });
+          if (choice === "basic") {
+            detailsDialog?.close();
+            window.requestAnimationFrame(() => {
+              basicOfferCard.current?.scrollIntoView({ block: "start" });
+              basicOfferCard.current?.focus({ preventScroll: true });
+            });
+          }
+          if (choice !== "cancel") return;
+        } else if (!await confirmInrcy({ title, message: notice, confirmLabel: cancelLabel, variant: "danger" })) {
+          return;
+        }
+      }
+
       const response = await fetch(`/api/billing/${action}`, { method: "POST" });
       if (!response.ok) throw new Error(await responseError(response, i18nT("l_operation_n_a_pas_pu_2eda8de6")));
       const body = (await response.json().catch(() => ({}))) as {
+        end_date?: string;
+        next_renewal_date?: string | null;
         cancellation_policy?: string;
       };
-      await loadSubscription();
+      if (action === "cancel" && body.end_date) {
+        setSubscription((current) => current && ({
+          ...current,
+          cancel_requested_at: current.cancel_requested_at || new Date().toISOString(),
+          end_date: body.end_date,
+          next_renewal_date: body.next_renewal_date,
+        }));
+      }
       setMessage(
         action === "cancel"
           ? body.cancellation_policy === "one_additional_monthly_renewal"
-            ? "Votre résiliation est programmée : votre prochaine mensualité sera la dernière et financera votre mois de préavis."
+            ? i18nT("subscription_cancel_notice_monthly")
             : body.cancellation_policy === "trial_end_without_charge"
-              ? "Votre essai s'arrêtera à son échéance, sans prélèvement."
-              : "Votre abonnement annuel s'arrêtera à son échéance, sans nouveau prélèvement annuel."
+              ? i18nT("subscription_cancel_notice_trial")
+              : body.cancellation_policy === "current_annual_period_end"
+                ? i18nT("subscription_cancel_notice_yearly")
+                : i18nT("resiliation_programmee_09802990")
           : "Votre résiliation a été annulée.",
       );
+      await loadSubscription().catch(() => null);
     } catch (caught) {
       setError(getSafeClientErrorMessage(caught, i18nT("errors_subscription_update")));
     } finally {
@@ -655,8 +701,8 @@ export default function StandardSubscriptionContent({ onOpenContact }: Props) {
     {view.noFurtherRenewal ? <p>{i18nT("subscription_no_further_renewal")}</p> : null}
     {(view.hasStripeSubscription || view.hasNativeSubscription) ? <button type="button" onClick={openPortal} style={secondaryButton} disabled={busyAction !== null}>{view.needsBillingRecovery ? i18nT("regulariser_mon_paiement_00ae072e") : i18nT("gerer_ma_facturation_dc5027ac")}</button> : null}
     {view.hasNativeSubscription ? <p className={styles.finePrint}>{i18nT("native_subscription_managed_by_store", { store: view.billingProvider === "app_store" ? "App Store" : "Google Play" })}</p> : null}
-    {(view.edition === "basic" || view.edition === "standard" || view.status === "trialing") && view.hasStripeSubscription && !view.needsBillingRecovery ? <>
-      <button type="button" onClick={() => updateCancellation(view.cancellationScheduled ? "uncancel" : "cancel")} style={secondaryButton} disabled={busyAction !== null}>{view.cancellationScheduled ? i18nT("annuler_ma_resiliation_902e43a0") : i18nT("programmer_ma_resiliation_d074ca2d")}</button>
+    {view.hasStripeSubscription && !view.needsBillingRecovery ? <>
+      <button type="button" onClick={(event) => updateCancellation(view.cancellationScheduled ? "uncancel" : "cancel", event.currentTarget.closest("dialog"))} style={secondaryButton} disabled={busyAction !== null}>{view.cancellationScheduled ? i18nT("annuler_ma_resiliation_902e43a0") : i18nT("programmer_ma_resiliation_d074ca2d")}</button>
       {!view.cancellationScheduled ? <p className={styles.finePrint}>{i18nT("essai_arret_sans_prelevement_mensuel_actif_32634c83")}</p> : null}
     </> : null}
     {view.edition === "premium" ? <div className={styles.managementActions}>
@@ -737,6 +783,7 @@ export default function StandardSubscriptionContent({ onOpenContact }: Props) {
 
     <div className={styles.plansGrid}>
       <BasicSubscriptionCard subscription={subscription} platform={clientBillingPlatform} discovery={view.discovery}
+        sectionRef={basicOfferCard}
         onRefresh={() => { void loadSubscription(); }} onManageBilling={() => { void openPortal(); }}
         onApplied={refreshBasicPlan}
         management={view.edition === "basic" && (view.hasStripeSubscription || view.hasNativeSubscription) ? management : undefined} />
