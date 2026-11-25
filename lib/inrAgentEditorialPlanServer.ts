@@ -38,6 +38,7 @@ import { getBoosterGenerationContext } from "@/lib/boosterGenerationContext";
 import { isAiMediaContentPolicyRejection } from "@/lib/aiMediaGenerationPublicErrors";
 import { INR_AGENT_MEDIA_UNREADABLE, isPermanentlyUnreadableInrAgentMedia } from "@/lib/inrAgentMediaUnderstandingError";
 import {
+  INR_AGENT_EDITORIAL_SLOT_CHANGED,
   inrAgentEditorialRetryDecision,
   isTerminalInrAgentEditorialFailure,
   shouldRecoverInrAgentEditorialFailure,
@@ -1728,6 +1729,9 @@ export async function prepareNextInrAgentEditorialSlot(args: {
         parsed = asRecord(JSON.parse(responseText));
       } catch {
         parsed = {};
+      }
+      if (response.status === 409 && parsed.code === INR_AGENT_EDITORIAL_SLOT_CHANGED) {
+        return { status: "contended" as const, actionId: candidate.id, generationStarted: true as const };
       }
       throw Object.assign(new Error(
         cleanText(parsed.error || parsed.message || responseText, 1_000) ||

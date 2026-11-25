@@ -17,9 +17,9 @@ function runtime(status?: string, response = async () => Response.json({ hasVoic
   const cache = new Map<string, Row>();
   const db = { from(table: string) {
     assert.equal(table, "integrations"); let patch: Row = {};
-    return { update(next: Row) { patch = next; return this; }, eq() { return this; }, is() { return this; }, select() { return this; }, async maybeSingle() {
+    return { update(next: Row) { patch = next; return this; }, eq() { return this; }, is() { return this; }, async select() {
       if (failPersistence) return { data: null, error: { code: "fixture" } };
-      writes++; stored = { ...stored, ...structuredClone(patch) }; return { data: { id: stored.id }, error: null };
+      writes++; stored = { ...stored, ...structuredClone(patch) }; return { data: [{ id: stored.id }], error: null };
     } };
   } };
   const fetch = async (input: unknown) => { assert.equal(input, `https://mybusinessverifications.googleapis.com/v1/${locationName}/VoiceOfMerchantState`); voiceCalls++; return response(); };

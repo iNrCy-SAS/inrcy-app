@@ -38,6 +38,7 @@ import { generateBoosterPosts, prepareInrAgentEditorialIdea } from "@/lib/inrAge
 import { canUseInrAgentPublicationSettings, type InrAgentPublicationOptionClient } from "@/lib/inrAgentPublicationOptionAccessServer";
 import { INR_AGENT_ADMIN_PUBLISH_MODE, inrAgentPublishUsesRestrictedOptions, readInrAgentAdminPublishOptIn, type InrAgentAdminAutomaticPublish } from "@/lib/inrAgentAdminPublishPolicy";
 import { isInrAgentAdminAutomaticPublicationAuthorized, parkInrAgentAdminAutomaticPublications } from "@/lib/inrAgentAdminPublishServer";
+import { INR_AGENT_EDITORIAL_SLOT_CHANGED } from "@/lib/inrAgentEditorialRetryPolicy";
 
 export const maxDuration = 800;
 export const runtime = "nodejs";
@@ -857,9 +858,14 @@ export async function POST(request: Request) {
         .eq("id", editorialTarget.id)
         .eq("user_id", userId)
         .eq("status", "executing")
-        .select(actionSelect)
-        .single();
-      inserted = result.data;
+        .select(actionSelect);
+      if (!result.error && result.data?.length === 0) {
+        return NextResponse.json({
+          code: INR_AGENT_EDITORIAL_SLOT_CHANGED,
+          error: "Ce créneau a changé pendant la préparation. Son état actuel a été conservé.",
+        }, { status: 409 });
+      }
+      inserted = result.data?.length === 1 ? result.data[0] : null;
       insertError = result.error;
     } else {
       const result = await supabaseAdmin
@@ -871,7 +877,7 @@ export async function POST(request: Request) {
       insertError = result.error;
     }
 
-    if (insertError) {
+    if (insertError || !inserted) {
       persistenceMs = Date.now() - persistenceStartedAt;
       await rollbackAiCredits(quotaReservation);
       quotaReservation = null;
@@ -898,7 +904,7 @@ export async function POST(request: Request) {
         totalMs: Date.now() - routeStartedAt,
         success: false,
         stage: "persist-action",
-        message: insertError.message,
+        message: insertError?.message || "publication_action_missing_after_write",
       });
       return NextResponse.json(
         {

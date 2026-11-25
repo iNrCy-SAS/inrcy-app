@@ -65,8 +65,8 @@ export async function persistGmbVerification({ db, userId, row, locationName, ac
       update = row[key] == null ? update.is(key, null) : update.eq(key, row[key]);
     }
     update = row.meta == null ? update.is("meta", null) : update.eq("meta", JSON.stringify(row.meta));
-    const { data, error } = await update.select("id").maybeSingle();
-    if (error || !data?.id) return inconclusive();
+    const { data, error } = await update.select("id");
+    if (error || data?.length !== 1 || !data[0].id) return inconclusive();
     return { status: currentStatus, persisted: true, clearedStatsReconnect: Boolean(clearsStatsMarker && meta.needs_reconnect) };
   } catch {
     return inconclusive();

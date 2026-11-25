@@ -121,6 +121,9 @@ test("an explicit inactive establishment choice persists its own parent and Goog
       update(input: Record<string, unknown>) { value = input; writeError = table === "integrations" ? integrationWriteSchemaError(input) : null; if (!writeError) writes.push({ table, value, filters }); return query; },
       async maybeSingle() { if (writeError) return { data: null, error: writeError }; return { data: table === "integrations" ? Object.keys(value).length ? { id: "integration", ...value } : structuredClone(snapshot) : { settings: { unrelated: true } }, error: null }; },
       async single() { return writeError ? { data: null, error: writeError } : { data: { id: "integration", ...value }, error: null }; },
+      then(resolve: (result: unknown) => unknown, reject: (error: unknown) => unknown) {
+        return Promise.resolve({ data: writeError ? null : [{ id: "integration", ...value }], error: writeError }).then(resolve, reject);
+      },
       async upsert(input: Record<string, unknown>) { writes.push({ table, value: input, filters }); return { error: null }; },
     };
     return query;

@@ -34,7 +34,7 @@ function runtime(options: {
     const q: Row = {
       select: () => q, eq: (key: string, value: unknown) => { filters.push([key, value]); return q; },
       is: (key: string, value: unknown) => { filters.push([key, value]); return q; },
-      maybeSingle: () => { single = true; return q; },
+      maybeSingle: () => { assert.equal(op, "select", "a guarded PATCH must accept zero returned rows"); single = true; return q; },
       update: (value: Row) => { op = "update"; patch = value; return q; },
       insert: (value: Row) => { op = "insert"; patch = value; return q; },
       then(resolve: (value: unknown) => unknown, reject: (error: unknown) => unknown) {

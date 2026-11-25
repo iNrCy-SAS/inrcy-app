@@ -199,7 +199,7 @@ async function selectLatestGoogleIntegration(
     : rows[0] ?? null;
 }
 
-function updateGmbIntegrationSnapshot(row: GoogleTokenRow, userId: string, patch: Record<string, unknown>) {
+async function updateGmbIntegrationSnapshot(row: GoogleTokenRow, userId: string, patch: Record<string, unknown>) {
   let query = supabaseAdmin
     .from("integrations")
     .update(patch)
@@ -218,7 +218,12 @@ function updateGmbIntegrationSnapshot(row: GoogleTokenRow, userId: string, patch
   query = row.meta == null
     ? query.is("meta", null)
     : query.eq("meta", JSON.stringify(row.meta));
-  return query.select("*").maybeSingle();
+  // A stale comparison legitimately updates zero rows. Request a list so
+  // PostgREST can return [] and the caller can read the winning snapshot.
+  const { data: rows, error } = await query.select("*");
+  if (error) return { data: null, error };
+  if (rows && rows.length > 1) return { data: null, error: new Error("La mise à jour Google Business a renvoyé plusieurs connexions.") };
+  return { data: rows?.[0] ?? null, error: null };
 }
 
 async function getGmbGoogleToken(supabase: any, userId: string, initialRow: GoogleTokenRow) {

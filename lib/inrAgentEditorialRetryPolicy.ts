@@ -1,6 +1,8 @@
 import { isAiMediaContentPolicyRejection } from "./aiMediaGenerationPublicErrors.ts";
 import { INR_AGENT_MEDIA_UNREADABLE, isPermanentlyUnreadableInrAgentMedia } from "./inrAgentMediaUnderstandingError.ts";
 
+export const INR_AGENT_EDITORIAL_SLOT_CHANGED = "INR_AGENT_EDITORIAL_SLOT_CHANGED";
+
 export const INR_AGENT_EDITORIAL_MAX_TRANSIENT_ATTEMPTS = 8;
 export const INR_AGENT_EDITORIAL_MAX_QUOTA_ATTEMPTS = 12;
 export const INR_AGENT_EDITORIAL_TRANSIENT_RETRY_DELAY_MS = 15 * 60 * 1000;

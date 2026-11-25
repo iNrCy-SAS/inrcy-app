@@ -5,7 +5,7 @@ import test from "node:test";
 import ts from "typescript";
 import sharp from "sharp";
 import { normalizeAiMediaGeneratorPreferences } from "../../lib/aiMediaGenerationPreferences.ts";
-import { inrAgentEditorialRetryDecision } from "../../lib/inrAgentEditorialRetryPolicy.ts";
+import { INR_AGENT_EDITORIAL_SLOT_CHANGED, inrAgentEditorialRetryDecision } from "../../lib/inrAgentEditorialRetryPolicy.ts";
 import { getAiMediaGenerationPublicError, isAiMediaContentPolicyRejection } from "../../lib/aiMediaGenerationPublicErrors.ts";
 import { buildInrAgentMediaFormatPlan, bindInrAgentMediaFormatVariants } from "../../lib/inrAgentMediaFormats.ts";
 import { MEDIA_FIRST_PUBLICATION_IDEA } from "../../lib/aiMediaSubject.ts";
@@ -44,7 +44,7 @@ const services = [
 }).join("\n");
 const compiled = ts.transpileModule(`${services}\nasync function run(){${body}}`, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText;
 
-function harness(options: { accountId?: string; ghostOnly?: boolean; ghostMixed?: boolean; refusedCredits?: boolean; failedSnapshot?: boolean; failedPart?: number; mediaFailureOutcome?: string; failedText?: boolean; failedPersistence?: boolean; existingAssets?: Media[]; alternativeAssets?: Media[]; imageCount?: 1 | 3; unreadableImages?: Set<string>; temporaryStorageError?: boolean } = {}) {
+function harness(options: { accountId?: string; ghostOnly?: boolean; ghostMixed?: boolean; refusedCredits?: boolean; failedSnapshot?: boolean; failedPart?: number; mediaFailureOutcome?: string; failedText?: boolean; failedPersistence?: boolean; lostEditorialWrite?: boolean; existingAssets?: Media[]; alternativeAssets?: Media[]; imageCount?: 1 | 3; unreadableImages?: Set<string>; temporaryStorageError?: boolean } = {}) {
   const accountId = options.accountId || "account";
   const events: string[] = [];
   const generated = new Map<string, { item: Media; request: string }>();
@@ -84,7 +84,18 @@ function harness(options: { accountId?: string; ghostOnly?: boolean; ghostMixed?
           storedAction = structuredClone({ id: "slot-1", ...patch });
           return { data: storedAction, error: null };
         },
-        then(resolve: (value: { data: null; error: null }) => unknown) { return Promise.resolve(resolve({ data: null, error: null })); },
+        then(resolve: (value: { data: RecordValue[] | null; error: { message: string } | null }) => unknown) {
+          if (table !== "inr_agent_actions" || !("title" in patch)) {
+            return Promise.resolve(resolve({ data: null, error: null }));
+          }
+          assert.equal(filters.get("user_id"), accountId); assert.equal(filters.get("id"), "slot-1");
+          assert.equal(filters.get("status"), "executing");
+          events.push("persist");
+          if (options.failedPersistence) return Promise.resolve(resolve({ data: null, error: { message: "persist_failed" } }));
+          if (options.lostEditorialWrite) return Promise.resolve(resolve({ data: [], error: null }));
+          storedAction = structuredClone({ id: "slot-1", ...patch });
+          return Promise.resolve(resolve({ data: [storedAction], error: null }));
+        },
       };
       return query;
     },
@@ -95,7 +106,7 @@ function harness(options: { accountId?: string; ghostOnly?: boolean; ghostMixed?
     const scope: Record<string, unknown> = {
       createHash, randomUUID, normalizeAiMediaGeneratorPreferences, MEDIA_FIRST_PUBLICATION_IDEA, blocksInrAgentReferenceFallback,
       InrAgentMediaUnderstandingError, isPermanentlyUnreadableInrAgentMedia,
-      getAiMediaGenerationPublicError,
+      getAiMediaGenerationPublicError, INR_AGENT_EDITORIAL_SLOT_CHANGED,
       preparationContext: { accountId, actorAuthUserId: "actor", isCron: true },
       supabase, supabaseAdmin: supabase, userId: accountId, quotaAccountId: accountId, actorUserId: "actor", authUserId: "actor",
       adminAutomaticPublish: null, effectiveValidationMode: "notify_before_validation",
@@ -368,6 +379,19 @@ test("une erreur texte ou de persistance restitue la réservation exactement une
   assert.equal(persist.credits.rolledBack, 1); assert.equal(persist.credits.committed, 0);
 });
 
+test("une mise à jour éditoriale sans ligne conserve l'état du créneau et restitue les crédits texte", async () => {
+  const h = harness({ lostEditorialWrite: true });
+  const response = await h.run();
+  assert.equal(response.status, 409);
+  assert.equal(response.body.code, INR_AGENT_EDITORIAL_SLOT_CHANGED);
+  assert.equal(h.storedAction, null);
+  assert.equal(h.credits.rolledBack, 1);
+  assert.equal(h.credits.committed, 0);
+  assert.equal(h.generated.size, 3);
+  assert.equal(h.textCalls.length, 1);
+  assert.ok(h.metadata.editorialMediaGeneration);
+});
+
 test("la reprise conserve les sources bibliothèque initiales même si de nouveaux médias apparaissent", async () => {
   const asset: Media = { id: "owned-initial", mediaType: "image", kind: "image", source: "pro_media_library", librarySource: "pro_media_library", storagePath: "account/owned.jpg" };
   const h = harness({ failedPart: 1, existingAssets: [asset] });
@@ -389,7 +413,7 @@ test("un quota média épuisé après une première image reste une attente quot
   assert.equal(h.credits.rolledBack, 1); assert.equal(h.textCalls.length, 0);
 });
 
-function retryCoordinatorHarness(options: { readFailure?: boolean; concurrentCompletion?: boolean; priorAttempts?: number; error?: string; code?: string } = {}) {
+function retryCoordinatorHarness(options: { readFailure?: boolean; concurrentCompletion?: boolean; lostEditorialWrite?: boolean; priorAttempts?: number; error?: string; code?: string } = {}) {
   const serverFile = "lib/inrAgentEditorialPlanServer.ts";
   const ast = ts.createSourceFile(serverFile, readFileSync(new URL(`../../${serverFile}`, import.meta.url), "utf8"), ts.ScriptTarget.Latest, true);
   const declaration = ast.statements.find((node) => ts.isFunctionDeclaration(node) && node.name?.text === "prepareNextInrAgentEditorialSlot");
@@ -423,7 +447,7 @@ function retryCoordinatorHarness(options: { readFailure?: boolean; concurrentCom
     },
   };
   const scope = {
-    EDITORIAL_ACTION_SELECT: "id,status,metadata,payload", inrAgentEditorialRetryDecision,
+    EDITORIAL_ACTION_SELECT: "id,status,metadata,payload", inrAgentEditorialRetryDecision, INR_AGENT_EDITORIAL_SLOT_CHANGED,
     withInrAgentEditorialGenerationLease: async (_args: unknown, prepare: () => Promise<unknown>) => prepare(),
     isAiMediaContentPolicyRejection, INR_AGENT_MEDIA_UNREADABLE, isPermanentlyUnreadableInrAgentMedia,
     asRecord: (value: unknown) => value && typeof value === "object" ? value : {},
@@ -433,6 +457,10 @@ function retryCoordinatorHarness(options: { readFailure?: boolean; concurrentCom
     fetch: async () => {
       row.metadata = { ...(row.metadata as RecordValue), editorialMediaGeneration: snapshot };
       if (options.concurrentCompletion) row.status = "pending_validation";
+      if (options.lostEditorialWrite) {
+        row.status = "cancelled";
+        return { ok: false, status: 409, text: async () => JSON.stringify({ code: INR_AGENT_EDITORIAL_SLOT_CHANGED }) };
+      }
       return { ok: false, status: options.code ? 422 : 503, text: async () => JSON.stringify({ error: options.error || "Préparation temporairement indisponible", code: options.code }) };
     },
   };
@@ -457,6 +485,14 @@ test("le coordinateur n'écrase ni un snapshot illisible ni une action terminée
   const completed = retryCoordinatorHarness({ concurrentCompletion: true });
   assert.equal((await completed.run()).status, "contended");
   assert.equal(completed.patches.length, 1); assert.equal(completed.row.status, "pending_validation");
+});
+
+test("le coordinateur ne relance pas les médias après la perte de la mise à jour éditoriale", async () => {
+  const h = retryCoordinatorHarness({ lostEditorialWrite: true, readFailure: true });
+  assert.deepEqual(await h.run(), { status: "contended", actionId: "slot-1", generationStarted: true });
+  assert.equal(h.patches.length, 1);
+  assert.equal(h.row.status, "cancelled");
+  assert.deepEqual((h.row.metadata as RecordValue).editorialMediaGeneration, h.snapshot);
 });
 
 test("le coordinateur marque uniquement l'échec sans retry comme terminal pour l'idée", async () => {

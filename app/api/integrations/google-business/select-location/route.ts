@@ -81,9 +81,10 @@ export async function POST(req: Request) {
       update = snapshot[field] == null ? update.is(field, null) : update.eq(field, snapshot[field]);
     }
     update = snapshot.meta == null ? update.is("meta", null) : update.eq("meta", JSON.stringify(snapshot.meta));
-    const { data: updatedIntegration, error: upErr } = await update.select("id,status,resource_id,resource_label,meta").maybeSingle();
+    const { data: updatedRows, error: upErr } = await update.select("id,status,resource_id,resource_label,meta");
 
     if (upErr) return jsonUserFacingError(upErr, { status: 500 });
+    const updatedIntegration = updatedRows?.length === 1 ? updatedRows[0] : null;
     if (!updatedIntegration?.id || updatedIntegration.resource_id !== locationName || updatedIntegration.status !== "connected") {
       return selectionChanged();
     }
