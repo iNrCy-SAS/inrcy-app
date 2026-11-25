@@ -6,48 +6,44 @@ const ENDPOINT = "/api/profile/last-active";
 const MIN_TOUCH_DELAY_MS = 5 * 60 * 1000;
 const HEARTBEAT_DELAY_MS = 10 * 60 * 1000;
 
-let memoryLastTouch = 0;
-
-function touchLastActive(force = false) {
-  if (typeof window === "undefined") return;
-  if (!force && document.visibilityState === "hidden") return;
-
-  const now = Date.now();
-
-  if (!force && now - memoryLastTouch < MIN_TOUCH_DELAY_MS) return;
-
-  memoryLastTouch = now;
-
-  void fetch(ENDPOINT, {
-    method: "POST",
-    credentials: "include",
-    cache: "no-store",
-    keepalive: true,
-  }).catch(() => {
-    // Silence volontaire : une erreur réseau ne doit pas afficher d'erreur au pro.
-  });
-}
-
 export default function LastActiveTracker() {
   useEffect(() => {
+    let lastRecordedAt = 0;
+    let requestInFlight = false;
+
+    function touchLastActive() {
+      if (document.visibilityState === "hidden" || requestInFlight) return;
+      if (Date.now() - lastRecordedAt < MIN_TOUCH_DELAY_MS) return;
+
+      requestInFlight = true;
+      void fetch(ENDPOINT, {
+        method: "POST",
+        credentials: "include",
+        cache: "no-store",
+        keepalive: true,
+      }).then(async (response) => {
+        if (response.ok && (await response.json()).ok === true) {
+          lastRecordedAt = Date.now();
+        }
+      }).catch(() => {
+        // The next activity event can retry the write.
+      }).finally(() => {
+        requestInFlight = false;
+      });
+    }
+
     touchLastActive();
+    const interval = window.setInterval(touchLastActive, HEARTBEAT_DELAY_MS);
 
-    const interval = window.setInterval(() => touchLastActive(), HEARTBEAT_DELAY_MS);
-
-    const handleFocus = () => touchLastActive();
-    const handleVisibility = () => {
-      if (document.visibilityState === "visible") {
-        touchLastActive();
-      }
-    };
-
-    window.addEventListener("focus", handleFocus);
-    document.addEventListener("visibilitychange", handleVisibility);
+    window.addEventListener("focus", touchLastActive);
+    window.addEventListener("online", touchLastActive);
+    document.addEventListener("visibilitychange", touchLastActive);
 
     return () => {
       window.clearInterval(interval);
-      window.removeEventListener("focus", handleFocus);
-      document.removeEventListener("visibilitychange", handleVisibility);
+      window.removeEventListener("focus", touchLastActive);
+      window.removeEventListener("online", touchLastActive);
+      document.removeEventListener("visibilitychange", touchLastActive);
     };
   }, []);
 

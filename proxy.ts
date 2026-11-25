@@ -196,18 +196,18 @@ const DIRECT_DISCOVERY_READ_PATHS = new Set([
   "/api/profile/versions",
 ]);
 
-// These writes only save the account's own settings. They do not generate,
-// publish, send messages or start third-party work.
-const DIRECT_DISCOVERY_SETTINGS_WRITES = new Set([
+// Discovery writes are limited to account settings and dashboard activity.
+const DIRECT_DISCOVERY_WRITES = new Set([
   "PUT /api/ai-memory",
   "PUT /api/business-location",
   "PATCH /api/media-generation/preferences",
+  "POST /api/profile/last-active",
 ]);
 
 function isDirectDiscoverySafeRequest(pathname: string, method: string): boolean {
   const normalizedMethod = method.toUpperCase();
   return normalizedMethod === "GET" && DIRECT_DISCOVERY_READ_PATHS.has(pathname)
-    || DIRECT_DISCOVERY_SETTINGS_WRITES.has(`${normalizedMethod} ${pathname}`);
+    || DIRECT_DISCOVERY_WRITES.has(`${normalizedMethod} ${pathname}`);
 }
 
 function blockedAccountApiResponse(subscription?: SubscriptionGateRow | null): NextResponse {
