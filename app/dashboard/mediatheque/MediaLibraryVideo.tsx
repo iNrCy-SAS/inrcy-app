@@ -4,7 +4,7 @@ import { useRef, useState, type VideoHTMLAttributes } from "react";
 
 type Props = Omit<VideoHTMLAttributes<HTMLVideoElement>, "src"> & { src?: string; unavailableLabel: string };
 
-function Playback({ src, unavailableLabel, onError, onLoadedMetadata, onPlay, onPause, ...props }: Props) {
+function Playback({ src, unavailableLabel, onError, onStalled, onLoadedMetadata, onPlay, onPause, ...props }: Props) {
   const [attempt, setAttempt] = useState(0);
   const [failed, setFailed] = useState(false);
   const retryCount = useRef(0);
@@ -19,11 +19,30 @@ function Playback({ src, unavailableLabel, onError, onLoadedMetadata, onPlay, on
       }
     } catch { /* Provider and malformed URLs cannot be renewed here. */ }
   }
+  const renewPlayback = (video: HTMLVideoElement, playing: boolean) => {
+    if (!renewed || retryCount.current !== 0) return false;
+    playback.current = {
+      time: Number.isFinite(video.currentTime) ? Math.max(0, video.currentTime) : 0,
+      playing,
+    };
+    retryCount.current = 1;
+    setAttempt(1);
+    return true;
+  };
   if (failed || !src) return <span role="status" className={props.className} style={{ ...props.style, display: "grid", placeItems: "center" }}>{unavailableLabel}</span>;
   return <video {...props} key={attempt} src={attempt && renewed ? renewed : src}
-    onPlay={event => { playback.current.playing = true; onPlay?.(event); }}
-    onPause={event => { if (!event.currentTarget.error) playback.current.playing = false; onPause?.(event); }}
+    onPlay={event => {
+      if (attempt !== retryCount.current) return;
+      playback.current.playing = true;
+      onPlay?.(event);
+    }}
+    onPause={event => {
+      if (attempt !== retryCount.current) return;
+      if (!event.currentTarget.error) playback.current.playing = false;
+      onPause?.(event);
+    }}
     onLoadedMetadata={event => {
+      if (attempt !== retryCount.current) return;
       if (attempt) {
         const video = event.currentTarget;
         try { if (playback.current.time > 0) video.currentTime = Number.isFinite(video.duration) ? Math.min(playback.current.time, video.duration) : playback.current.time; } catch { /* Some streams do not support seeking. */ }
@@ -31,17 +50,24 @@ function Playback({ src, unavailableLabel, onError, onLoadedMetadata, onPlay, on
       }
       onLoadedMetadata?.(event);
     }}
+    onStalled={event => {
+      if (attempt !== retryCount.current) return;
+      const video = event.currentTarget;
+      const playing = !video.paused && !video.ended;
+      // A delayed Range request can stall while Chromium keeps the old redirect.
+      // Only renew an active seek or playback that already had media metadata.
+      if (props.controls && (video.seeking || (playing && video.currentTime > 0)) &&
+          video.readyState >= HTMLMediaElement.HAVE_METADATA && video.readyState < HTMLMediaElement.HAVE_FUTURE_DATA) {
+        renewPlayback(video, playing);
+      }
+      onStalled?.(event);
+    }}
     onError={event => {
       // Ignore a second event from the old element while React mounts its replacement.
       if (attempt !== retryCount.current) return;
       const video = event.currentTarget;
       const recoverable = !video.error?.code || video.error.code === 2 || video.error.code === 4;
-      if (renewed && recoverable && retryCount.current === 0) {
-        playback.current.time = Number.isFinite(video.currentTime) ? Math.max(0, video.currentTime) : 0;
-        playback.current.playing ||= !video.paused && !video.ended;
-        retryCount.current = 1;
-        setAttempt(1);
-      } else setFailed(true);
+      if (!recoverable || !renewPlayback(video, playback.current.playing || (!video.paused && !video.ended))) setFailed(true);
       onError?.(event);
     }} />;
 }
