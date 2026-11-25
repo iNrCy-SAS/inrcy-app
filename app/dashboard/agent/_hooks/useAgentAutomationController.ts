@@ -1,6 +1,7 @@
 "use client";
 
 import { useTranslations } from "next-intl";
+import { INR_AGENT_MEDIA_UNREADABLE, INR_AGENT_MEDIA_UNDERSTANDING_UNAVAILABLE } from "@/lib/inrAgentMediaUnderstandingError";
 
 
 import {
@@ -530,6 +531,14 @@ export function useAgentAutomationController({
       } | null;
 
       if (!response.ok || !payload?.action) {
+        if (payload?.code === INR_AGENT_MEDIA_UNREADABLE) {
+          showNotice(i18nT("agent_publication_media_unreadable"));
+          return false;
+        }
+        if (payload?.code === INR_AGENT_MEDIA_UNDERSTANDING_UNAVAILABLE) {
+          showNotice(i18nT("agent_publication_media_analysis_unavailable"));
+          return false;
+        }
         throw new Error(
             (payload?.code === "INR_AGENT_IDEA_UNAVAILABLE"
               ? i18nT("publication_idea_unavailable")

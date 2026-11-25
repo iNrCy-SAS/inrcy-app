@@ -1,4 +1,5 @@
 import { userFacingErrorsFixture, aiMediaPublicErrorsFixture } from "../helpers/user-facing-errors-fixture.mts";
+import * as browserRequestTimeout from "../../lib/browserRequestTimeout.ts";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
@@ -90,6 +91,7 @@ function tab(storage: ReturnType<typeof memory>, backend: ReturnType<typeof serv
     assert.fail(`Unexpected native request: ${method} ${url}`);
   };
   const modules = new Map<string, unknown>([
+    ["@/lib/browserRequestTimeout", browserRequestTimeout],
     ["react", react], ["./useInrAssistantRefresh", { useInrAssistantRefresh() {} }],
     ["@/lib/multicompte/constants", { ACTIVE_INRCY_ACCOUNT_EVENT: "account-change" }],
     ["@/lib/aiMediaGenerationContracts", contracts], ["@/lib/aiMediaVideoSpeechBudget", speechBudget],

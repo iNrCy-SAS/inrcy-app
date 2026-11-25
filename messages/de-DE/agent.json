@@ -83,6 +83,8 @@
   "agent_loyalty_campaign_prepared": "Treuekampagne von iNr’Agent erstellt.",
   "agent_operation_aria": "So funktioniert iNr’Agent",
   "agent_publication_prepare_failed": "Veröffentlichung konnte nicht vorbereitet werden.",
+  "agent_publication_media_unreadable": "Eine ausgewählte Datei fehlt oder ist nicht lesbar. Ersetze sie in der Mediathek oder wähle eine andere Medienquelle und versuche es erneut.",
+  "agent_publication_media_analysis_unavailable": "Die Medienanalyse ist vorübergehend nicht verfügbar. Versuche es gleich noch einmal.",
   "agent_publication_prepared": "Booster-Veröffentlichung von iNr’Agent vorbereitet.",
   "agent_settings_save_failed": "iNr’Agent-Einstellungen konnten nicht gespeichert werden.",
   "agent_settings_saved": "iNr’Agent-Einstellungen gespeichert.",

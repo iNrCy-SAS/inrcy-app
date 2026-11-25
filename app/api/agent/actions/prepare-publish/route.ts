@@ -31,12 +31,14 @@ import { inrAgentChannelToBoosterPublishChannel } from "@/lib/inrAgentPublishCha
 import { type EditorialPreparationTarget, type ImageBankAsset, type InrAgentPublicationPreparationContext } from "@/lib/inrAgentPublicationPreparationTypes";
 import { boosterToAgentChannel, themeLabels, channelMediaReadiness, asRecord, getExecutionPolicy, getInitialStatus, requiresManualValidation, hasUsefulContent, buildPreviewText, buildSummary, channelMediaAdaptation } from "@/lib/inrAgentPublicationPreparationPolicy";
 import { loadEditorialPreparationTarget, selectConnectedChannels, loadPublishAutomationSettings, loadInrAgentTone, loadEarlierEditorialAngles, resolveMediaGenerationActorAuthUserId } from "@/lib/inrAgentPublicationPreparationRepository";
-import { generatedPickerItemToAgentMedia, IMAGE_BANK_DIVERSIFICATION_RATE, isRecentlyUsedMediaRow, getRecentMediaTrace, selectInrAgentPublicationMedia } from "@/lib/inrAgentPublicationMediaSelection";
-import { prepareInrAgentSelectedMediaAnalysis } from "@/lib/inrAgentPublicationMediaAnalysis";
+import { generatedPickerItemToAgentMedia, IMAGE_BANK_DIVERSIFICATION_RATE, isRecentlyUsedMediaRow, getRecentMediaTrace, selectInrAgentPublicationMedia, selectInrAgentReplacementImage } from "@/lib/inrAgentPublicationMediaSelection";
+import { prepareInrAgentExistingPublicationImages, prepareInrAgentSelectedMediaAnalysis } from "@/lib/inrAgentPublicationMediaAnalysis";
+import { InrAgentMediaUnderstandingError, isPermanentlyUnreadableInrAgentMedia } from "@/lib/inrAgentMediaUnderstandingError";
 import { generateBoosterPosts, prepareInrAgentEditorialIdea } from "@/lib/inrAgentPublicationEditorialService";
 import { canUseInrAgentPublicationSettings, type InrAgentPublicationOptionClient } from "@/lib/inrAgentPublicationOptionAccessServer";
 import { INR_AGENT_ADMIN_PUBLISH_MODE, inrAgentPublishUsesRestrictedOptions, readInrAgentAdminPublishOptIn, type InrAgentAdminAutomaticPublish } from "@/lib/inrAgentAdminPublishPolicy";
 import { isInrAgentAdminAutomaticPublicationAuthorized, parkInrAgentAdminAutomaticPublications } from "@/lib/inrAgentAdminPublishServer";
+import { INR_AGENT_EDITORIAL_SLOT_CHANGED } from "@/lib/inrAgentEditorialRetryPolicy";
 
 export const maxDuration = 800;
 export const runtime = "nodejs";
@@ -305,23 +307,52 @@ export async function POST(request: Request) {
     : desiredMediaCount > existingMediaAssets.length
       ? buildInrAgentMediaFormatPlan({ kind: generatedKind, channels: channels.filter((channel) => channel !== "threads" || threadsPublicationSettings?.mode !== "ghost") })
       : null;
-  if (editorialTarget && !reuseMediaSnapshot) {
-    // Figer les entrées avant le premier débit assure un retry identique, même
-    // si le profil, l’historique ou les réglages Studio évoluent entre-temps.
-    editorialTarget.metadata = {
-      ...editorialTarget.metadata,
-      editorialMediaGeneration: {
-        signature: mediaSnapshotSignature, idea, theme: agentTheme,
-        studioPreferences: studioMediaPreferences,
-        existingAssets: existingMediaAssets,
-        formatPlan: generationFormatPlan,
-      },
-    };
+  const saveMediaSnapshot = async (target: EditorialPreparationTarget, snapshot: Record<string, unknown>) => {
+    target.metadata = { ...target.metadata, editorialMediaGeneration: snapshot };
     const saved = await supabaseAdmin.from("inr_agent_actions")
-      .update({ metadata: editorialTarget.metadata })
-      .eq("id", editorialTarget.id).eq("user_id", userId).eq("status", "executing")
+      .update({ metadata: target.metadata })
+      .eq("id", target.id).eq("user_id", userId).eq("status", "executing")
       .select("id").maybeSingle();
     if (saved.error || !saved.data) throw new Error("editorial_media_snapshot_unavailable");
+  };
+  const mediaSnapshot = reuseMediaSnapshot ? savedMediaSnapshot : {
+    signature: mediaSnapshotSignature, idea, theme: agentTheme,
+    studioPreferences: studioMediaPreferences,
+    existingAssets: existingMediaAssets,
+    formatPlan: generationFormatPlan,
+  };
+  if (editorialTarget && !reuseMediaSnapshot) {
+    await saveMediaSnapshot(editorialTarget, mediaSnapshot);
+  }
+  let preparedExistingImages: Awaited<ReturnType<typeof prepareInrAgentExistingPublicationImages>> | undefined;
+  // Read library selections before starting a potentially billable part.
+  const mustReadExistingImages = automaticMediaKind === "image" && existingMediaAssets.length > 0 &&
+    existingMediaAssets.every((asset) =>
+      asset && asset.source !== "ai_media_generation" &&
+      (asset.librarySource === "pro_media_library" || asset.librarySource === "inrcy_image_bank") &&
+      (asset.mediaType || asset.kind || "image") === "image");
+  if (mustReadExistingImages) {
+    // Replace only an all-library selection with no paid generation to replay.
+    const canReplaceExistingImages = existingMediaAssets.length === desiredMediaCount &&
+      automation.useImageBank && automation.preferredMediaSource !== "ai_generation" &&
+      (!reuseMediaSnapshot || savedMediaSnapshot.formatPlan === null);
+    const imageStartedAt = Date.now();
+    preparedExistingImages = await prepareInrAgentExistingPublicationImages(
+      existingMediaAssets,
+      (excluded) => canReplaceExistingImages ? selectInrAgentReplacementImage({
+        context: preparationContext,
+        business,
+        agentTheme,
+        preferredSource: automation.preferredMediaSource,
+        recentMediaUsage,
+        excluded,
+      }) : Promise.resolve(null),
+    );
+    existingMediaAssets = preparedExistingImages.assets;
+    imagePreparationMs = Date.now() - imageStartedAt;
+    if (editorialTarget && preparedExistingImages.replaced) {
+      await saveMediaSnapshot(editorialTarget, { ...mediaSnapshot, existingAssets: existingMediaAssets });
+    }
   }
   const formatGroups = generationFormatPlan?.formats || [undefined];
   const requestedGenerationCount = formatGroups.reduce((count, format) => count + Math.max(0,
@@ -408,7 +439,7 @@ export async function POST(request: Request) {
       { status: primaryOutcome === "quota_reached" ? 429 : 503 }
     );
   }
-  mediaSelectionMs = Date.now() - mediaSelectionStartedAt;
+  mediaSelectionMs = Date.now() - mediaSelectionStartedAt - imagePreparationMs;
   // Classify the files actually selected, including a fallback or a reused
   // Studio creation: only media generated for this preparation is idea-led.
   const mediaSubjectSource: AiMediaSubjectSource = mediaAssets.some(
@@ -529,6 +560,7 @@ export async function POST(request: Request) {
         : false,
     warnings: [
       generationWarning,
+      preparedExistingImages?.replaced ? "unreadable_library_image_replaced" : "",
       youtubeDisabledForImage
         ? "youtube_shorts_disabled_image_publication"
         : "",
@@ -581,9 +613,13 @@ export async function POST(request: Request) {
       (asset) => (asset.mediaType || asset.kind || "image") === "video"
     ) || null;
 
-  const mediaAnalysis = await prepareInrAgentSelectedMediaAnalysis({ context: preparationContext, media, images, video, mediaSubjectSource });
+  const mediaAnalysis = await prepareInrAgentSelectedMediaAnalysis({
+    context: preparationContext, media, images, video, mediaSubjectSource,
+    preparedImages: preparedExistingImages?.imagesForAI,
+  });
   const { videoPreparation, imagesForAI, selectedMediaContext, videoGenerationContextMode, videoAiContextRef } = mediaAnalysis;
-  ({ videoPreparationMs, imagePreparationMs } = mediaAnalysis);
+  videoPreparationMs = mediaAnalysis.videoPreparationMs;
+  imagePreparationMs += mediaAnalysis.imagePreparationMs;
 
   console.info("[inr-agent] selected media AI routing", {
     userId,
@@ -822,9 +858,14 @@ export async function POST(request: Request) {
         .eq("id", editorialTarget.id)
         .eq("user_id", userId)
         .eq("status", "executing")
-        .select(actionSelect)
-        .single();
-      inserted = result.data;
+        .select(actionSelect);
+      if (!result.error && result.data?.length === 0) {
+        return NextResponse.json({
+          code: INR_AGENT_EDITORIAL_SLOT_CHANGED,
+          error: "Ce créneau a changé pendant la préparation. Son état actuel a été conservé.",
+        }, { status: 409 });
+      }
+      inserted = result.data?.length === 1 ? result.data[0] : null;
       insertError = result.error;
     } else {
       const result = await supabaseAdmin
@@ -836,7 +877,7 @@ export async function POST(request: Request) {
       insertError = result.error;
     }
 
-    if (insertError) {
+    if (insertError || !inserted) {
       persistenceMs = Date.now() - persistenceStartedAt;
       await rollbackAiCredits(quotaReservation);
       quotaReservation = null;
@@ -863,7 +904,7 @@ export async function POST(request: Request) {
         totalMs: Date.now() - routeStartedAt,
         success: false,
         stage: "persist-action",
-        message: insertError.message,
+        message: insertError?.message || "publication_action_missing_after_write",
       });
       return NextResponse.json(
         {
@@ -982,6 +1023,15 @@ export async function POST(request: Request) {
     });
     throw error;
   }
+  } catch (error) {
+    if (!(error instanceof InrAgentMediaUnderstandingError)) throw error;
+    const unreadable = isPermanentlyUnreadableInrAgentMedia(error);
+    return NextResponse.json({
+      code: error.code,
+      error: unreadable
+        ? "Un fichier sélectionné est introuvable ou illisible. Remplacez-le dans la médiathèque ou choisissez une autre source de médias avant de relancer la préparation."
+        : "L’analyse du média est momentanément indisponible. Réessayez dans quelques instants.",
+    }, { status: unreadable ? 422 : 503 });
   } finally {
     // Toute sortie avant la génération du texte restitue sa réservation.
     if (quotaReservation) await rollbackAiCredits(quotaReservation);

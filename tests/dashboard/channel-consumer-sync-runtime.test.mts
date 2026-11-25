@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import ts from "typescript";
+import { withBrowserRequestTimeout } from "../../lib/browserRequestTimeout.ts";
 import { ACTIVE_INRCY_ACCOUNT_EVENT } from "../../lib/multicompte/constants.ts";
 
 type Dict = Record<string, any>;
@@ -123,6 +124,7 @@ function boosterEffect(options: {
     setChannels: (update: any) => { selection = typeof update === "function" ? update(selection) : update; },
   });
   const cleanup = runEffect("app/dashboard/booster/publier/PublishModal.tsx", "const refreshConnectedChannels", {
+    withBrowserRequestTimeout,
     window: b.window,
     document: b.document,
     ACTIVE_INRCY_ACCOUNT_EVENT,
@@ -232,6 +234,7 @@ for (const consumer of ["Booster", "iNrAgent"] as const) {
       connectedChannelsScopeRef: { current: undefined },
       authoritativeChannelsRef: { current: false },
       fetch: async () => { const next = deferred<Dict>(); requests.push(next); return next.promise; },
+      withBrowserRequestTimeout,
       CHANNEL_KEYS: ["gmb", "pinterest", "tiktok"],
       EMPTY_CHANNEL_DETAILS: {},
       setConnected: (next: Dict) => applied.push(next),

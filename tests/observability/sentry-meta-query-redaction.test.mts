@@ -81,3 +81,60 @@ test("Sentry redacts every Meta credential tuple including duplicate and mixed-c
   assert.deepEqual(filtered.request.query_string[5], ["safe", "keep"]);
   assert.match(filtered.request.query_string[6][1], /fb_exchange_token=\[Filtered\]&safe=keep/);
 });
+
+test("Next router state failures retain request signals and omit sensitive framework headers", () => {
+  const event = {
+    level: "error",
+    tags: { environment: "production" },
+    request: {
+      headers: {
+        "Next-Router-State-Tree": SECRET,
+        "Next-Action": SECRET,
+        "next-url": urlFor("token"),
+        "X-Deployment-Id": SECRET,
+        RSC: "1",
+      },
+    },
+    exception: { values: [{
+      value: "The router state header was sent but could not be parsed.",
+      mechanism: { type: "auto.function.nextjs.on_request_error", handled: false },
+    }] },
+  };
+  const filtered = filter(event, { scrubHeaders: true });
+  assert.ok(filtered);
+  assert.equal(filtered.level, "error");
+  assert.deepEqual(filtered.tags, {
+    environment: "production",
+    next_router_error: "invalid_state_header",
+    next_router_request: "server_action",
+    next_router_state_reported: true,
+    next_deployment_reported: true,
+  });
+  assert.deepEqual(filtered.request.headers, { RSC: "1" });
+  assert.doesNotMatch(JSON.stringify(filtered), new RegExp(SECRET));
+});
+
+test("Next router state failures keep unknown request context explicit and leave unrelated errors alone", () => {
+  const original = {
+    tags: {},
+    exception: { values: [{
+      value: "The router state header was sent but could not be parsed.",
+      mechanism: { type: "auto.function.nextjs.on_request_error" },
+    }] },
+  };
+  assert.deepEqual(filter(original, { scrubHeaders: true })?.tags, {
+    next_router_error: "invalid_state_header",
+    next_router_request: "unknown",
+    next_router_state_reported: false,
+    next_deployment_reported: false,
+  });
+  const flight = filter({ ...original, request: { headers: { RSC: "1" } } }, { scrubHeaders: true });
+  assert.deepEqual(flight?.tags, {
+    next_router_error: "invalid_state_header",
+    next_router_request: "rsc",
+    next_router_state_reported: false,
+    next_deployment_reported: false,
+  });
+  const unrelated = filter({ ...original, tags: {}, exception: { values: [{ value: "Another failure" }] } }, { scrubHeaders: true });
+  assert.deepEqual(unrelated?.tags, {});
+});

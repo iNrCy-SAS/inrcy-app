@@ -7,6 +7,7 @@ import { useInrAssistantRefresh } from "./useInrAssistantRefresh";
 
 import type { MediaLibraryPickerItem } from "@/app/dashboard/_components/MediaLibraryPickerModal";
 import { ACTIVE_INRCY_ACCOUNT_EVENT } from "@/lib/multicompte/constants";
+import { withBrowserRequestTimeout } from "@/lib/browserRequestTimeout";
 import {
   normalizeAiMediaSpokenScript,
   normalizeAiMediaWithSubtitles,
@@ -1517,13 +1518,15 @@ export default function useMediaGeneration() {
         const pointer = readAiMediaGenerationRecovery(recoveryStorage(), quotaRef.current?.accountId || "");
         if (pointer?.mediaId === requested.item.id) {
           try {
-            const response = await fetch(`/api/media-generation/status?requestId=${encodeURIComponent(pointer.requestId)}`, {
-              credentials: "include", cache: "no-store", signal: AbortSignal.timeout(10_000),
+            const { ok, payload } = await withBrowserRequestTimeout(10_000, async signal => {
+              const response = await fetch(`/api/media-generation/status?requestId=${encodeURIComponent(pointer.requestId)}`, {
+                credentials: "include", cache: "no-store", signal,
+              });
+              return { ok: response.ok, payload: await readJson(response) };
             });
-            const payload = await readJson(response);
             const data = payload && typeof payload === "object" ? payload as Record<string, unknown> : null;
             const item = data?.item && typeof data.item === "object" ? data.item as MediaLibraryPickerItem : null;
-            if (response.ok && data?.ok === true && data.status === "completed" && data.draft === false && item?.id === requested.item.id) {
+            if (ok && data?.ok === true && data.status === "completed" && data.draft === false && item?.id === requested.item.id) {
               acceptedItem = item;
             }
           } catch { /* Keep the paid draft and its recovery pointer on an uncertain read. */ }

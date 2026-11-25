@@ -31,6 +31,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 
 import { mergeBoosterChannelDetails, readBoosterChannelIdentitySeed, readBoosterConnectionSnapshot, writeBoosterConnectionSnapshot, type BoosterChannelIdentitySeed } from "./publishConnectionSnapshot";
 import { getActiveBrowserUserId, resolveActiveBrowserUserId } from "@/lib/browserAccountCache";
+import { withBrowserRequestTimeout } from "@/lib/browserRequestTimeout";
 import { ACTIVE_INRCY_ACCOUNT_EVENT } from "@/lib/multicompte/constants";
 import PublishExecutionResultModal, { PublishExecutionResultActions, type PublishExecutionSummary } from "../../_components/PublishExecutionResultModal";
 import { type PublicationProgressDestination } from "../../_components/PublishExecutionProgress";
@@ -1242,17 +1243,17 @@ export default function PublishModal({
       }
       if (!authoritativeChannelsRef.current) setConnectedChannelsLoadState("loading");
       try {
-        const res = await fetch("/api/booster/connected-channels", {
-          cache: "no-store" as any,
-          signal: AbortSignal.timeout(15_000),
+        const snapshot = await withBrowserRequestTimeout(15_000, async signal => {
+          const response = await fetch("/api/booster/connected-channels", { cache: "no-store", signal });
+          if (!isCurrent()) return null;
+          return { ok: response.ok, json: response.ok ? await response.json() : null };
         });
-        if (!isCurrent()) return;
-        if (!res.ok) {
+        if (!snapshot || !isCurrent()) return;
+        if (!snapshot.ok) {
           failClosedConnectedChannels();
           return;
         }
-        const json = await res.json();
-        if (!isCurrent()) return;
+        const { json } = snapshot;
         if (json?.channels && typeof json.channels === "object") {
           const nextConnected = CHANNEL_KEYS.reduce(
             (result, key) => {
@@ -1281,14 +1282,10 @@ export default function PublishModal({
           if (json.channels.pinterest) {
             void (async () => {
               try {
-                const pinterestResponse = await fetch("/api/integrations/pinterest/status?live=1", {
-                  cache: "no-store" as any,
-                  signal: AbortSignal.timeout(8_000),
+                const pinterestStatus = await withBrowserRequestTimeout(8_000, async signal => {
+                  const response = await fetch("/api/integrations/pinterest/status?live=1", { cache: "no-store", signal });
+                  return isCurrent() && response.ok ? response.json().catch(() => null) : null;
                 });
-                if (!isCurrent()) return;
-                const pinterestStatus = pinterestResponse.ok
-                  ? await pinterestResponse.json().catch(() => null)
-                  : null;
                 if (!isCurrent()) return;
                 if (pinterestStatus?.ok && pinterestStatus?.connected) {
                   const username = String(pinterestStatus.username || "")

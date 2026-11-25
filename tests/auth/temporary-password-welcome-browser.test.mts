@@ -30,6 +30,7 @@ const sources = {
   component: compile("app/dashboard/_components/TemporaryPasswordWelcomeGate.tsx"),
   policy: compile("lib/passwordPolicy.ts"),
   arrival: compile("app/dashboard/_hooks/useAssistantFirstArrival.ts"),
+  "@/lib/browserRequestTimeout": compile("lib/browserRequestTimeout.ts"),
   navigation: compile("lib/basicNavigation.ts"),
 };
 

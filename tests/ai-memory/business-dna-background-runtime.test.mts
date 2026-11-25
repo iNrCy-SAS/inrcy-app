@@ -16,7 +16,7 @@ import { withoutThreadsData } from "../../lib/stats/metaPilotData.ts";
 import { buildBusinessDnaWorkspaceSavePatch } from "../../lib/businessDnaManualAnalysisJob.ts";
 import * as businessLocationAutofill from "../../lib/businessLocationAutofill.ts";
 import * as professionalBusinessIdentity from "../../lib/professionalBusinessIdentity.ts";
-import { normalizeBusinessDnaAnalysisResponse } from "../../lib/businessDnaAnalysisResponse.ts";
+import { BUSINESS_DNA_SOURCE_QUOTE_MAX_LENGTH, normalizeBusinessDnaAnalysisResponse } from "../../lib/businessDnaAnalysisResponse.ts";
 
 const ROOT = resolve(import.meta.dirname, "../..");
 const ACCOUNT = "00000000-0000-4000-8000-000000000011";
@@ -269,7 +269,7 @@ async function harness(options: HarnessOptions = {}) {
       return { businessKnowledge: { services: ["Service nouveau"], ...(options.legacyMemoryOnly ? { description: "Présentation automatique à ne pas substituer", strengths: ["Force nouvelle"] } : {}) }, memory: { values: ["Qualité"], ...(options.providerNews ? { recentNewsItems: options.providerNews } : {}) } };
     } },
     "@/lib/aiGatewayPolicy": { createAiOperationBudget },
-    "@/lib/businessDnaAnalysisResponse": { normalizeBusinessDnaAnalysisResponse },
+    "@/lib/businessDnaAnalysisResponse": { BUSINESS_DNA_SOURCE_QUOTE_MAX_LENGTH, normalizeBusinessDnaAnalysisResponse },
     "@/lib/aiEnginePreference": { normalizeAiPreferredEngine: (value: unknown) => value },
     "@/lib/businessDnaAnalysisDepth": { getBusinessDnaAnalysisDepthGaps: () => options.completionFailure ? ["values"] : [], mergeBusinessDnaAnalysisDrafts: (value: unknown) => value },
     "@/lib/aiMemory": memoryLib,

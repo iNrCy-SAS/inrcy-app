@@ -78,6 +78,7 @@ function clientLibSources(entry: string, output: Record<string, string> = {}) {
   return output;
 }
 const sources = {
+  ...clientLibSources("browserRequestTimeout"),
   "./useAdsErrorMessage": compile("app/dashboard/ads/useAdsErrorMessage.ts"),
   "./adsPublicErrorMessages": compile("app/dashboard/ads/adsPublicErrorMessages.ts"),
   ...clientLibSources("userFacingErrors"),

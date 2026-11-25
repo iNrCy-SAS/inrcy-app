@@ -257,7 +257,9 @@ export async function buildStatsOverview(args: {
   // Skip pre-fix LinkedIn error snapshots without invalidating other channels.
   const linkedInDateRangeCacheVersion = includeAll || includeSet.has("linkedin") ? "|liDateRange=restli2" : "";
   const providerRefusalCacheVersion = includeAll || includeSet.has("linkedin") || includeSet.has("threads") ? "|providerRefusal=2" : "";
-  const rangeKey = `metaPilot=${metaPilotEnabled ? 1 : 0}|days=${days}|include=${includeRaw || "all"}|snapshot=${dateWindow.snapshotDate || "live"}|conn=${connectionsKey}${linkedInDateRangeCacheVersion}${providerRefusalCacheVersion}`;
+  const cachePrefix = `metaPilot=${metaPilotEnabled ? 1 : 0}|days=${days}|include=${includeRaw || "all"}|snapshot=${dateWindow.snapshotDate || "live"}|conn=`;
+  const cacheSuffix = `${linkedInDateRangeCacheVersion}${providerRefusalCacheVersion}`;
+  const rangeKey = `${cachePrefix}${connectionsKey}${cacheSuffix}`;
 
   const {
     buildLinkedInMetricsCacheKey,
@@ -283,17 +285,23 @@ export async function buildStatsOverview(args: {
   // Lecture cache (best-effort)
   if (!fresh)
     try {
-      const nowIso = new Date().toISOString();
-      const { data: cacheHit } = await supabase
-        .from("stats_cache")
-        .select("payload, expires_at")
-        .eq("user_id", userId)
-        .eq("source", OVERVIEW_CACHE_SOURCE)
-        .eq("range_key", rangeKey)
-        .gt("expires_at", nowIso)
-        .order("expires_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
+      const readOne = async () => {
+        const { data } = await supabase
+          .from("stats_cache")
+          .select("payload, expires_at")
+          .eq("user_id", userId)
+          .eq("source", OVERVIEW_CACHE_SOURCE)
+          .eq("range_key", rangeKey)
+          .gt("expires_at", new Date().toISOString())
+          .order("expires_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        return data;
+      };
+      const batchRead = args.overviewContext?.readOverviewCache;
+      const cacheHit = batchRead
+        ? await batchRead(supabase, userId, { prefix: cachePrefix, connectionSignature: connectionsKey, suffix: cacheSuffix }, readOne)
+        : await readOne();
       if (asRecord(cacheHit)["payload"]) {
         let payload = stripPinterestApiMetricsFromPayload(asRecord(asRecord(cacheHit)["payload"]));
         // Rehydrate all live connection flags to avoid stale/missing keys in cached payloads.

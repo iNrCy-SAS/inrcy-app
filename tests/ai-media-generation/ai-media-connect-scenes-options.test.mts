@@ -11,6 +11,7 @@ import * as characterVoices from "../../lib/aiMediaCharacterVoiceClient.ts";
 import * as mediaContracts from "../../lib/aiMediaGenerationContracts.ts";
 import * as speechBudget from "../../lib/aiMediaVideoSpeechBudget.ts";
 import * as assistantRefresh from "../../lib/inrAssistantRefresh.ts";
+import * as browserRequestTimeout from "../../lib/browserRequestTimeout.ts";
 import { aiMediaPublicErrorsFixture, userFacingErrorsFixture } from "../helpers/user-facing-errors-fixture.mts";
 
 import type { MediaGenerationRequest } from "../../app/dashboard/_hooks/useMediaGeneration.ts";
@@ -100,6 +101,7 @@ function hookRuntime() {
     if (specifier === "@/lib/aiMediaGenerationRecovery") return mediaRecovery;
     if (specifier === "@/lib/aiMediaCharacterVoiceClient") return characterVoices;
     if (specifier === "@/lib/inrAssistantRefresh") return assistantRefresh;
+    if (specifier === "@/lib/browserRequestTimeout") return browserRequestTimeout;
     if (specifier === "@/lib/userFacingErrors") return userFacingErrorsFixture;
     if (specifier === "@/lib/aiMediaGenerationPublicErrorI18n") return aiMediaPublicErrorsFixture;
     if (specifier === "@/lib/browserAccountCache") return { getActiveBrowserUserId: () => null };

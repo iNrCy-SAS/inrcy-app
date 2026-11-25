@@ -701,6 +701,37 @@ export async function selectInrAgentPublicationMedia(args: {
   return { recentMediaUsage, diversifiedMediaSelection, fallbackAssets };
 }
 
+export async function selectInrAgentReplacementImage(args: {
+  context: InrAgentPublicationPreparationContext;
+  business: JsonRecord | null;
+  agentTheme: InrAgentTheme;
+  preferredSource: InrAgentPreferredMediaSource;
+  recentMediaUsage: RecentMediaUsage;
+  excluded: ImageBankAsset[];
+}) {
+  const recentMediaUsage = {
+    ...args.recentMediaUsage,
+    proMediaIds: new Set(args.recentMediaUsage.proMediaIds),
+    imageBankIds: new Set(args.recentMediaUsage.imageBankIds),
+    storageKeys: new Set(args.recentMediaUsage.storageKeys),
+  };
+  for (const asset of args.excluded) {
+    const source = asset.librarySource || "inrcy_image_bank";
+    const ids = source === "pro_media_library" ? recentMediaUsage.proMediaIds : recentMediaUsage.imageBankIds;
+    ids.add(asset.id);
+    recentMediaUsage.storageKeys.add(getMediaSourceKey(source, asset.storagePath));
+  }
+  const { media } = await pickDiversifiedMedia({
+    userId: args.context.accountId,
+    business: args.business,
+    theme: args.agentTheme,
+    preferredTypes: ["image"],
+    preferredSource: args.preferredSource,
+    recentMediaUsage,
+  });
+  return media;
+}
+
 export function generatedPickerItemToAgentMedia(args: {
   item: NonNullable<Awaited<ReturnType<typeof generateInrAgentMedia>>["item"]>;
   business: JsonRecord | null;

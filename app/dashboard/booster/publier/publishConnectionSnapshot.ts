@@ -1,4 +1,5 @@
 import { getActiveBrowserUserId, readAccountCacheValue, writeAccountCacheValue } from "@/lib/browserAccountCache";
+import { withBrowserRequestTimeout } from "@/lib/browserRequestTimeout";
 import { DASHBOARD_CACHE_KEYS } from "@/lib/dashboardCacheKeys";
 import type { ChannelConnectionDetail } from "./publishModal.foundations";
 
@@ -174,11 +175,11 @@ export async function warmBoosterConnectionSnapshot(
   const before = readAccountCacheValue(DASHBOARD_CACHE_KEYS.boosterConnections, cacheScope);
   const requestedAt = Date.now();
   try {
-    const response = await fetch("/api/booster/connected-channels", {
-      cache: "no-store", credentials: "include", signal: AbortSignal.timeout(10_000),
+    const result = await withBrowserRequestTimeout(10_000, async signal => {
+      const response = await fetch("/api/booster/connected-channels", { cache: "no-store", credentials: "include", signal });
+      return response.ok ? response.json() : null;
     });
-    if (!response.ok) return;
-    const result = await response.json();
+    if (!result) return;
     // The canonical success response is { channels, channelDetails }; only
     // errors have an `ok` flag. Do not discard every real warmup response.
     if (!isCurrent() || getActiveBrowserUserId() !== accountId ||

@@ -1,4 +1,7 @@
 import { isAiMediaContentPolicyRejection } from "./aiMediaGenerationPublicErrors.ts";
+import { INR_AGENT_MEDIA_UNREADABLE, isPermanentlyUnreadableInrAgentMedia } from "./inrAgentMediaUnderstandingError.ts";
+
+export const INR_AGENT_EDITORIAL_SLOT_CHANGED = "INR_AGENT_EDITORIAL_SLOT_CHANGED";
 
 export const INR_AGENT_EDITORIAL_MAX_TRANSIENT_ATTEMPTS = 8;
 export const INR_AGENT_EDITORIAL_MAX_QUOTA_ATTEMPTS = 12;
@@ -56,7 +59,7 @@ export function inrAgentEditorialRetryDecision(args: {
   attempts: number;
   nowMs: number;
 }) {
-  if (isAiMediaContentPolicyRejection(args.error)) {
+  if (isAiMediaContentPolicyRejection(args.error) || isPermanentlyUnreadableInrAgentMedia(args.error)) {
     return { quotaLimited: false, retry: false, retryAt: null } as const;
   }
   const quotaLimited = isInrAgentEditorialQuotaLimitError(args.error);
@@ -79,9 +82,10 @@ export function shouldRecoverInrAgentEditorialFailure(args: {
   error: unknown;
   retryReason?: unknown;
 }) {
-  if (normalizedError(args.retryReason) === "content_policy" || isAiMediaContentPolicyRejection(args.error)) return false;
   const quotaLimited = isInrAgentEditorialQuotaLimitError(args.error);
   const retryReason = normalizedError(args.retryReason);
+  if (retryReason === "content_policy" || retryReason === INR_AGENT_MEDIA_UNREADABLE ||
+      isAiMediaContentPolicyRejection(args.error) || isPermanentlyUnreadableInrAgentMedia(args.error)) return false;
   const transientFailure = retryReason === "transient_error";
   const maxAttempts = maxAttemptsFor(args.error, args.retryReason);
   return (
@@ -102,6 +106,7 @@ export function isTerminalInrAgentEditorialFailure(args: {
 }) {
   return args.status === "failed" &&
     args.editorialState === "failed" &&
-    (normalizedError(args.retryReason) === "content_policy" || isAiMediaContentPolicyRejection(args.error) ||
+    (normalizedError(args.retryReason) === "content_policy" || normalizedError(args.retryReason) === INR_AGENT_MEDIA_UNREADABLE ||
+      isAiMediaContentPolicyRejection(args.error) || isPermanentlyUnreadableInrAgentMedia(args.error) ||
       Math.max(0, args.attempts) >= maxAttemptsFor(args.error, args.retryReason));
 }

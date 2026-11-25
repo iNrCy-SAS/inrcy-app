@@ -2,14 +2,14 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import ts from "typescript";
-import { normalizeBusinessDnaAnalysisResponse } from "../../lib/businessDnaAnalysisResponse.ts";
+import { BUSINESS_DNA_SOURCE_QUOTE_MAX_LENGTH, normalizeBusinessDnaAnalysisResponse } from "../../lib/businessDnaAnalysisResponse.ts";
 import { assertAiJsonMatchesSchema } from "../../lib/aiJsonSchemaValidation.ts";
 
 // Validate against the exact production route schema, including nested fields.
 const route = readFileSync(new URL("../../app/api/ai-memory/analyze-channels/route.ts", import.meta.url), "utf8");
 const schemaSource = route.match(/const ANALYSIS_RESPONSE_SCHEMA = ([\s\S]*?\n\} as const);/)?.[1];
 assert.ok(schemaSource);
-const schema = new Function(ts.transpile(`return (${schemaSource});`, { target: ts.ScriptTarget.ES2022 }))().schema;
+const schema = new Function("BUSINESS_DNA_SOURCE_QUOTE_MAX_LENGTH", ts.transpile(`return (${schemaSource});`, { target: ts.ScriptTarget.ES2022 }))(BUSINESS_DNA_SOURCE_QUOTE_MAX_LENGTH).schema;
 
 function validAnalysis() {
   return {
@@ -48,6 +48,28 @@ test("forbidden vocabulary remains capped, deduplicated and ordered like persist
   assert.doesNotThrow(() => assertAiJsonMatchesSchema(output, schema));
 });
 
+test("an overlong optional profession quote cannot block analysis or confirm a profession", () => {
+  const input = validAnalysis();
+  input.professionSuggestion = {
+    sectorCategory: "batiment",
+    job: "plombier",
+    sourceQuote: "Extrait de la source sur l’activité exercée. ".repeat(5),
+    confidence: "high",
+  };
+  const before = structuredClone(input);
+  assert.throws(() => assertAiJsonMatchesSchema(input, schema), /professionSuggestion\.sourceQuote.*texte trop long/);
+  const output = normalizeBusinessDnaAnalysisResponse(input) as typeof input;
+  assert.doesNotThrow(() => assertAiJsonMatchesSchema(output, schema));
+  assert.equal(output.professionSuggestion.sourceQuote, "");
+  assert.equal(output.professionSuggestion.confidence, "uncertain");
+  assert.deepEqual(output.businessKnowledge, input.businessKnowledge);
+  assert.deepEqual(output.memory, input.memory);
+  assert.deepEqual(input, before);
+
+  input.professionSuggestion.sourceQuote = "a".repeat(BUSINESS_DNA_SOURCE_QUOTE_MAX_LENGTH);
+  assert.deepEqual(normalizeBusinessDnaAnalysisResponse(input), input);
+});
+
 test("invalid entries, missing fields, unknown keys and factual schema violations are still rejected", () => {
   type MutableAnalysis = {
     memory: Record<string, unknown>;
@@ -60,6 +82,8 @@ test("invalid entries, missing fields, unknown keys and factual schema violation
     (input: MutableAnalysis) => { delete input.memory.preferredVocabulary; },
     (input: MutableAnalysis) => { input.memory.untrustedCommand = "injected"; },
     (input: MutableAnalysis) => { input.businessKnowledge.weeklySchedule.monday = { open: true, allDay: false, slots: [{ start: "99:99", end: "12:00" }] }; },
+    (input: MutableAnalysis) => { input.professionSuggestion.sourceQuote = ["citation"] },
+    (input: MutableAnalysis) => { input.professionSuggestion.sourceQuote = "x".repeat(161); input.professionSuggestion.job = 12; },
     (input: MutableAnalysis) => { input.professionSuggestion.confidence = "certain"; },
   ]) {
     const input = validAnalysis();

@@ -38,7 +38,8 @@ function database(options: { beforeWrite?: (state: Value, table: string) => void
     const q: Value = {
       select: () => q, eq: (key: string, value: unknown) => { filters.push([key, value]); return q; },
       is: (key: string, value: unknown) => { filters.push([key, value]); return q; },
-      update: (value: unknown) => { patch = value; return q; }, maybeSingle: () => { single = true; return q; },
+      update: (value: unknown) => { patch = value; return q; },
+      maybeSingle: () => { assert.equal(patch, null, "a guarded PATCH must accept zero returned rows"); single = true; return q; },
       then(resolve: (value: unknown) => unknown, reject: (error: unknown) => unknown) {
         return Promise.resolve().then(() => {
           if (patch) {
@@ -57,7 +58,9 @@ function database(options: { beforeWrite?: (state: Value, table: string) => void
             state.writes.push({ table, patch: structuredClone(patch), filters: structuredClone(filters), matched });
             if (matched && !options.fail) Object.assign(row, structuredClone(patch));
           }
-          return { data: matched && !options.fail ? single ? structuredClone(row) : [structuredClone(row)] : null, error: options.fail ? { message: "database unavailable" } : null };
+          if (options.fail) return { data: null, error: { message: "database unavailable" } };
+          const selected = matched ? structuredClone(row) : null;
+          return { data: single ? selected : selected ? [selected] : [], error: null };
         }).then(resolve, reject);
       },
     };

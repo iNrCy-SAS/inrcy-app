@@ -127,9 +127,9 @@
     ],
     "gateAnchor": "\"use client\";\n\nimport { getInrAssistantContentReportHint } from \"@/lib/inrAssist",
     "exclusions": {
-      "app/dashboard/_components/DashboardAssistantSession.tsx#dialog:483d57280538c1dc:1": {
+      "app/dashboard/_components/DashboardAssistantSession.tsx#dialog:dd939df30dba3c2e:1": {
         "reason": "Infrastructure du canal de conversation : saisie/envoi ou reprise des instructions, fichiers attachés à cette saisie, dictée et présentation du chat. Ces contrôles ne sont pas des opérations métier Basic ; ils ne peuvent pas fabriquer leur propre autorisation utilisateur. Les décisions média, insertion Studio, contact et navigation métier restent recensées séparément.",
-        "gateAnchor": "<dialog\n      ref={dialogRef} id=\"inrcy-assistant-dialog\" className={styles.dialog} aria-labelledby=\"inrcy-assistant-title\"\n      data-position={position}\n      data-disable-pull-refresh=\"true\" data-testid=\"dashboard-ass"
+        "gateAnchor": "<dialog\n      ref={dialogRef} id=\"inrcy-assistant-dialog\" className={styles.dialog} aria-modal=\"false\" aria-labelledby=\"inrcy-assistant-title\"\n      data-position={position}\n      data-disable-pull-refresh=\"true\" data-testid=\"dashboard-ass"
       },
       "app/dashboard/_components/DashboardAssistantSession.tsx#button:1f4da767378fdaf0:1": {
         "reason": "Infrastructure du canal de conversation : saisie/envoi ou reprise des instructions, fichiers attachés à cette saisie, dictée et présentation du chat. Ces contrôles ne sont pas des opérations métier Basic ; ils ne peuvent pas fabriquer leur propre autorisation utilisateur. Les décisions média, insertion Studio, contact et navigation métier restent recensées séparément.",

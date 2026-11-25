@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import { isDeepStrictEqual } from "node:util";
+import { createClient } from "@supabase/supabase-js";
 import ts from "typescript";
 
 // The real module is transpiled against an isolated in-memory database and fake Google transport.
@@ -30,6 +31,7 @@ function runtime(options: {
   fetch?: (call: number, body: URLSearchParams) => Promise<Response>;
   writeError?: boolean;
   beforeWrite?: (h: ReturnType<typeof runtime>) => void;
+  admin?: unknown;
 } = {}) {
   let row = structuredClone(options.initial ?? fixture());
   let calls = 0;
@@ -54,7 +56,7 @@ function runtime(options: {
     };
     const query = {
       select() { return this; }, order() { return this; }, limit() { return this; },
-      maybeSingle() { single = true; return this; },
+      maybeSingle() { assert.equal(patch, null, "a guarded PATCH must accept zero returned rows"); single = true; return this; },
       eq(key: string, value: RuntimeValue) {
         const expected = key === "meta" && typeof value === "string" ? JSON.parse(value) : value;
         predicates.push(r => isDeepStrictEqual(r[key], expected)); return this;
@@ -69,7 +71,7 @@ function runtime(options: {
   const dependencies: Record<string, unknown> = {
     "@/lib/supabaseServer": { createSupabaseServer: async () => db },
     "@/lib/multicompte/server": { resolveActiveInrcyAccountId: async () => uid },
-    "@/lib/supabaseAdmin": { supabaseAdmin: db },
+    "@/lib/supabaseAdmin": { supabaseAdmin: options.admin ?? db },
     "@/lib/oauthCrypto": { tryDecryptToken: (value: string | null) => value?.replace(/^enc:/, "") ?? null, encryptToken: (value: string) => `enc:${value}` },
     "@/lib/googleStatsConnectionPolicy": { canRetryGoogleStatsIntegration: () => true, isGoogleStatsRefreshRetryDeferred: () => false },
   };
@@ -144,6 +146,34 @@ test("an old refresh success cannot replace a newer OAuth token or return its fo
   assert.equal(result.row.resource_id, "locations/new");
   assert.equal(h.row.access_token_enc, "enc:new-access");
   assert.equal(h.writes.length, 0);
+});
+
+test("a losing Google Business PATCH receives an empty list from PostgREST and reloads the winning OAuth row", async () => {
+  let patches = 0;
+  const admin = createClient("https://supabase.test", "anonymous-test-key", {
+    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+    global: { fetch: async (input, init) => {
+      patches++;
+      const url = new URL(String(input)), headers = new Headers(init?.headers);
+      assert.equal(init?.method, "PATCH");
+      assert.equal(url.pathname, "/rest/v1/integrations");
+      assert.equal(url.searchParams.get("select"), "*");
+      assert.equal(headers.get("prefer"), "return=representation");
+      assert.doesNotMatch(headers.get("accept") ?? "", /vnd\.pgrst\.object/);
+      for (const field of ["id", "user_id", "provider", "source", "product", "status", "email_address", "access_token_enc", "refresh_token_enc", "expires_at", "resource_id", "resource_label", "meta"]) {
+        assert.ok(url.searchParams.has(field), field);
+      }
+      h.row = fixture({ access_token_enc: "enc:winning-access", expires_at: "2099-01-01T00:00:00.000Z", resource_id: "locations/winning" });
+      return Response.json([]);
+    } },
+  });
+  const h: ReturnType<typeof runtime> = runtime({ admin });
+  const result = await h.run();
+  assert.equal(patches, 1);
+  assert.equal(h.reads, 2);
+  assert.equal(h.calls, 1);
+  assert.equal(result.accessToken, "winning-access");
+  assert.equal(result.row.resource_id, "locations/winning");
 });
 
 test("a selection made during token renewal is retained and returned after a bounded retry", async () => {

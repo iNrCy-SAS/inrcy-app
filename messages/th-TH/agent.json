@@ -83,6 +83,8 @@
   "agent_loyalty_campaign_prepared": "แคมเปญความภักดีจัดทำโดย iNr’Agent",
   "agent_operation_aria": "มันทำงานอย่างไร iNr’Agent",
   "agent_publication_prepare_failed": "ไม่สามารถเตรียมการเผยแพร่ได้",
+  "agent_publication_media_unreadable": "ไม่พบไฟล์ที่เลือกหรือไม่สามารถอ่านได้ โปรดแทนที่ไฟล์ในคลังสื่อหรือเลือกแหล่งสื่ออื่นก่อนลองอีกครั้ง",
+  "agent_publication_media_analysis_unavailable": "ไม่สามารถวิเคราะห์สื่อได้ชั่วคราว โปรดลองอีกครั้งในอีกสักครู่",
   "agent_publication_prepared": "สิ่งตีพิมพ์ Booster จัดทำโดย iNr’Agent",
   "agent_settings_save_failed": "ไม่สามารถบันทึกการตั้งค่า iNr’Agent",
   "agent_settings_saved": "iNr’Agent บันทึกการตั้งค่าแล้ว",

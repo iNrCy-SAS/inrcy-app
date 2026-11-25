@@ -32,6 +32,7 @@ import { fitGeneratedInstagramPost } from "./instagramGeneratedCaption.ts";
 import { sanitizeGmbGeneratedPost } from "@/lib/googleBusinessCompliance";
 import { getAiEngineTemperature, getAiLanguageLabel } from "@/lib/aiWritingProfile";
 import { prepareMediaForSelectedWriter } from "@/lib/aiMediaUnderstanding";
+import { InrAgentMediaUnderstandingError } from "@/lib/inrAgentMediaUnderstandingError";
 import { hasAiLanguageMismatch } from "@/lib/aiLanguageValidation";
 import {
   applyAiEngineOutputTokenCalibration,
@@ -1693,7 +1694,7 @@ export async function generateSharedBoosterPosts(args: GenerateSharedBoosterPost
     if (args.mediaSubjectSource === "media" &&
       !preparedMedia.visionAnalysisAvailable && !args.mediaTranscriptAvailable) {
       // Retry preparation instead of writing a made-up subject from titles/tags.
-      throw new Error("inr_agent_media_understanding_unavailable");
+      throw new InrAgentMediaUnderstandingError("vision");
     }
   } catch (error) {
     timing.mediaPrepMs = elapsedMs(mediaPrepStartedAt);

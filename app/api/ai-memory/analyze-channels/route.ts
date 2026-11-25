@@ -5,7 +5,7 @@ import { after, NextResponse } from "next/server";
 import { jsonUserFacingError } from "@/lib/apiUserFacingErrors";
 import { aiGenerateJSON } from "@/lib/aiGatewayClient";
 import { createAiOperationBudget } from "@/lib/aiGatewayPolicy";
-import { normalizeBusinessDnaAnalysisResponse } from "@/lib/businessDnaAnalysisResponse";
+import { BUSINESS_DNA_SOURCE_QUOTE_MAX_LENGTH, normalizeBusinessDnaAnalysisResponse } from "@/lib/businessDnaAnalysisResponse";
 import { normalizeAiPreferredEngine } from "@/lib/aiEnginePreference";
 import {
   getBusinessDnaAnalysisDepthGaps,
@@ -105,7 +105,7 @@ const ANALYSIS_RESPONSE_SCHEMA = {
         properties: {
           sectorCategory: { type: "string", maxLength: 60 },
           job: { type: "string", maxLength: 80 },
-          sourceQuote: { type: "string", maxLength: 160 },
+          sourceQuote: { type: "string", maxLength: BUSINESS_DNA_SOURCE_QUOTE_MAX_LENGTH },
           confidence: { type: "string", enum: ["high", "uncertain"] },
         },
         required: ["sectorCategory", "job", "sourceQuote", "confidence"],
@@ -600,7 +600,7 @@ Règles absolues :
 - évite les doublons, les synonymes artificiellement multipliés et les formulations publicitaires creuses ;
 - sépare les faits des recommandations : les faits d’entreprise doivent être prouvés par les sources ; les rubriques de stratégie, besoins, objections, vocabulaire et calendrier peuvent contenir une synthèse ou une recommandation professionnelle raisonnable ancrée dans les services, les clients et les thèmes observés, sans créer de fait commercial ;
 - si un fait dur n’est pas suffisamment étayé, renvoie une chaîne vide ou une liste vide ;
-- professionSuggestion : choisis le couple sectorCategory/job exact du CATALOGUE_METIERS seulement si les sources prouvent clairement le métier principal de cette entreprise ; copie dans sourceQuote un court extrait littéral d’une source analysée qui le démontre, et indique high uniquement si le métier est sans ambiguïté ; sinon laisse les trois chaînes vides et confidence=uncertain ; n’utilise jamais le nom d’un outil iNrCy comme métier ;
+- Pour professionSuggestion, choisis le couple sectorCategory/job exact du CATALOGUE_METIERS seulement si les sources prouvent clairement le métier principal. Copie dans sourceQuote un extrait littéral d’au plus ${BUSINESS_DNA_SOURCE_QUOTE_MAX_LENGTH} caractères qui le démontre. Indique high uniquement si le métier est sans ambiguïté. Sinon, laisse les trois chaînes vides et indique uncertain. N’utilise jamais le nom d’un outil iNrCy comme métier.
 - les prestations proposées dans businessKnowledge.services doivent correspondre aux activités réellement attestées dans les sources et au métier identifié ; ne recopie pas automatiquement toutes les prestations possibles du catalogue ;
 - produis les textes dans la langue « ${language} » ;
 - customerTypes ne peut contenir que particuliers, professionnels et/ou collectivites ;
