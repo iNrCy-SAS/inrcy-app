@@ -64,6 +64,7 @@ test("billing prepares current catalogue and real UI destinations without invoki
     assert.equal((result.link as Row).href, action === "invoices" ? "/dashboard?panel=factures" : "/dashboard?panel=abonnement");
     assert.equal((result.catalogue as Row[])[0].yearlyEur, currentSubscriptionOffer("Premium").yearlyPriceEur);
     assert.equal((result.catalogue as Row[])[0].source, "public_web_catalogue_not_personal_contract");
+    if (action === "cancel") assert.match((result.steps as string[]).join(" "), /Voir l’offre Basique/);
     assert.doesNotMatch(JSON.stringify(result), /PRIVATE|stripe_customer|stripe_subscription|checkout\.stripe|signature|token/);
   }
   assert.equal(h.requests.length, 0);

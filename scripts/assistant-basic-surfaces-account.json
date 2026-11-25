@@ -16175,14 +16175,14 @@
   },
   {
     "id": "account-701927dc7b2d089b",
-    "label": "StandardSubscriptionContent — button (ligne 650)",
+    "label": "Programmer ou annuler la résiliation",
     "domain": "account",
     "sourceFiles": [
       "app/dashboard/settings/_components/StandardSubscriptionContent.tsx"
     ],
-    "sourceAnchor": "onClick={() => updateCancellation(view.cancellationScheduled ? \"uncancel\" : \"cancel\")}",
+    "sourceAnchor": "onClick={(event) => updateCancellation(view.cancellationScheduled ? \"uncancel\" : \"cancel\", event.currentTarget.closest(\"dialog\"))}",
     "controlIds": [
-      "app/dashboard/settings/_components/StandardSubscriptionContent.tsx#button:b509b9380c5021e4:1"
+      "app/dashboard/settings/_components/StandardSubscriptionContent.tsx#button:bb1391d6f3bf6cca:1"
     ],
     "capabilityId": "account.subscription",
     "toolNames": [
@@ -16193,6 +16193,12 @@
       "tests/ai-assistant/basic-account-surface-handoffs.test.mts"
     ],
     "testAnchor": "Basic personal credentials OAuth grants and paid transactions stay in their native personal handoffs",
+    "additionalProofs": [
+      {
+        "file": "tests/dashboard/discovery-subscription-browser.test.mts",
+        "testAnchor": "Standard can choose Basic, and Premium can directly confirm cancellation with one month's notice"
+      }
+    ],
     "handoffReason": "Choix des paramètres d’un engagement, devis de changement d’offre, achat ou gestion de paiement/résiliation dans le parcours natif personnel du titulaire. L’assistant ouvre ce parcours sans effectuer ni confirmer la transaction, l’abonnement ou le règlement.",
     "verification": {
       "mapping": "source_bound",
@@ -16204,7 +16210,7 @@
     "status": "intentional_handoff",
     "notes": "Un contrôle AST par ligne. Les options issues d’une boucle conservent leurs validations natives ; une preuve de contrat du domaine ne certifie pas l’exécution de ce bouton au navigateur.",
     "uiConditions": [
-      "(view.edition === \"basic\" || view.edition === \"standard\" || view.status === \"trialing\") && view.hasStripeSubscription && !view.needsBillingRecovery"
+      "view.hasStripeSubscription && !view.needsBillingRecovery"
     ]
   },
   {

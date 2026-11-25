@@ -166,7 +166,11 @@ export function createInrAssistantManagementTools(options: {
           return { plan, monthlyEur: offer.monthlyPriceEur, yearlyEur: offer.yearlyPriceEur, taxBehavior: offer.taxBehavior, currency: "EUR", source: "public_web_catalogue_not_personal_contract" };
         });
         const steps = input.action === "invoices" ? ["Mon compte → Factures, puis Voir ou PDF lorsque disponible."]
-          : input.action === "cancel" ? ["Mon compte → Abonnement → Programmer ma résiliation, puis vérifier et confirmer la date affichée.", "Un abonnement App Store/Google Play se résilie dans sa boutique. La confirmation du fournisseur fait foi."]
+          : input.action === "cancel" ? [
+              "Dans Mon compte → Abonnement, ouvrez la gestion du forfait actif, puis choisissez Programmer ma résiliation si l’action est proposée.",
+              "Sur le web, Standard et Premium peuvent proposer Voir l’offre Basique. Choisissez Résilier pour confirmer votre demande, puis vérifiez les dates affichées. Pour un mensuel actif, la prochaine mensualité couvre le mois complet de préavis.",
+              "Un abonnement App Store/Google Play se résilie dans sa boutique. La confirmation du fournisseur fait foi.",
+            ]
           : input.action === "manage" ? ["Mon compte → Abonnement → Gérer ma facturation, puis suivre le portail du fournisseur."]
           : ["Mon compte → Abonnement : choisir la carte du forfait et Mensuel/Annuel.", "Vérifier le récapitulatif, les taxes, l’échéance et l’activation de l’essai si proposée, puis confirmer dans le parcours existant."];
         return { ok: true, status: "requires_user_completion", action: input.action, link, selection: { plan: input.plan ?? null, billingCycle: input.billingCycle ?? null }, catalogue,

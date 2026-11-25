@@ -97,7 +97,7 @@
         "lib/boosterCtaDefaultsServer.ts": "62c42eea39f70b377701d7762a0aa912bc3b00062694dfb46012898d8eedc9d0",
         "lib/personalizationCompletion.ts": "e28c4b15fc4ab515049b320467c2d2ab8e0c9dd368a71c02539c50abf523aa6a",
         "messages/fr-FR/dashboard.json": "76235e400042b5d1fc2cfc4e3c71f40d5832bcfd9342cdb4b35ad1c74276943c",
-        "messages/fr-FR/settings.json": "347462a4bb1bb973ef3d0c260174aa00e3cf902e07b2170a6700e3d97ae426ee"
+        "messages/fr-FR/settings.json": "49e3935caf446e2f6f69234607122c5e3f08812062e985a054ec9d8a084b8edf"
       }
     },
     "assistant-capabilities": {
@@ -973,7 +973,7 @@
       }
     },
     "subscription": {
-      "guideDigest": "b8bfdfcdbe7f6aa0bde34798e124307ffe107d21bad6a40c0e7ae4a0e1aa8532",
+      "guideDigest": "e26ebf81f273f73a6db25fdc0174179e31731f97e8f68a14811400f46326f337",
       "sources": {
         "app/api/billing/account-subscription/route.ts": "40d5817b65a3cc6803933b08c92885ffa3aa0e728dd16aa6b38b6747afc1af64",
         "app/api/billing/checkout/route.ts": "a1b28e1f538255e4d2d8b41177824f8bd7164d3309bdefafc743dbc06d19b978",
@@ -982,8 +982,8 @@
         "app/compte-bloque/page.tsx": "747f3839120e737e2797643cd9ca5859f3d5d0624dbf090cab84d907ad65aa59",
         "app/dashboard/layout.tsx": "3aecace81309b715010917dd0e621ab9500b34da19e4b180ada229045f9051d7",
         "app/dashboard/settings/_components/AbonnementContent.tsx": "6f51e94cbe247beb1628f79630f4502d913f32ae48348437db15d0e1b1f7676b",
-        "app/dashboard/settings/_components/BasicSubscriptionCard.tsx": "7fdad22bbef63da3ba5833fc2aac1a23824e1b498cba37e58605c75c5c8c1dd7",
-        "app/dashboard/settings/_components/StandardSubscriptionContent.tsx": "4a734a8b1a654f1e7b979f3d54766b97f961370d61f23a07a73bb8c0cbcf8eae",
+        "app/dashboard/settings/_components/BasicSubscriptionCard.tsx": "03d4f8680a98466f32c949014eed1514aabb17685cb770053af58d16d86a753e",
+        "app/dashboard/settings/_components/StandardSubscriptionContent.tsx": "daaaeec08f23212954e1767e032c4c39ac951aeeb845650d15ff067c515465b9",
         "app/dashboard/settings/_components/SubscriptionComparison.tsx": "11fdfcd1f80c7bf6a0a7dacd8649efeecc6a9809d7262ecec648a44464fb9193",
         "lib/accountBillingSubscriptionClient.ts": "3850a6dcb7bc51cda0100cf4bc3e02b3940efadf8eb461936617ad5500af4439",
         "lib/accountBillingSubscriptionServer.ts": "ceec40d7a9246341f09444a6d986f4b5ab73e0334f05ce74835ea81c3883ab53",
@@ -995,15 +995,17 @@
       }
     },
     "subscription-cancel-invoices": {
-      "guideDigest": "64ddef6b9783afff7578e3a613d248042e967fd86fe585f0b193a352c3db38b8",
+      "guideDigest": "b57d38918644eceb48443b6fdf219f57fec63dd32af36fbfdacc9899246f230b",
       "sources": {
         "app/api/billing/account-subscription/route.ts": "40d5817b65a3cc6803933b08c92885ffa3aa0e728dd16aa6b38b6747afc1af64",
+        "app/api/billing/cancel/route.ts": "d250723191eddd9ee23ef6892c306300878123f37c7346e782b8f28e7be36485",
         "app/dashboard/settings/_components/AbonnementContent.tsx": "6f51e94cbe247beb1628f79630f4502d913f32ae48348437db15d0e1b1f7676b",
-        "app/dashboard/settings/_components/StandardSubscriptionContent.tsx": "4a734a8b1a654f1e7b979f3d54766b97f961370d61f23a07a73bb8c0cbcf8eae",
+        "app/dashboard/settings/_components/StandardSubscriptionContent.tsx": "daaaeec08f23212954e1767e032c4c39ac951aeeb845650d15ff067c515465b9",
         "app/dashboard/settings/_components/SubscriptionInvoicesPanel.tsx": "4ef8d202df37c5735d70efa4bf7bb170eb66fb0cac84178553618271f1658bde",
         "lib/accountBillingSubscriptionServer.ts": "ceec40d7a9246341f09444a6d986f4b5ab73e0334f05ce74835ea81c3883ab53",
         "lib/inrAssistantAccountDocuments.ts": "f9b3aebedb3099fd35f8c07344d3e06d534c87c27a71935a73c113ebfb891f54",
         "lib/inrAssistantAccountServiceTools.ts": "197d17ae0e4865a0d30914145a780a67c0d1395d080f79cc3083f29dad9344f9",
+        "lib/scheduleSubscriptionCancellation.ts": "43e015ac982ea01fcedf30149d0a7497aa42c6ea983178ba0b412991c65efc13",
         "lib/subscriptionBillingPresentation.ts": "d62100ba4909259522322d7248c4f2662fd9b20d75adaf8a7713fc834c8483d7",
         "lib/subscriptionCancellation.ts": "753a2e452abb1fd8e7f608bf3d5bbff12ae54e1ca200cfb9e81b2d0355a60900"
       }

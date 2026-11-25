@@ -165,6 +165,7 @@ test("cancellation guides the real conditional actions and keeps store managemen
   const text = knowledge.getInrAssistantKnowledge("Je veux résilier mon abonnement et arrêter les prélèvements.");
   assert.match(text, /Programmer ma résiliation/);
   assert.match(text, /Gérer ma facturation/);
+  assert.match(text, /Voir l’offre Basique/);
   assert.match(text, /Stripe/);
   assert.match(text, /mois de préavis/);
   assert.match(text, /App Store ou Google Play/);
