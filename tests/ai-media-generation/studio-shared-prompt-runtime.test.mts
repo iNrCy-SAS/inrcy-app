@@ -15,6 +15,7 @@ import * as videoOptions from "../../lib/aiMediaVideoClientOptions.ts";
 import * as voices from "../../lib/aiMediaNarrationVoices.ts";
 import * as rules from "../../lib/mediaRules.ts";
 import * as policy from "../../lib/inrStudioModalPolicy.ts";
+import * as workingDraft from "../../lib/inrStudioWorkingDraft.ts";
 import * as characterVoices from "../../lib/aiMediaCharacterVoiceClient.ts";
 import * as characterVoiceRules from "../../lib/aiMediaCharacterVoices.ts";
 import * as elementStyleLock from "../../lib/elementStyleLock.ts";
@@ -75,6 +76,7 @@ function runtime(file: string, dependencies: Map<string, unknown>) {
     if (name === "@/lib/aiMediaVideoSpeechBudget") return speechBudget;
     assert.ok(modules.has(name), `Unexpected UI dependency: ${name}`); return modules.get(name);
   }, {
+    location: { href: "https://fixture.invalid/dashboard/generer-media" }, history: { state: {}, pushState() {} },
     matchMedia: () => ({ matches: false, addEventListener() {}, removeEventListener() {} }),
     addEventListener(name: string, listener: () => void) { const list = listeners.get(name) || new Set(); list.add(listener); listeners.set(name, list); },
     removeEventListener(name: string, listener: () => void) { listeners.get(name)?.delete(listener); },
@@ -108,6 +110,7 @@ function fixture(extra: Props = {}) {
   ]);
   const modalModules = new Map(common);
   modalModules.set("@/lib/inrStudioModalPolicy", policy);
+  modalModules.set("@/lib/inrStudioWorkingDraft", workingDraft);
   modalModules.set("react-dom", { createPortal: (tree: unknown) => tree });
   for (const name of ["next/link", "./MediaModifier", "./MediaFreeGenerator", "./MediaRetoucher", "./MediaVideoRetoucher"]) modalModules.set(name, { __esModule: true, default: name });
   const modal = runtime("app/dashboard/_components/MediaGeneratorModal.tsx", modalModules);

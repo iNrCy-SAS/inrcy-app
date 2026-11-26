@@ -1,4 +1,7 @@
 {
+  "ai_studio_working_exit_title": "ออกจาก iNrStudio หรือไม่",
+  "ai_studio_working_exit_description": "คุณมีงานที่กำลังทำอยู่ คุณสามารถแก้ไขต่อหรือออกจาก iNrStudio ได้",
+  "ai_studio_working_exit_leave": "ออกจาก iNrStudio",
   "ai_generator_recovery_title": "ค้นหาผลงานของคุณ",
   "ai_generator_recovery_continue": "รายการสร้างนี้ยังถูกเก็บไว้ คุณสามารถแก้ไขการตั้งค่าระหว่างการตรวจสอบได้",
   "ai_generator_recovery_check": "ตรวจสอบสื่อของฉัน",

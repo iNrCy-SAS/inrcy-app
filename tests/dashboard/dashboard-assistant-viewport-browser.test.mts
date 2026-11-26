@@ -140,6 +140,7 @@ const studioSources = {
   ...browserLibSources("userFacingErrors"),
   ...browserLibSources("aiMediaGenerationPublicErrorI18n"),
   studio: compile("app/dashboard/generer-media/MediaGeneratorStudioClient.tsx"),
+  "@/lib/inrStudioWorkingDraft": compile("lib/inrStudioWorkingDraft.ts"),
   "@/app/dashboard/_components/MediaGeneratorModal": compile("app/dashboard/_components/MediaGeneratorModal.tsx"),
   "./MediaFreeGenerator": compile("app/dashboard/_components/MediaFreeGenerator.tsx"),
   "./MediaBusinessDnaHelp": compile("app/dashboard/_components/MediaBusinessDnaHelp.tsx"),

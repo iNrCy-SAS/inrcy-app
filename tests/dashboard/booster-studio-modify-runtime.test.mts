@@ -52,6 +52,7 @@ const sources = {
   pool: compile("app/dashboard/booster/publier/components/PublishMediaPoolPanel.tsx"),
   studio: compile("app/dashboard/generer-media/MediaGeneratorStudioClient.tsx"),
   "@/lib/studioVideoRetouchPersistence": compile("lib/studioVideoRetouchPersistence.ts"),
+  "@/lib/inrStudioWorkingDraft": compile("lib/inrStudioWorkingDraft.ts"),
   session: compile("app/dashboard/_hooks/useInrStudioSession.tsx"),
   "@/app/dashboard/_components/MediaGeneratorModal": compile("app/dashboard/_components/MediaGeneratorModal.tsx"),
   "./MediaModifier": compile("app/dashboard/_components/MediaModifier.tsx"),

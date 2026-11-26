@@ -90,6 +90,8 @@ type FixtureWindow = Window & { studioFixture: { start(kind?: string): void; pro
 
 const nativeSources = {
   "@/lib/elementStyleLock": compile(read("lib/elementStyleLock.ts")),
+  "@/lib/mediaGenerationReferenceClient": compile(read("lib/mediaGenerationReferenceClient.ts")),
+  "@/lib/inrStudioWorkingDraft": compile(read("lib/inrStudioWorkingDraft.ts")),
   ...modules,
   studio: compile(read("app/dashboard/generer-media/MediaGeneratorStudioClient.tsx")),
   "@/lib/studioVideoRetouchPersistence": compile(read("lib/studioVideoRetouchPersistence.ts")),
@@ -135,7 +137,7 @@ function require(name){
  if(name.startsWith('./')&&sources['@/lib/'+name.slice(2).replace(/\\.ts$/,'')])return require('@/lib/'+name.slice(2).replace(/\\.ts$/,''));
  if(name==='next-intl')return {useLocale:()=> 'fr-FR',useTranslations:translate};
  if(name==='next/image')return {__esModule:true,default:({fill,unoptimized,...props})=>React.createElement('img',props)};
- if(name==='next/navigation')return {usePathname:()=>location.pathname,useRouter:()=>({replace:noOp,push:noOp}),useSearchParams:()=>new URLSearchParams(location.search)};
+ if(name==='next/navigation')return {usePathname:()=>location.pathname,useRouter:()=>({replace:url=>(window.fixtureNavigations??=[]).push(url),push:noOp}),useSearchParams:()=>new URLSearchParams(location.search)};
  if(name.endsWith('DashboardViewerAccessProvider'))return {useDashboardViewerAccess:()=>({actorUserId:'actor-a',activeAccountId:window.activeAccount})};
  if(name==='@/lib/browserAccountCache')return {getActiveBrowserUserId:()=>window.activeAccount};
  if(name==='@/lib/multicompte/constants')return {ACTIVE_INRCY_ACCOUNT_EVENT:'fixture-account-change'};
@@ -150,8 +152,9 @@ function require(name){
  if(name==='@/lib/studioReferenceMemoryClient')return require('studioMemoryFixture').studioReferenceMemoryFixture;
  if(name==='@/lib/mediaLibraryUploadClient')return require('studioMemoryFixture').studioReferenceLibraryUploadFixture;
  if(name==='./MediaGenerator')return {prepareMediaGenerationImageReference:async()=>{throw Error('No reference preparation expected')}};
+ if(name==='@/lib/universalMediaUploadClient')return {uploadUniversalMediaFile:async()=>{throw Error('No upload allowed in the Studio fixture')}};
  if(['next/link','./DashboardAssistantTrigger','./MediaRetoucher','./MediaVideoRetoucher','./MediaLibraryPickerModal','@/app/dashboard/_components/MediaLibraryPickerModal','./MediaSubjectVoiceButton','./MediaPromptHelp','./MediaQuotaSummary','./MediaCharacterVoiceInput','./StudioMusicLibrary','./StudioVoicePool','./StudioExactDialogueEditor'].includes(name))return {__esModule:true,default:()=>null};
- if(['@/lib/imageOverlay','@/lib/imageInteractions','@/lib/mediaLibraryUploadClient','@/lib/mediaRetoucherRenderClient','@/lib/boosterVideoTransformClient','@/app/dashboard/booster/publier/publishModal.shared','@/lib/mediaGenerationReferenceClient','@/lib/mediaImageEditMasterClient'].includes(name))return {};
+ if(['@/lib/imageOverlay','@/lib/imageInteractions','@/lib/mediaLibraryUploadClient','@/lib/mediaRetoucherRenderClient','@/lib/boosterVideoTransformClient','@/app/dashboard/booster/publier/publishModal.shared','@/lib/mediaImageEditMasterClient'].includes(name))return {};
  if(loaded[name])return loaded[name].exports;
  if(!sources[name])throw Error('Unexpected native Studio fixture dependency '+name);
  const record=loaded[name]={exports:{}};new Function('require','module','exports',sources[name])(require,record,record.exports);return record.exports;
@@ -183,6 +186,66 @@ async function swipe(page: Page, fromY: number, toY: number) {
   await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
   await page.waitForTimeout(180); await cdp.detach();
 }
+
+test("Studio Back closes the inspiration picker first and confirms any exit with an imported image", async () => {
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const page = await browser.newPage({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+    const errors = await mountNative(page, "image");
+    const studio = page.getByRole("dialog", { name: "Générer un média" });
+    const inspiration = studio.getByRole("button", { name: "Inspiration", exact: true });
+    const picker = page.getByRole("dialog", { name: "Ajouter une inspiration" });
+    const confirmation = page.getByRole("alertdialog", { name: "Quitter iNrStudio ?" });
+    await page.waitForFunction(() => Boolean(history.state?.__inrcyStudioGuard));
+
+    await inspiration.click();
+    await picker.waitFor();
+    await page.evaluate(() => history.back());
+    await picker.waitFor({ state: "hidden" });
+    assert.equal(await studio.isVisible(), true);
+    assert.equal(await confirmation.count(), 0);
+
+    await inspiration.click();
+    const chooserReady = page.waitForEvent("filechooser");
+    await picker.locator('input[type="file"]').click();
+    const chooser = await chooserReady;
+    await chooser.setFiles({
+      name: "inspiration.png",
+      mimeType: "image/png",
+      buffer: Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aWQAAAABJRU5ErkJggg==", "base64"),
+    });
+    const thumbnail = page.locator('[data-media-reference-thumbnails] [role="listitem"]');
+    await thumbnail.waitFor();
+    await page.evaluate(() => history.back());
+    await confirmation.waitFor();
+    assert.equal(new URL(page.url()).pathname, "/dashboard/generer-media");
+    await confirmation.getByRole("button", { name: "Continuer l’édition", exact: true }).click();
+    assert.equal(await thumbnail.count(), 1);
+
+    const prompt = studio.getByRole("textbox", { name: "Votre demande" });
+    await prompt.fill("Une affiche avec mon image d’inspiration.");
+    await studio.getByRole("button", { name: "Fermer", exact: true }).click();
+    await confirmation.getByRole("button", { name: "Continuer l’édition", exact: true }).click();
+    assert.equal(await prompt.inputValue(), "Une affiche avec mon image d’inspiration.");
+    assert.equal(await thumbnail.count(), 1);
+
+    await studio.getByRole("button", { name: "Fermer", exact: true }).click();
+    await confirmation.getByRole("button", { name: "Quitter iNrStudio", exact: true }).click();
+    await page.waitForFunction(() => Boolean((window as Window & { fixtureNavigations?: string[] }).fixtureNavigations?.length));
+    assert.deepEqual(await page.evaluate(() => (window as Window & { fixtureNavigations?: string[] }).fixtureNavigations), ["/dashboard"]);
+
+    // Reopen on the same browser. The composed draft includes the image data,
+    // so reload cannot leave behind a thumbnail pointing at an expired URL.
+    page.once("dialog", dialog => { void dialog.accept(); });
+    await page.reload();
+    await page.addScriptTag({ content: nativeFixture });
+    await thumbnail.waitFor();
+    assert.equal(await prompt.inputValue(), "Une affiche avec mon image d’inspiration.");
+    assert.deepEqual(errors, []);
+  } finally {
+    await browser.close();
+  }
+});
 
 test("Studio criteria keep natural heights and optional DNA help works without Popover support", { timeout: 90000 }, async t => {
   for (const engine of [chromium, ...(process.env.INRCY_STUDIO_WEBKIT === "1" ? [webkit] : [])]) {

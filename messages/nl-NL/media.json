@@ -1,4 +1,7 @@
 {
+  "ai_studio_working_exit_title": "iNrStudio verlaten?",
+  "ai_studio_working_exit_description": "Je hebt werk in uitvoering. Je kunt verder bewerken of iNrStudio verlaten.",
+  "ai_studio_working_exit_leave": "iNrStudio verlaten",
   "ai_generator_recovery_title": "Vind je creatie terug",
   "ai_generator_recovery_continue": "Je poging blijft bewaard. Je kunt je instellingen tijdens de controle aanpassen.",
   "ai_generator_recovery_check": "Mijn media controleren",

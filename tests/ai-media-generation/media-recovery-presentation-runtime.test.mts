@@ -15,6 +15,7 @@ import * as videoOptions from "../../lib/aiMediaVideoClientOptions.ts";
 import * as voices from "../../lib/aiMediaNarrationVoices.ts";
 import * as rules from "../../lib/mediaRules.ts";
 import * as policy from "../../lib/inrStudioModalPolicy.ts";
+import * as workingDraft from "../../lib/inrStudioWorkingDraft.ts";
 import * as characterVoices from "../../lib/aiMediaCharacterVoiceClient.ts";
 import * as characterVoiceRules from "../../lib/aiMediaCharacterVoices.ts";
 import * as elementStyleLock from "../../lib/elementStyleLock.ts";
@@ -72,7 +73,7 @@ function runtime(file: string, dependencies: Map<string, unknown>) {
     if (name === "@/lib/studioInspirationImagePolicy") return inspirationImagePolicy;
     if (name === "@/lib/aiMediaVideoSpeechBudget") return speechBudget;
     assert.ok(modules.has(name), `Unexpected UI dependency: ${name}`); return modules.get(name);
-  }, { matchMedia: () => ({ matches: false, addEventListener() {}, removeEventListener() {} }), addEventListener() {}, removeEventListener() {}, requestAnimationFrame: () => 1, cancelAnimationFrame() {} }, { activeElement: null, body: { style: inlineStyle(), children: [] }, documentElement: { style: inlineStyle() } }, class {}, class { observe() {} disconnect() {} });
+  }, { location: { href: "https://fixture.invalid/dashboard/generer-media" }, history: { state: {}, pushState() {} }, matchMedia: () => ({ matches: false, addEventListener() {}, removeEventListener() {} }), addEventListener() {}, removeEventListener() {}, requestAnimationFrame: () => 1, cancelAnimationFrame() {} }, { activeElement: null, body: { style: inlineStyle(), children: [] }, documentElement: { style: inlineStyle() } }, class {}, class { observe() {} disconnect() {} });
   return {
     render(props: Props, name = "default") { let tree: unknown; let count = 0; do { assert.ok(++count < 20, "UI effects settle"); dirty = false; cursor = 0; tree = (record.exports[name] as (props: Props) => unknown)(props); for (const effect of effects.splice(0)) effect(); } while (dirty); return tree; },
     dispose() { for (const slot of slots) slot.cleanup?.(); },
@@ -100,6 +101,7 @@ test("reload selects the owning Video Activity before recovery, preserves its re
   const modalModules = new Map(common);
   modalModules.set("@/app/dashboard/_hooks/useMediaGeneration", hookModule);
   modalModules.set("@/lib/inrStudioModalPolicy", policy);
+  modalModules.set("@/lib/inrStudioWorkingDraft", workingDraft);
   modalModules.set("react-dom", { createPortal: (tree: unknown) => tree });
   for (const name of ["next/link", "./MediaModifier", "./MediaFreeGenerator", "./MediaRetoucher", "./MediaVideoRetoucher", "./DashboardMobileSelect"]) modalModules.set(name, { __esModule: true, default: name });
   const modal = runtime("app/dashboard/_components/MediaGeneratorModal.tsx", modalModules);

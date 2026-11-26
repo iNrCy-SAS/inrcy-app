@@ -39,6 +39,7 @@ import {
   normalizeImageOverlay,
 } from "@/lib/imageOverlay";
 import { imageInteractionsFromOverlay } from "@/lib/imageInteractions";
+import { readStudioWorkingDraft, type StudioWorkingDraft } from "@/lib/inrStudioWorkingDraft";
 import { uploadFileToMediaLibrary } from "@/lib/mediaLibraryUploadClient";
 import { renderMediaRetoucherFile } from "@/lib/mediaRetoucherRenderClient";
 import { requestBoosterVideoTransforms } from "@/lib/boosterVideoTransformClient";
@@ -166,6 +167,19 @@ export default function MediaGeneratorStudioClient({
   const [initialSourceLoading, setInitialSourceLoading] = useState(false);
   const [assistantDraft, setAssistantDraft] = useState<InrAssistantStudioHandoff | null>(null);
   const scopedAssistantDraft = !handoff && !embeddedHandoff && assistantDraft?.actorUserId === actorUserId && assistantDraft.accountId === activeAccountId ? assistantDraft : null;
+  const handoffDraftId = handoff?.context.draftId || handoff?.context.actionId;
+  const workingDraftKey = ready && initialTab === "generate" && actorUserId && activeAccountId && (!handoff || handoffDraftId)
+    ? JSON.stringify([actorUserId, activeAccountId, handoff?.origin ?? "studio", handoffDraftId ?? null, handoff?.context.channel ?? null])
+    : undefined;
+  const [loadedWorkingDraft, setLoadedWorkingDraft] = useState<{ key: string; draft: StudioWorkingDraft | null } | null>(null);
+  useEffect(() => {
+    if (!workingDraftKey) return;
+    let active = true;
+    void readStudioWorkingDraft(workingDraftKey).then(draft => {
+      if (active) setLoadedWorkingDraft({ key: workingDraftKey, draft });
+    });
+    return () => { active = false; };
+  }, [workingDraftKey]);
   const [workspaceReady, setWorkspaceReady] = useState(false);
   const [workspaceBusy, setWorkspaceBusy] = useState(true);
   const workspaceRef = useRef({ busy: true, hasDraft: false });
@@ -518,7 +532,7 @@ export default function MediaGeneratorStudioClient({
   return (
     <>
       {!embeddedHandoff ? <main className={styles.page} aria-hidden="true" /> : null}
-      {ready ? (
+      {ready && (!workingDraftKey || loadedWorkingDraft?.key === workingDraftKey) ? (
         <MediaGeneratorModal
           key={`${actorUserId}:${activeAccountId}:${scopedAssistantDraft?.id || handoff?.key || `standalone-studio:${initialTab}:${standaloneMediaType}`}`}
           open
@@ -539,6 +553,8 @@ export default function MediaGeneratorStudioClient({
           }
           initialTab={scopedAssistantDraft ? "generate" : initialTab}
           initialFreePrompt={scopedAssistantDraft?.draft.prompt || ""}
+          workingDraftKey={workingDraftKey}
+          initialWorkingDraft={scopedAssistantDraft ? null : loadedWorkingDraft?.draft}
           initialSource={initialSource}
           initialPreview={initialPreview}
           initialSourceLoading={initialSourceLoading}

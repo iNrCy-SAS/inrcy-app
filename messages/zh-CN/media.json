@@ -1,4 +1,7 @@
 {
+  "ai_studio_working_exit_title": "退出 iNrStudio？",
+  "ai_studio_working_exit_description": "你还有正在编辑的内容。你可以继续编辑或退出 iNrStudio。",
+  "ai_studio_working_exit_leave": "退出 iNrStudio",
   "ai_generator_recovery_title": "找回您的作品",
   "ai_generator_recovery_continue": "本次创作记录已保留。检查期间，您可以修改设置。",
   "ai_generator_recovery_check": "检查我的媒体",

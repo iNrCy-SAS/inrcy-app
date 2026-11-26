@@ -185,10 +185,11 @@ test("la création image et vidéo utilise seulement Libre sans retirer Modifier
 });
 
 test("le sujet Booster préremplit le prompt, avec priorité à une consigne explicite", () => {
-  const base = { initialFreePrompt: "", source: "studio", origin: "booster", publicationBrief: "  Notre menu du dimanche  " };
+  const base = { initialFreePrompt: "", initialWorkingDraft: undefined, source: "studio", origin: "booster", publicationBrief: "  Notre menu du dimanche  " };
   assert.equal(handler<string>(modalPath, "initialGenerationPrompt", base), "Notre menu du dimanche");
   assert.equal(handler<string>(modalPath, "initialGenerationPrompt", { ...base, source: "booster", origin: "menu" }), "Notre menu du dimanche");
   assert.equal(handler<string>(modalPath, "initialGenerationPrompt", { ...base, initialFreePrompt: "Ma consigne personnalisée" }), "Ma consigne personnalisée");
+  assert.equal(handler<string>(modalPath, "initialGenerationPrompt", { ...base, initialWorkingDraft: { prompt: "Mon brouillon récupéré" } }), "Mon brouillon récupéré");
   assert.equal(handler<string>(modalPath, "initialGenerationPrompt", { ...base, initialFreePrompt: "   " }), "Notre menu du dimanche");
   assert.equal(handler<string>(modalPath, "initialGenerationPrompt", { ...base, publicationBrief: " \n\t " }), "");
   for (const origin of ["menu", "ads", "inragent", "inrsend"]) {
@@ -206,6 +207,7 @@ test("une nouvelle ouverture reprend le dernier sujet sans écraser les édition
   const openedRef = { current: false };
   const context = {
     openedRef, sessionVersionRef: { current: 0 }, draftReplacementResolutionRef: { current: null }, setResetRequested() {}, setPendingRecovery() {},
+    workingDraftScopeInvalidated: { current: false }, initialWorkingDraft: undefined, setGenerationPanels() {}, setModifierDirty() {},
     initialTab: "generate", initialFreeMediaType: "image", initialMediaType: "image",
     setStudioTab() {}, setFreeMediaType() {}, setVisitedFreeTypes() {}, setMediaTypeByTab() {}, setRetoucherDirty() {},
     setGenerationPrompt: (value: string) => { prompts.push(value); },
@@ -256,7 +258,7 @@ test("un média accepté Libre ou Guidé revient et s'insère dans Booster en im
     Boolean(node.arguments[0]?.getText(publishSource).includes("if (!pendingStudioReturn?.item) return;")));
   const client = read(studioClientPath);
   assert.match(client, /acceptMode=\{handoff \? "insert" : "library"\}/);
-  assert.match(read(modalPath), /<MediaFreeGenerator[\s\S]*?acceptMode=\{acceptMode\}[\s\S]*?onAccepted=\{onAccepted\}/);
+  assert.match(read(modalPath), /<MediaFreeGenerator[\s\S]*?acceptMode=\{acceptMode\}[\s\S]*?onAccepted=\{acceptGeneration\}/);
 
   for (const creationMode of ["free", "guided"] as const) {
     for (const mediaType of ["image", "video"] as const) {

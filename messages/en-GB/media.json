@@ -1,4 +1,7 @@
 {
+  "ai_studio_working_exit_title": "Leave iNrStudio?",
+  "ai_studio_working_exit_description": "You have work in progress. You can keep editing or leave iNrStudio.",
+  "ai_studio_working_exit_leave": "Leave iNrStudio",
   "ai_generator_recovery_title": "Find your creation",
   "ai_generator_recovery_continue": "Your attempt is saved. You can edit your settings while we check its status.",
   "ai_generator_recovery_check": "Check my media",

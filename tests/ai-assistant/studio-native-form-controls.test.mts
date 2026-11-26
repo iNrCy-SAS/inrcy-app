@@ -547,7 +547,7 @@ test("the actual Studio modal driver respects native mode gates and never resets
   let pendingWork = false, external = false, source = true, closeConfirmOpen = false, imageOnly = false, closes = 0, cancels = 0, studioTab = "generate";
   const changes: Array<[string, string]> = [];
   const handlers = actualHandlers("app/dashboard/_components/MediaGeneratorModal.tsx", {
-    get hasPendingWork() { return pendingWork; }, get hasExternalHandoff() { return external; }, get closeConfirmOpen() { return closeConfirmOpen; }, get hasSourceMedia() { return source; }, get imageOnly() { return imageOnly; }, get studioTab() { return studioTab; },
+    get hasPendingWork() { return pendingWork; }, get requiresCloseConfirmation() { return pendingWork || external; }, get hasExternalHandoff() { return external; }, get closeConfirmOpen() { return closeConfirmOpen; }, get hasSourceMedia() { return source; }, get imageOnly() { return imageOnly; }, get studioTab() { return studioTab; },
     isInrStudioTabUnavailable, canSwitchInrStudioMediaType, requestClose: () => closes++, cancelClose: () => cancels++, requestStudioTab: (value: string) => changes.push(["tab", value]), requestMediaType: (value: string) => changes.push(["mediaType", value]),
   });
   handlers.select.invoke(encode("tab", "modify")); assert.deepEqual(changes, [["tab", "modify"]]); assert.equal(handlers.select.matches({ studioTab: "generate" }, encode("tab", "modify")), false); assert.equal(handlers.select.matches({ studioTab: "modify" }, encode("tab", "modify")), true);
@@ -557,7 +557,7 @@ test("the actual Studio modal driver respects native mode gates and never resets
   external = true; handlers.select.invoke(encode("mediaType", "video")); studioTab = "retouch"; assert.throws(() => handlers.select.invoke(encode("mediaType", "video"))); external = false; studioTab = "generate";
   imageOnly = true; assert.throws(() => handlers.select.invoke(encode("mediaType", "video"))); imageOnly = false;
   closeConfirmOpen = true; handlers.select.invoke("continue_editing"); assert.equal(cancels, 1); assert.equal(handlers.select.matches({ closeConfirmOpen: false }, "continue_editing"), true);
-  const blocked = actualHandlers("app/dashboard/_components/MediaGeneratorModal.tsx", { hasPendingWork: true, hasExternalHandoff: false, closeConfirmOpen: true }); assert.equal(blocked.close, undefined);
+  const blocked = actualHandlers("app/dashboard/_components/MediaGeneratorModal.tsx", { hasPendingWork: false, requiresCloseConfirmation: true, hasExternalHandoff: false, closeConfirmOpen: false }); assert.equal(blocked.close, undefined);
   assert.equal(closes, 0, "selection cannot invoke close/reset/discard");
 });
 
