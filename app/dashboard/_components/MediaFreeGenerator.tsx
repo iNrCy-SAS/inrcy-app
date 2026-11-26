@@ -63,6 +63,7 @@ import { getAiMediaImageModel, getAiMediaVideoModel, getAiMediaVideoModelForChar
 import { canGenerateAiMediaVideoDuration } from "@/lib/aiMediaVideoTimeline";
 import { getMediaVideoDurationChoices, getMediaVideoContextResolution, getAiMediaVideoReferenceCompatibilityIssue, isMediaVideoBriefCompatible } from "@/lib/aiMediaVideoClientOptions";
 import { recommendAiMediaModel } from "@/lib/aiMediaModelRecommendation";
+import type { StudioWorkingPanel } from "@/lib/inrStudioWorkingDraft";
 import styles from "./MediaFreeGenerator.module.css";
 
 type Props = {
@@ -80,6 +81,8 @@ type Props = {
   onAccepted: (result: MediaGenerationResult) => void | Promise<void>;
   onResultChange?: (result: MediaGenerationResult | null) => void;
   onBusyChange?: (busy: boolean) => void;
+  initialWorkingPanel?: StudioWorkingPanel;
+  onWorkingPanelChange?: (kind: MediaGenerationKind, panel: StudioWorkingPanel | null) => void;
   onPendingRecoveryChange?: (pending: boolean) => void;
   /** Select the owning panel before recovering; changing it afterwards hides its result. */
   onRecoveryKind?: (kind: MediaGenerationKind) => void;
@@ -179,6 +182,8 @@ export default function MediaFreeGenerator({
   onAccepted,
   onResultChange,
   onBusyChange,
+  initialWorkingPanel,
+  onWorkingPanelChange,
   onPendingRecoveryChange,
   onRecoveryKind,
   onReset,
@@ -223,37 +228,37 @@ export default function MediaFreeGenerator({
     setLocalPrompt(value);
     onSharedPromptChange?.(value);
   }, [onSharedPromptChange]);
-  const [spokenScript, setSpokenScript] = useState("");
-  const [spokenScriptOpen, setSpokenScriptOpen] = useState(false);
-  const [exactRows, setExactRows] = useState<MediaExactDialogueRow[]>([]);
+  const [spokenScript, setSpokenScript] = useState(initialWorkingPanel?.spokenScript ?? "");
+  const [spokenScriptOpen, setSpokenScriptOpen] = useState(initialWorkingPanel?.spokenScriptOpen ?? false);
+  const [exactRows, setExactRows] = useState<MediaExactDialogueRow[]>(initialWorkingPanel?.exactRows ?? []);
   const [exactDialogueOpen, setExactDialogueOpen] = useState(false);
-  const [legacyExactImported, setLegacyExactImported] = useState(false);
-  const [useBusinessDna, setUseBusinessDna] = useState(true);
+  const [legacyExactImported, setLegacyExactImported] = useState(Boolean(initialWorkingPanel?.exactRows.length));
+  const [useBusinessDna, setUseBusinessDna] = useState(initialWorkingPanel?.useBusinessDna ?? true);
   const [format, setFormat] = useState<MediaGenerationFormat>(
-    fixedFormat || (kind === "video" ? "story" : "square")
+    fixedFormat || initialWorkingPanel?.format || (kind === "video" ? "story" : "square")
   );
-  const [duration, setDuration] = useState<MediaGenerationVideoDuration>(8);
-  const [sceneMode, setSceneMode] = useState<MediaGenerationVideoSceneMode>("single");
-  const [references, setReferences] = useState<Reference[]>([]);
+  const [duration, setDuration] = useState<MediaGenerationVideoDuration>(initialWorkingPanel?.duration ?? 8);
+  const [sceneMode, setSceneMode] = useState<MediaGenerationVideoSceneMode>(initialWorkingPanel?.sceneMode ?? "single");
+  const [references, setReferences] = useState<Reference[]>(initialWorkingPanel?.references ?? []);
   const [pendingReferenceRole, setPendingReferenceRole] = useState<MediaGenerationReferenceRole | null>(null);
   const [selectedReferenceId, setSelectedReferenceId] = useState<string | null>(null);
-  const [withMusic, setWithMusic] = useState(true);
-  const [soundtrackId, setSoundtrackId] = useState<string | null>(null);
-  const [voiceSourcePreference, setVoiceSourcePreference] = useState<"ai" | "provided">("ai");
-  const [voiceReferenceId, setVoiceReferenceId] = useState<string | null>(null);
+  const [withMusic, setWithMusic] = useState(initialWorkingPanel?.withMusic ?? true);
+  const [soundtrackId, setSoundtrackId] = useState<string | null>(initialWorkingPanel?.soundtrackId ?? null);
+  const [voiceSourcePreference, setVoiceSourcePreference] = useState<"ai" | "provided">(initialWorkingPanel?.voiceSourcePreference ?? "ai");
+  const [voiceReferenceId, setVoiceReferenceId] = useState<string | null>(initialWorkingPanel?.voiceReferenceId ?? null);
   const narrationVoiceMode = voiceSourcePreference;
-  const [voiceProfiles, setVoiceProfiles] = useState<StudioVoiceProfile[]>([]);
-  const [activeNarrationVoiceId, setActiveNarrationVoiceId] = useState<string | null>(null);
+  const [voiceProfiles, setVoiceProfiles] = useState<StudioVoiceProfile[]>(initialWorkingPanel?.voices ?? []);
+  const [activeNarrationVoiceId, setActiveNarrationVoiceId] = useState<string | null>(initialWorkingPanel?.activeNarrationVoiceId ?? null);
   const [narrationVoiceConsent, setNarrationVoiceConsent] = useState(false);
-  const [withSubtitles, setWithSubtitles] = useState(false);
+  const [withSubtitles, setWithSubtitles] = useState(initialWorkingPanel?.withSubtitles ?? false);
   const [speechMode, setSpeechMode] =
-    useState<"voiceover" | "characters" | "silent">("voiceover");
+    useState<"voiceover" | "characters" | "silent">(initialWorkingPanel?.speechMode ?? "voiceover");
   const exactSpeechEditorVisible = kind === "video" && spokenScriptOpen;
   const exactSpeechActive = exactSpeechEditorVisible && speechMode !== "silent";
   const explicitlyEmptySpokenScript = exactSpeechActive && !exactRows.some(row => row.text.trim());
-  const [voice, setVoice] = useState<MediaGenerationNarrationVoice>("female");
+  const [voice, setVoice] = useState<MediaGenerationNarrationVoice>(initialWorkingPanel?.voice ?? "female");
   const [voiceVariant, setVoiceVariant] =
-    useState<MediaGenerationNarrationVoiceVariant>("Kore");
+    useState<MediaGenerationNarrationVoiceVariant>(initialWorkingPanel?.voiceVariant ?? "Kore");
   const [identityConsent, setIdentityConsent] = useState(false);
   const [teamConsent, setTeamConsent] = useState(false);
   const [voiceBusy, setVoiceBusy] = useState(false);
@@ -579,6 +584,25 @@ export default function MediaFreeGenerator({
     return () => onBusyChange?.(false);
   }, [onBusyChange, operationLocked]);
 
+  const hasDraftSettings = Boolean(
+    references.length || !useBusinessDna || format !== (fixedFormat || (kind === "video" ? "story" : "square")) ||
+    (kind === "video" && (spokenScript.trim() || exactRows.length || duration !== 8 || sceneMode !== "single" ||
+      !withMusic || soundtrackId || voiceProfiles.length || withSubtitles || speechMode !== "voiceover" ||
+      voice !== "female" || voiceVariant !== "Kore" || voiceSourcePreference !== "ai"))
+  );
+  useLayoutEffect(() => {
+    if (references.length && !referenceSetId.current) referenceSetId.current = globalThis.crypto.randomUUID();
+    onWorkingPanelChange?.(kind, hasDraftSettings ? {
+      references, format, useBusinessDna, duration, sceneMode, withMusic, soundtrackId,
+      spokenScript, spokenScriptOpen, exactRows, withSubtitles, speechMode, voice, voiceVariant,
+      voiceSourcePreference, voiceReferenceId, voices: voiceProfiles, activeNarrationVoiceId,
+    } : null);
+  }, [activeNarrationVoiceId, duration, exactRows, format, hasDraftSettings, kind, onWorkingPanelChange,
+    references, sceneMode, soundtrackId, speechMode, spokenScript, spokenScriptOpen, useBusinessDna, voice,
+    voiceProfiles, voiceReferenceId, voiceSourcePreference, voiceVariant, withMusic, withSubtitles]);
+
+  const restoredWorkingPanel = useRef(Boolean(initialWorkingPanel));
+
   useEffect(() => { setMediaSettingsDialog(null); }, [kind]);
 
   useLayoutEffect(() => {
@@ -702,7 +726,7 @@ export default function MediaFreeGenerator({
     let ownsOperation = false;
     const isCurrent = () => !controller.signal.aborted && sequence.current === accountSequence && referenceMemoryCurrent.current.accountId === accountId;
     const scope = { accountId, signal: controller.signal, isCurrent };
-    const pristine = () => !referenceMemoryCurrent.current.draft.references.length && !referenceMemoryCurrent.current.draft.voices.length && !operationInFlight.current;
+    const pristine = () => !restoredWorkingPanel.current && !referenceMemoryCurrent.current.draft.references.length && !referenceMemoryCurrent.current.draft.voices.length && !operationInFlight.current;
     setReferenceMemoryState(emptyReferenceMemory(accountId));
     void (async () => {
       try {

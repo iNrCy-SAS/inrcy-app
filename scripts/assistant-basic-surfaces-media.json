@@ -4037,7 +4037,7 @@
     "sourceFiles": [
       "app/dashboard/_components/MediaGeneratorModal.tsx"
     ],
-    "sourceAnchor": "<Link\n              href=\"/dashboard/mediatheque\"\n              className={styles.mediaLibraryLink}\n              aria-label={t(\"mediatheque_inrcy_a885e19e\")}\n              title={t(\"mediatheque_inrcy_a885e19e\")}\n              aria-disabled={locked || undefined}\n              tabIndex={locked ? -1 : undefined}\n              onClick={(event) => {\n                if (locked || hasExternalHandoff || hasPendingWork) {\n                  event.preventDefault();\n                }\n                if (!locked && (hasExternalHandoff || hasPendingWork)) {\n                  requestClose();\n                }\n              }}\n            >",
+    "sourceAnchor": "<Link\n              href=\"/dashboard/mediatheque\"\n              className={styles.mediaLibraryLink}\n              aria-label={t(\"mediatheque_inrcy_a885e19e\")}\n              title={t(\"mediatheque_inrcy_a885e19e\")}\n              aria-disabled={locked || undefined}\n              tabIndex={locked ? -1 : undefined}\n              onClick={(event) => {\n                if (locked || requiresCloseConfirmation) {\n                  event.preventDefault();\n                }\n                if (!locked && requiresCloseConfirmation) {\n                  requestClose();\n                }\n              }}\n            >\n              <svg aria-hidden=\"true\" viewBox=\"0 0 24 24\">\n                <path d=\"M4.75 5.75h14.5v12.5H4.75z\" />\n                <path d=\"m7.25 15 3.15-3.15 2.35 2.35 1.65-1.65 2.35 2.45\" />\n                <circle cx=\"15.5\" cy=\"9\" r=\"1.35\" />\n              </svg>\n              <span>{t(\"mediatheque_e4fa8e31\")}</span>\n            </Link>",
     "capabilityId": "navigation.screen",
     "toolNames": [
       "navigateApplication"
@@ -4050,7 +4050,7 @@
     "testAnchor": "the actual Studio global navigation guard preserves its native draft review and rejects a stale session callback",
     "coverageStatus": "implemented",
     "controlIds": [
-      "app/dashboard/_components/MediaGeneratorModal.tsx#Link:b42516e610f7c478:1"
+      "app/dashboard/_components/MediaGeneratorModal.tsx#Link:ff219a77e11397e2:1"
     ]
   },
   {
@@ -4120,7 +4120,7 @@
     "sourceFiles": [
       "app/dashboard/_components/MediaGeneratorModal.tsx"
     ],
-    "sourceAnchor": "<button\n                ref={closeConfirmCancelRef}\n                type=\"button\"\n                className={styles.closeConfirmCancel}\n                disabled={locked}\n                onClick={cancelClose}\n              >\n                {t(\n                  resetRequested\n                    ? \"ai_generator_workspace_reset_cancel\"\n                    : hasExternalHandoff\n                    ? \"ai_studio_origin_stay\"\n                    : \"ai_generator_close_confirm_cancel\"\n                )}\n              </button>",
+    "sourceAnchor": "<button\n                ref={closeConfirmCancelRef}\n                type=\"button\"\n                className={styles.closeConfirmCancel}\n                disabled={locked}\n                onClick={cancelClose}\n              >\n                {isEditingExit ? shellT(\"continuer_l_edition_0f0075bb\") : t(\n                  resetRequested\n                    ? \"ai_generator_workspace_reset_cancel\"\n                    : hasExternalHandoff\n                    ? \"ai_studio_origin_stay\"\n                    : \"ai_generator_close_confirm_cancel\"\n                )}\n              </button>",
     "capabilityId": "studio.form",
     "toolNames": [
       "controlLocalInterface"
@@ -4167,7 +4167,7 @@
     "sourceFiles": [
       "app/dashboard/_components/MediaGeneratorModal.tsx"
     ],
-    "sourceAnchor": "<button\n                type=\"button\"\n                className={styles.closeConfirmLeave}\n                disabled={locked}\n                onClick={() => void (resetRequested ? confirmReset() : confirmClose())}\n              >\n                {resetRequested\n                  ? t(\"ai_generator_workspace_reset_action\")\n                  : hasExternalHandoff\n                  ? t(\"ai_studio_origin_return\", {\n                      origin: handoffOriginLabel || \"iNrCy\",\n                    })\n                  : t(\n                      acceptMode === \"insert\"\n                        ? \"ai_generator_close_confirm_leave\"\n                        : \"ai_generator_close_library_leave\"\n                    )}\n              </button>",
+    "sourceAnchor": "<button\n                type=\"button\"\n                className={styles.closeConfirmLeave}\n                disabled={locked}\n                onClick={() => void (resetRequested ? confirmReset() : confirmClose())}\n              >\n                {resetRequested\n                  ? t(\"ai_generator_workspace_reset_action\")\n                  : hasExternalHandoff\n                  ? t(\"ai_studio_origin_return\", {\n                      origin: handoffOriginLabel || \"iNrCy\",\n                    })\n                  : isEditingExit\n                  ? t(\"ai_studio_working_exit_leave\")\n                  : t(\n                      acceptMode === \"insert\"\n                        ? \"ai_generator_close_confirm_leave\"\n                        : \"ai_generator_close_library_leave\"\n                    )}\n              </button>",
     "capabilityId": "studio.draft-review",
     "toolNames": [
       "prepareStudioDraftReview"

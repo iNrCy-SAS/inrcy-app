@@ -52,6 +52,8 @@ function context(draft = true) {
     setVisitedFreeTypes: set("visitedFreeTypes"), setFreeMediaType: set("freeMediaType"),
     setGenerationSession: set("generationSession"), setStudioTab: set("studioTab"),
     setMediaTypeByTab: set("mediaTypeByTab"), setRetoucherDirty: set("retoucherDirty"),
+    setModifierDirty: set("modifierDirty"), setGenerationPanels: set("generationPanels"),
+    workingDraftScopeInvalidated: { current: false }, persistWorkingDraft: async () => {},
     setResetRequested: set("resetRequested"), setCloseConfirmOpen: set("closeConfirmOpen"),
     setPendingRecovery: set("pendingRecovery"),
     window: { requestAnimationFrame(callback: () => void) { callback(); } },
@@ -172,6 +174,7 @@ function mountLifecycle(ctx: ReturnType<typeof context>) {
   let replacementRequest: (() => Promise<boolean>) | null = null;
   const environment = {
     ...ctx, open: true, mounted: false, embedded: false, hasPendingWork: true,
+    requiresCloseConfirmation: true, browserBackRef: { current: () => {} }, requestBrowserBack() {},
     hasExternalHandoff: false, closeConfirmOpen: false, initialFreeMediaType: "image",
     initialGenerationPrompt: "", initialTab: "generate", initialMediaType: "image",
     ACTIVE_INRCY_ACCOUNT_EVENT: "account-changed", setMounted() {}, layerRef: { current: null },
@@ -179,7 +182,7 @@ function mountLifecycle(ctx: ReturnType<typeof context>) {
     registerDraftReplacementRequest(value: (() => Promise<boolean>) | null) { replacementRequest = value; },
     requestDraftReplacement: handler<boolean>("requestDraftReplacement", ctx),
     navigationGuardState: { current: null },
-    requestClose: handler("requestClose", { ...ctx, hasPendingWork: true, onClose() { ctx.events.push("close"); } }),
+    requestClose: handler("requestClose", { ...ctx, requiresCloseConfirmation: true, onClose() { ctx.events.push("close"); } }),
     window: {
       ...ctx.window,
       addEventListener(name: string, listener: () => void) {

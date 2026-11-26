@@ -1,4 +1,7 @@
 {
+  "ai_studio_working_exit_title": "iNrStudio verlassen?",
+  "ai_studio_working_exit_description": "Du hast eine laufende Bearbeitung. Du kannst weiterbearbeiten oder iNrStudio verlassen.",
+  "ai_studio_working_exit_leave": "iNrStudio verlassen",
   "ai_generator_recovery_title": "Finden Sie Ihre Kreation wieder",
   "ai_generator_recovery_continue": "Ihr Versuch bleibt gespeichert. Während der Überprüfung können Sie Ihre Einstellungen ändern.",
   "ai_generator_recovery_check": "Mein Medium prüfen",

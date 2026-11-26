@@ -41,6 +41,7 @@ import {
   canSwitchInrStudioMediaType,
   isInrStudioTabUnavailable,
 } from "@/lib/inrStudioModalPolicy";
+import { saveStudioWorkingDraft, type StudioWorkingDraft, type StudioWorkingPanel } from "@/lib/inrStudioWorkingDraft";
 
 import styles from "./MediaGeneratorModal.module.css";
 
@@ -71,6 +72,8 @@ type MediaGeneratorModalProps = {
   onVideoRetouched?: (
     value: MediaVideoRetoucherSavedValue, options?: MediaVideoRetoucherSaveOptions
   ) => void | MediaVideoRetoucherSaveReceipt | Promise<void | MediaVideoRetoucherSaveReceipt>;
+  workingDraftKey?: string;
+  initialWorkingDraft?: StudioWorkingDraft | null;
   onWorkspaceStateChange?: (state: { busy: boolean; hasDraft: boolean }) => void;
   /** Reuse the native reset confirmation before replacing a Studio brief. */
   registerDraftReplacementRequest?: (request: (() => Promise<boolean>) | null) => void;
@@ -111,16 +114,22 @@ export default function MediaGeneratorModal({
   onAccepted,
   onRetouched,
   onVideoRetouched,
+  workingDraftKey,
+  initialWorkingDraft,
   onWorkspaceStateChange,
   registerDraftReplacementRequest,
 }: MediaGeneratorModalProps) {
   const t = useTranslations("media");
+  const shellT = useTranslations("shell");
   const closeTitleId = useId();
   const closeDescriptionId = useId();
   const [mounted, setMounted] = useState(false);
   const [locked, setLocked] = useState(false);
   const [pendingRecovery, setPendingRecovery] = useState(initialTab === "generate");
   const [retoucherDirty, setRetoucherDirty] = useState(false);
+  const [modifierDirty, setModifierDirty] = useState(false);
+  const [generationPanels, setGenerationPanels] = useState<StudioWorkingDraft["panels"]>(initialWorkingDraft?.panels ?? {});
+  const workingDraftScopeInvalidated = useRef(false);
   const [currentResult, setCurrentResult] =
     useState<MediaGenerationResult | null>(null);
   const [closeConfirmOpen, setCloseConfirmOpen] = useState(false);
@@ -131,12 +140,12 @@ export default function MediaGeneratorModal({
   const draftReplacementResolutionRef = useRef<((approved: boolean) => void) | null>(null);
   const [studioTab, setStudioTab] =
     useState<MediaGeneratorStudioMode>(initialTab);
-  const initialFreeMediaType = initialTab === "generate" ? initialMediaType : "image";
-  const initialGenerationPrompt = initialFreePrompt.trim()
+  const initialFreeMediaType = initialTab === "generate" && !imageOnly ? initialWorkingDraft?.mediaType ?? initialMediaType : "image";
+  const initialGenerationPrompt = initialWorkingDraft?.prompt ?? (initialFreePrompt.trim()
     ? initialFreePrompt
     : source === "booster" || origin === "booster"
     ? publicationBrief.trim()
-    : "";
+    : "");
   const [generationPrompt, setGenerationPrompt] = useState(initialGenerationPrompt);
   const inheritedPublicationSubject = !initialFreePrompt.trim()
     && (source === "booster" || origin === "booster")
@@ -152,6 +161,10 @@ export default function MediaGeneratorModal({
     // after closing, resetting or switching the active account.
     if (!openedRef.current || sessionVersionRef.current !== generationSession) return;
     setGenerationPrompt(prompt);
+  }, [generationSession]);
+  const handleGenerationPanelChange = useCallback((kind: StudioMediaType, panel: StudioWorkingPanel | null) => {
+    if (!openedRef.current || sessionVersionRef.current !== generationSession) return;
+    setGenerationPanels(current => (current[kind] ?? null) === panel ? current : { ...current, [kind]: panel });
   }, [generationSession]);
   const [mediaTypeByTab, setMediaTypeByTab] = useState<
     Record<MediaGeneratorStudioMode, StudioMediaType>
@@ -170,13 +183,17 @@ export default function MediaGeneratorModal({
   const closeInFlightRef = useRef(false);
   const hasResult = Boolean(currentResult);
   const hasPendingWork = hasResult || retoucherDirty;
+  const hasGenerationDraft = Boolean(generationPrompt.trim() || generationPanels.image || generationPanels.video);
+  const hasEditableDraft = hasGenerationDraft || modifierDirty;
   // Modification/retouch forms also own local source and edit state. Let their
   // native reset confirmation review replacement before remounting Studio.
-  const hasWorkspaceDraft = Boolean(generationPrompt.trim() || hasPendingWork || studioTab !== "generate");
+  const hasWorkspaceDraft = hasEditableDraft || hasPendingWork || studioTab !== "generate";
   const workspaceBusy = locked || (studioTab === "generate" && pendingRecovery);
   const hasExternalHandoff = Boolean(
     handoffOriginLabel && onAbandonHandoff
   );
+  const requiresCloseConfirmation = hasEditableDraft || hasPendingWork || hasExternalHandoff;
+  const isEditingExit = !resetRequested && !hasExternalHandoff && !hasResult;
   const hasSourceMedia =
     initialSourceAvailable ??
     Boolean(initialSource || initialPreview || initialSourceLoading);
@@ -222,6 +239,7 @@ export default function MediaGeneratorModal({
     // The originating subject fills the prompt only when the Studio opens.
     // A later change outside the Studio must not replace the pro's edits.
     if (!newOpening) return;
+    workingDraftScopeInvalidated.current = false;
     sessionVersionRef.current += 1;
     setResetRequested(false);
     setStudioTab(initialTab);
@@ -236,12 +254,15 @@ export default function MediaGeneratorModal({
       retouch: initialTab === "retouch" ? initialMediaType : "image",
     });
     setRetoucherDirty(false);
-  }, [initialGenerationPrompt, initialFreeMediaType, initialMediaType, initialTab, open]);
+    setModifierDirty(false);
+    setGenerationPanels(initialWorkingDraft?.panels ?? {});
+  }, [initialGenerationPrompt, initialFreeMediaType, initialMediaType, initialTab, initialWorkingDraft, open]);
 
   useEffect(() => {
     // Hidden Activity forms suspend their listeners: invalidate all of them
     // here so an establishment change can never restore another account's brief.
     const resetGenerationSession = () => {
+      workingDraftScopeInvalidated.current = true;
       draftReplacementResolutionRef.current?.(false);
       draftReplacementResolutionRef.current = null;
       sessionVersionRef.current += 1;
@@ -249,6 +270,8 @@ export default function MediaGeneratorModal({
       setGenerationSession((value) => value + 1);
       setVisitedFreeTypes([initialFreeMediaType]);
       setGenerationPrompt("");
+      setModifierDirty(false);
+      setGenerationPanels({});
       setFreeMediaType(initialFreeMediaType);
       currentResultRef.current = null;
       setCurrentResult(null);
@@ -259,6 +282,24 @@ export default function MediaGeneratorModal({
     window.addEventListener(ACTIVE_INRCY_ACCOUNT_EVENT, resetGenerationSession);
     return () => window.removeEventListener(ACTIVE_INRCY_ACCOUNT_EVENT, resetGenerationSession);
   }, [initialFreeMediaType]);
+
+  const persistWorkingDraft = useCallback(() => {
+    if (!workingDraftKey || !openedRef.current || !generationSession || workingDraftScopeInvalidated.current) return;
+    return saveStudioWorkingDraft(workingDraftKey, hasGenerationDraft ? {
+      prompt: generationPrompt, mediaType: freeMediaType, panels: generationPanels,
+    } : null);
+  }, [freeMediaType, generationPanels, generationPrompt, generationSession, hasGenerationDraft, workingDraftKey]);
+
+  useEffect(() => {
+    if (open) void persistWorkingDraft();
+  }, [open, persistWorkingDraft]);
+
+  const acceptGeneration = useCallback(async (result: MediaGenerationResult) => {
+    await onAccepted(result);
+    if (!workingDraftKey) return;
+    workingDraftScopeInvalidated.current = true;
+    await saveStudioWorkingDraft(workingDraftKey, null);
+  }, [onAccepted, workingDraftKey]);
 
   const handleResultChange = useCallback(
     (result: MediaGenerationResult | null) => {
@@ -272,12 +313,12 @@ export default function MediaGeneratorModal({
   const requestClose = useCallback(() => {
     if (locked) return;
     setResetRequested(false);
-    if (hasExternalHandoff || hasPendingWork) {
+    if (requiresCloseConfirmation) {
       setCloseConfirmOpen(true);
       return;
     }
     onClose();
-  }, [hasExternalHandoff, hasPendingWork, locked, onClose]);
+  }, [locked, onClose, requiresCloseConfirmation]);
 
   const requestStudioTab = useCallback(
     (tab: MediaGeneratorStudioMode) => {
@@ -394,6 +435,8 @@ export default function MediaGeneratorModal({
         currentResultRef.current = null;
         setCurrentResult(null);
         setGenerationPrompt("");
+        setModifierDirty(false);
+        setGenerationPanels({});
         setVisitedFreeTypes([activeMediaType]);
         setFreeMediaType(activeMediaType);
         setGenerationSession((value) => value + 1);
@@ -428,6 +471,7 @@ export default function MediaGeneratorModal({
     setLocked(true);
     const resultToDiscard = currentResultRef.current;
     try {
+      await persistWorkingDraft();
       if (resultToDiscard?.draft) {
         await discardMediaGenerationDraft(resultToDiscard.item.id);
       }
@@ -442,7 +486,7 @@ export default function MediaGeneratorModal({
       closeInFlightRef.current = false;
       onClose();
     }
-  }, [locked, onClose]);
+  }, [locked, onClose, persistWorkingDraft]);
 
   const confirmAbandonHandoff = useCallback(async () => {
     if (
@@ -490,15 +534,15 @@ export default function MediaGeneratorModal({
     };
   }, [mounted, open]);
 
-  const navigationGuardState = useRef({ locked, hasPendingWork, hasExternalHandoff, requestClose });
-  useLayoutEffect(() => { navigationGuardState.current = { locked, hasPendingWork, hasExternalHandoff, requestClose }; });
+  const navigationGuardState = useRef({ locked, requiresCloseConfirmation, requestClose });
+  useLayoutEffect(() => { navigationGuardState.current = { locked, requiresCloseConfirmation, requestClose }; });
   useEffect(() => {
     if (!mounted || !open) return;
     const version = sessionVersionRef.current;
     const current = () => openedRef.current && sessionVersionRef.current === version;
     return registerGuard({
       id: `studio-native-navigation:${navigationGuardId}`,
-      shouldBlock: () => current() && (navigationGuardState.current.locked || navigationGuardState.current.hasPendingWork || navigationGuardState.current.hasExternalHandoff),
+      shouldBlock: () => current() && (navigationGuardState.current.locked || navigationGuardState.current.requiresCloseConfirmation),
       confirmExit: async () => {
         // Navigation opens the same native review as its protected Link. It
         // never confirms a paid draft cleanup or abandons a publication.
@@ -508,8 +552,48 @@ export default function MediaGeneratorModal({
     });
   }, [generationSession, mounted, navigationGuardId, open, registerGuard]);
 
+  const requestBrowserBack = useCallback(() => {
+    if (closeConfirmOpen) {
+      cancelClose();
+      return;
+    }
+    const childPicker = layerRef.current?.querySelector<HTMLElement>("[data-media-library-picker]");
+    if (childPicker) {
+      childPicker.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }));
+      return;
+    }
+    const childDialog = layerRef.current?.querySelector<HTMLDialogElement>("dialog[open]");
+    if (childDialog) {
+      childDialog.dispatchEvent(new Event("cancel", { cancelable: true }));
+      return;
+    }
+    requestClose();
+  }, [cancelClose, closeConfirmOpen, requestClose]);
+  const browserBackRef = useRef(requestBrowserBack);
+  useLayoutEffect(() => { browserBackRef.current = requestBrowserBack; });
   useEffect(() => {
-    if (!open || (!locked && !hasPendingWork && !hasExternalHandoff)) return;
+    if (!open || !mounted) return;
+    const href = window.location.href;
+    const guardState = { ...window.history.state, __inrcyStudioGuard: navigationGuardId };
+    try {
+      if (window.history.state?.__inrcyStudioGuard !== navigationGuardId) {
+        window.history.pushState(guardState, "", href);
+      }
+    } catch { return; }
+
+    const onPopState = (event: PopStateEvent) => {
+      if (event.state?.__inrcyStudioGuard === navigationGuardId) return;
+      try { window.history.pushState(guardState, "", href); } catch { return; }
+      // Studio owns Back while it is open, including over the Booster guard.
+      event.stopImmediatePropagation();
+      browserBackRef.current();
+    };
+    window.addEventListener("popstate", onPopState, true);
+    return () => window.removeEventListener("popstate", onPopState, true);
+  }, [mounted, navigationGuardId, open]);
+
+  useEffect(() => {
+    if (!open || (!locked && !requiresCloseConfirmation)) return;
     const preventAccidentalUnload = (event: BeforeUnloadEvent) => {
       event.preventDefault();
       event.returnValue = "";
@@ -518,7 +602,7 @@ export default function MediaGeneratorModal({
     return () => {
       window.removeEventListener("beforeunload", preventAccidentalUnload);
     };
-  }, [hasExternalHandoff, hasPendingWork, locked, open]);
+  }, [locked, open, requiresCloseConfirmation]);
 
   // Reload, navigation and React cleanup must preserve the paid draft so the
   // durable per-account pointer can recover it. Delete only after an explicit
@@ -584,15 +668,15 @@ export default function MediaGeneratorModal({
     matches: state => !!state && typeof state === "object" && (state as { closeConfirmOpen?: boolean; resetRequested?: boolean }).closeConfirmOpen === true && (state as { resetRequested?: boolean }).resetRequested === true,
   } }, mounted && open, workspaceBusy);
   useInrAssistantLocalInterface("studio_draft_close", { closeConfirmOpen, resetRequested, hasPendingWork, hasExternalHandoff, resultId: currentResult?.item.id ?? null, generationSession }, { review: {
-    invoke: () => { if (locked || closeInFlightRef.current || !(hasPendingWork || hasExternalHandoff)) throw new Error("studio_draft_review_unavailable"); requestClose(); },
+    invoke: () => { if (locked || closeInFlightRef.current || !requiresCloseConfirmation) throw new Error("studio_draft_review_unavailable"); requestClose(); },
     matches: state => !!state && typeof state === "object" && (state as { closeConfirmOpen?: boolean; resetRequested?: boolean }).closeConfirmOpen === true && (state as { resetRequested?: boolean }).resetRequested === false,
-  } }, mounted && open && (hasPendingWork || hasExternalHandoff), workspaceBusy);
+  } }, mounted && open && requiresCloseConfirmation, workspaceBusy);
   useInrAssistantLocalInterface("studio_draft_abandon", { closeConfirmOpen, resetRequested, hasExternalHandoff, resultId: currentResult?.item.id ?? null, generationSession }, { review: {
     invoke: () => { if (locked || closeInFlightRef.current || !hasExternalHandoff || !onAbandonHandoff || embedded) throw new Error("studio_draft_review_unavailable"); requestClose(); },
     matches: state => !!state && typeof state === "object" && (state as { closeConfirmOpen?: boolean; resetRequested?: boolean; hasExternalHandoff?: boolean }).closeConfirmOpen === true && (state as { resetRequested?: boolean }).resetRequested === false && (state as { hasExternalHandoff?: boolean }).hasExternalHandoff === true,
   } }, mounted && open && hasExternalHandoff && !!onAbandonHandoff && !embedded, workspaceBusy);
   useInrAssistantLocalInterface("studio_modal", { studioTab, activeMediaType, closeConfirmOpen, hasPendingWork }, {
-    ...(!hasPendingWork && !hasExternalHandoff && !closeConfirmOpen ? { close: {
+    ...(!requiresCloseConfirmation && !closeConfirmOpen ? { close: {
       invoke: () => requestClose(), matches: () => false, allowUnmount: true,
     } } : {}),
     select: {
@@ -761,10 +845,10 @@ export default function MediaGeneratorModal({
               aria-disabled={locked || undefined}
               tabIndex={locked ? -1 : undefined}
               onClick={(event) => {
-                if (locked || hasExternalHandoff || hasPendingWork) {
+                if (locked || requiresCloseConfirmation) {
                   event.preventDefault();
                 }
-                if (!locked && (hasExternalHandoff || hasPendingWork)) {
+                if (!locked && requiresCloseConfirmation) {
                   requestClose();
                 }
               }}
@@ -844,6 +928,7 @@ export default function MediaGeneratorModal({
               onAccepted={onAccepted}
               onResultChange={handleResultChange}
               onBusyChange={setLocked}
+              onDraftStatusChange={setModifierDirty}
               onReset={requestReset}
             />
           ) : (
@@ -861,9 +946,11 @@ export default function MediaGeneratorModal({
                     onSharedPromptChange={handleGenerationPromptChange}
                     requiredPromptSuffix={requiredFreePromptSuffix}
                     fixedFormat={fixedFreeFormat}
-                    onAccepted={onAccepted}
+                    onAccepted={acceptGeneration}
                     onResultChange={handleResultChange}
                     onBusyChange={setLocked}
+                    initialWorkingPanel={generationPanels[kind] ?? undefined}
+                    onWorkingPanelChange={handleGenerationPanelChange}
                     onPendingRecoveryChange={setPendingRecovery}
                     onRecoveryKind={handleRecoveryKind}
                     onReset={requestReset}
@@ -901,6 +988,8 @@ export default function MediaGeneratorModal({
                 ? t("ai_studio_origin_exit_title", {
                     origin: handoffOriginLabel || "iNrCy",
                   })
+                : isEditingExit
+                ? t("ai_studio_working_exit_title")
                 : t(
                     acceptMode === "insert"
                       ? "ai_generator_close_confirm_title"
@@ -914,6 +1003,8 @@ export default function MediaGeneratorModal({
                 ? t(embedded ? "ai_studio_embedded_exit_description" : "ai_studio_origin_exit_description", {
                     origin: handoffOriginLabel || "iNrCy",
                   })
+                : isEditingExit
+                ? t("ai_studio_working_exit_description")
                 : t(
                     acceptMode === "insert"
                       ? "ai_generator_close_confirm_description"
@@ -929,7 +1020,7 @@ export default function MediaGeneratorModal({
                 disabled={locked}
                 onClick={cancelClose}
               >
-                {t(
+                {isEditingExit ? shellT("continuer_l_edition_0f0075bb") : t(
                   resetRequested
                     ? "ai_generator_workspace_reset_cancel"
                     : hasExternalHandoff
@@ -959,6 +1050,8 @@ export default function MediaGeneratorModal({
                   ? t("ai_studio_origin_return", {
                       origin: handoffOriginLabel || "iNrCy",
                     })
+                  : isEditingExit
+                  ? t("ai_studio_working_exit_leave")
                   : t(
                       acceptMode === "insert"
                         ? "ai_generator_close_confirm_leave"

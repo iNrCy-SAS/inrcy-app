@@ -1,4 +1,7 @@
 {
+  "ai_studio_working_exit_title": "¿Salir de iNrStudio?",
+  "ai_studio_working_exit_description": "Tienes trabajo en curso. Puedes seguir editando o salir de iNrStudio.",
+  "ai_studio_working_exit_leave": "Salir de iNrStudio",
   "ai_generator_recovery_title": "Recupera tu creación",
   "ai_generator_recovery_continue": "Tu intento se conserva. Puedes modificar los ajustes durante la comprobación.",
   "ai_generator_recovery_check": "Comprobar mi contenido",

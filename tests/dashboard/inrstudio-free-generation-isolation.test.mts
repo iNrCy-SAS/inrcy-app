@@ -130,7 +130,7 @@ test("le parcours unique garde ses brouillons image/vidéo et ne lit aucun régl
   assert.match(source, /const prompt = sharedPrompt \?\? localPrompt/);
   assert.match(source, /const setPrompt = useCallback\(\(value: string\) => \{\s*setLocalPrompt\(value\);\s*onSharedPromptChange\?\.\(value\);/);
   assert.match(source, /const effectivePrompt = \[prompt\.trim\(\), requiredPromptSuffix\.trim\(\)\]/);
-  assert.match(source, /const \[references, setReferences\] = useState<Reference\[\]>\(\[\]\)/);
+  assert.match(source, /const \[references, setReferences\] = useState<Reference\[\]>\(initialWorkingPanel\?\.references \?\? \[\]\)/);
   assert.doesNotMatch(source, /localStorage|sessionStorage|loadPreferences|savePreferences|publicationBrief|from ["']\.\/MediaGenerator["']/);
   assert.match(source, /useMediaGeneration\(\)/);
   assert.match(source, /void loadQuota\(\)/);

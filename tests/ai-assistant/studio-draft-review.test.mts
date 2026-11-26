@@ -42,7 +42,7 @@ function actual(file: string, id: string, deps: Record<string, unknown>) {
 
 test("the actual Studio review callbacks open their existing confirmation without cancelling a job or deleting a draft", () => {
   let reset = 0, close = 0, recovery = 0;
-  const deps = { locked: false, closeInFlightRef: { current: false }, hasPendingWork: true, hasExternalHandoff: true, onAbandonHandoff: () => assert.fail("No final abandonment"), embedded: false, requestReset: () => reset++, requestClose: () => close++, canRecover: true, generationBusy: false, operationLocked: false, busy: false, recoveryIncompatible: false, setCancelConfirmationOpen: () => recovery++, setStopConfirmOpen: () => recovery++ };
+  const deps = { locked: false, closeInFlightRef: { current: false }, hasPendingWork: true, requiresCloseConfirmation: true, hasExternalHandoff: true, onAbandonHandoff: () => assert.fail("No final abandonment"), embedded: false, requestReset: () => reset++, requestClose: () => close++, canRecover: true, generationBusy: false, operationLocked: false, busy: false, recoveryIncompatible: false, setCancelConfirmationOpen: () => recovery++, setStopConfirmOpen: () => recovery++ };
   for (const target of INR_ASSISTANT_STUDIO_DRAFT_REVIEW_TARGETS) {
     const file = target === "studio_recovery_guided" ? "MediaGenerator" : target === "studio_recovery_free" ? "MediaFreeGenerator" : "MediaGeneratorModal";
     const handler = actual(`app/dashboard/_components/${file}.tsx`, target, deps).review; handler.invoke(); assert.equal(handler.matches({ closeConfirmOpen: false, confirmationOpen: false }), false);
@@ -59,7 +59,7 @@ test("the actual Studio global navigation guard preserves its native draft revie
   const visit = (node: ts.Node) => { if (ts.isCallExpression(node) && node.expression.getText(ast) === "useEffect" && node.arguments[0].getText(ast).includes("studio-native-navigation:")) effect = node; ts.forEachChild(node, visit); }; visit(ast); assert.ok(effect);
   const compiled = ts.transpileModule(`(${effect.arguments[0].getText(ast)})`, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS } }).outputText.trim().replace(/;$/, "");
   let review = 0, disposed = 0, guard!: { shouldBlock: () => boolean; confirmExit: () => Promise<boolean> };
-  const deps = { mounted: true, open: true, navigationGuardId: "native-studio", sessionVersionRef: { current: 1 }, openedRef: { current: true }, navigationGuardState: { current: { locked: false, hasPendingWork: true, hasExternalHandoff: false, requestClose: () => review++ } }, registerGuard: (value: typeof guard) => { guard = value; return () => disposed++; } };
+  const deps = { mounted: true, open: true, navigationGuardId: "native-studio", sessionVersionRef: { current: 1 }, openedRef: { current: true }, navigationGuardState: { current: { locked: false, requiresCloseConfirmation: true, requestClose: () => review++ } }, registerGuard: (value: typeof guard) => { guard = value; return () => disposed++; } };
   const cleanup = vm.runInNewContext(`(function(deps){with(deps){return ${compiled};}})`)(deps)() as () => void;
   assert.equal(guard.shouldBlock(), true); assert.equal(await guard.confirmExit(), false); assert.equal(review, 1);
   deps.navigationGuardState.current.locked = true; assert.equal(await guard.confirmExit(), false); assert.equal(review, 1, "a running generation cannot be closed");

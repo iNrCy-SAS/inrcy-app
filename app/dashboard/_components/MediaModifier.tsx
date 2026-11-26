@@ -60,6 +60,7 @@ type MediaModifierProps = {
   onAccepted: (result: MediaGenerationResult) => void | Promise<void>;
   onResultChange?: (result: MediaGenerationResult | null) => void;
   onBusyChange?: (busy: boolean) => void;
+  onDraftStatusChange?: (dirty: boolean) => void;
   onReset?: () => void;
 };
 
@@ -154,6 +155,7 @@ export default function MediaModifier({
   onAccepted,
   onResultChange,
   onBusyChange,
+  onDraftStatusChange,
   onReset,
 }: MediaModifierProps) {
   const { paidActionsLocked, subscriptionLabel, subscriptionMessage, openSubscription } = usePaidMediaAction();
@@ -247,6 +249,12 @@ export default function MediaModifier({
     onBusyChange?.(operationLocked);
     return () => onBusyChange?.(false);
   }, [onBusyChange, operationLocked]);
+
+  const hasDraft = Boolean(sourceImage || instruction.trim());
+  useLayoutEffect(() => {
+    onDraftStatusChange?.(hasDraft);
+    return () => onDraftStatusChange?.(false);
+  }, [hasDraft, onDraftStatusChange]);
 
   useLayoutEffect(() => {
     onResultChange?.(result);

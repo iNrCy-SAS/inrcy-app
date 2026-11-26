@@ -381,7 +381,7 @@ test("fermer toute revue exige une confirmation, y compris depuis le Menu", () =
     "const cancelClose"
   );
 
-  assert.match(requestClose, /if \(hasExternalHandoff \|\| hasPendingWork\)/);
+  assert.match(requestClose, /if \(requiresCloseConfirmation\)/);
   assert.doesNotMatch(requestClose, /acceptMode/);
   assert.doesNotMatch(requestClose, /onAccepted/);
   assert.match(modal, /role="alertdialog"/);
@@ -454,7 +454,7 @@ test("un handoff iNrStudio protège la sortie et utilise un CTA média unique", 
   );
   const navigation = read("lib/inrStudioNavigation.ts");
 
-  assert.match(modal, /hasExternalHandoff \|\| hasPendingWork/);
+  assert.match(modal, /const requiresCloseConfirmation = hasEditableDraft \|\| hasPendingWork \|\| hasExternalHandoff/);
   assert.match(modal, /requestStudioTab/);
   assert.match(modal, /requestMediaType/);
   assert.match(modal, /ai_studio_origin_return/);
