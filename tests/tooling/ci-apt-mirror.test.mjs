@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { selectUbuntuCiMirror, ubuntuCiSources, UBUNTU_CI_MIRRORS } from '../../scripts/configure-ci-apt.mjs';
+import { selectUbuntuCiMirror, ubuntuCiAptConfiguration, ubuntuCiSources, UBUNTU_CI_MIRRORS } from '../../scripts/configure-ci-apt.mjs';
 
 test('CI selects a reachable mirror after DNS failure and refuses one missing security metadata', async () => {
   const probes = [];
@@ -17,6 +17,12 @@ test('CI selects a reachable mirror after DNS failure and refuses one missing se
 
 test('CI refuses installation when no mirror supplies both signed metadata endpoints', async () => {
   await assert.rejects(selectUbuntuCiMirror(async () => false), /No Ubuntu mirror/);
+});
+
+test('CI browser setup reads only the signed Ubuntu source list', () => {
+  const configuration = ubuntuCiAptConfiguration();
+  assert.match(configuration, /^Dir::Etc::sourcelist "\/etc\/apt\/sources\.list\.d\/ubuntu\.sources";$/m);
+  assert.match(configuration, /^Dir::Etc::sourceparts "-";$/m);
 });
 
 test('CI replaces only Ubuntu URIs and retains suites, components and the signing key', () => {

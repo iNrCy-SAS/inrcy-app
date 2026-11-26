@@ -40,6 +40,7 @@ function context(initial = draft()) {
     voiceSelectionRevision: { current: 0 }, setSpeechMode(mode: string) { choices.speechMode = mode; },
     setVoiceSourcePreference(mode: string) { choices.voiceMode = mode; }, setVoiceReferenceId(referenceId: string) { choices.referenceId = referenceId; },
     operationInFlight: { current: false }, referenceMemoryController: { current: null }, sequence: { current: 1 },
+    restoredWorkingPanel: { current: false },
     referenceMemoryCurrent: { current }, referenceMemoryLoadedAccount: { current: null }, referenceMemoryAction: { current: null }, referenceSetId: { current: "" },
     referenceMemory: state, referenceMemoryAvailable: true, hasMemoryReferences: Boolean(initial.references.length || initial.voices.length), referenceMemoryDirty: false,
     emptyReferenceMemory,
@@ -165,6 +166,27 @@ test("a fresh Studio restores photos and voices once while all generation author
   assert.equal(evaluate<boolean>(initializer("referenceCompatible"), { kind: "video", characterVoiceEngineUnsupported: unsupported,
     isMediaVideoReferenceCompatible: () => assert.fail("an incompatible real-voice engine is rejected before quoting or generating") }), false);
   effect(); await flush(); assert.equal(restores, 1); assert.equal(harness.state.busy, false); cleanup?.();
+});
+
+test("remembered photos and voices do not replace an intentionally empty restored working draft", async () => {
+  const harness = context({ references: [], voices: [], activeNarrationVoiceId: null });
+  harness.value.restoredWorkingPanel = { current: true };
+  harness.value.requestStudioReferenceMemory = async () => ({
+    ok: true, accountId: "account-a", memory: emptySavedMemory(), media: [], unavailableMediaIds: [],
+  });
+  let restores = 0;
+  harness.value.hydrateStudioReferenceMemory = async () => { restores++; return draft(); };
+  const cleanup = evaluate<() => () => void>(loadEffect, harness.value)();
+  try {
+    await flush();
+    assert.equal(restores, 0);
+    assert.deepEqual(harness.current.draft, { references: [], voices: [], activeNarrationVoiceId: null });
+    assert.equal(harness.state.loaded, true);
+    assert.equal(harness.state.saved, true);
+    assert.equal(harness.state.error, "");
+  } finally {
+    cleanup();
+  }
 });
 
 test("restored dedicated voices never replace a speech choice made while the initial memory request was pending", async () => {
