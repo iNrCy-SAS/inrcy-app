@@ -345,7 +345,7 @@ test("la vidéo libre respecte la durée, les menus de référence et l'absence 
 });
 
 test("Libre conserve le scénario choisi dans le sélecteur partagé du bandeau", () => {
-  assert.match(freeGeneratorSource, /useState<MediaGenerationVideoSceneMode>\("single"\)/);
+  assert.match(freeGeneratorSource, /useState<MediaGenerationVideoSceneMode>\(initialWorkingPanel\?\.sceneMode \?\? "single"\)/);
   assert.match(freeGeneratorSource, /onDurationSceneChange=\{\(seconds, mode\) => \{ setDuration\(seconds\); setSceneMode\(mode\); \}\}/);
   assert.match(freeGeneratorSource, /<MediaGenerationActions>[\s\S]*?\{engineControls\}/);
   assert.doesNotMatch(freeGeneratorSource, /<MediaVideoDurationSelect|className=\{styles\.sceneOptions\}/);
