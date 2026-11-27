@@ -128,9 +128,23 @@ test("media preparation is server-owned and cannot delay a no-media channel", ()
     route,
     /preparationDeferred[\s\S]*status: "preparing"[\s\S]*preparationPending: true/,
   );
+  const materializationStart = indexOfOrFail(route, "const durableChannelRows =");
+  const materialization = route.slice(materializationStart);
+  const deferredBranchStart = indexOfOrFail(materialization, "if (deferredChannelRows.length > 0)");
+  const deferredBranch = materialization.slice(deferredBranchStart);
+  const completionBranchStart = indexOfOrFail(deferredBranch, "} else {");
+  const completionBranch = deferredBranch.slice(completionBranchStart);
   assert.match(
-    route,
-    /deferredPreparationChannels\.size > 0[\s\S]*status: "queued"[\s\S]*failAsyncPublicationPreparationLease/,
+    materialization.slice(0, deferredBranchStart),
+    /payload: await materializePreparingAsyncChannelEvent\([\s\S]*?const deferredChannelRows = durableChannelRows\.filter\(\s*\(row\) => asRecord\(row\.payload\)\.status === "preparing"\s*&&\s*asRecord\(row\.payload\)\.preparationPending === true/,
+  );
+  assert.match(
+    deferredBranch.slice(0, completionBranchStart),
+    /status: "queued"\s*,\s*stage: "media_preparation"[\s\S]*?failAsyncPublicationPreparationLease/,
+  );
+  assert.match(
+    completionBranch.slice(0, indexOfOrFail(completionBranch, "asyncPreparationFailureContext = null")),
+    /preparationRequest: null[\s\S]*?completeAsyncPublicationPreparationLease/,
   );
   assert.match(asyncPublication, /BOOSTER_ASYNC_PREPARATION_MAX_ATTEMPTS = 10/);
   assert.match(
