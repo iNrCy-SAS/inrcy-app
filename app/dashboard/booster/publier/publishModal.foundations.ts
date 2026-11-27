@@ -1,4 +1,4 @@
-import { INR_SEARCH_CONTENT_MAX_LENGTH } from "@/lib/boosterChannelRules";
+import { limitInrSearchContent } from "@/lib/boosterChannelRules";
 import { shouldPrefillConfiguredChannelCta } from "@/lib/channelCtaPrefillPolicy";
 import {
   normalizeBoosterPostCtaForChannel,
@@ -257,7 +257,7 @@ export function sanitizePatchForEditor(
       next.cta = stripSiteTextFormattingForEditor(next.cta);
   }
   if (channel === "inr_search" && typeof next.content === "string") {
-    next.content = next.content.slice(0, INR_SEARCH_CONTENT_MAX_LENGTH).trim();
+    next.content = limitInrSearchContent(next.content);
   }
   if (next.ctaUrl !== undefined) next.ctaUrl = String(next.ctaUrl || "");
   if (next.ctaPhone !== undefined) next.ctaPhone = String(next.ctaPhone || "");

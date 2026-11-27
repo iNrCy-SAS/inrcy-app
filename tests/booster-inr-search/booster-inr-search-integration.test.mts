@@ -5,6 +5,8 @@ import test from "node:test";
 import {
   INR_SEARCH_CONTENT_MAX_LENGTH,
   limitBoosterChannelContent,
+  limitBoosterGeneratedContent,
+  limitInrSearchContent,
 } from "../../lib/boosterChannelRules.ts";
 import { sanitizeInrAgentAutomationSettings } from "../../lib/inrAgentSettings.ts";
 
@@ -21,6 +23,16 @@ test("iNrSearch content is capped at 300 characters before publication", () => {
   assert.equal(limitBoosterChannelContent("facebook", longText), longText);
 });
 
+test("the iNrSearch publication limit preserves complete emoji", () => {
+  const splitPrefix = "a".repeat(INR_SEARCH_CONTENT_MAX_LENGTH - 1);
+  const fitPrefix = "a".repeat(INR_SEARCH_CONTENT_MAX_LENGTH - 2);
+
+  assert.equal(limitBoosterChannelContent("inr_search", `${splitPrefix}🙂suite`), splitPrefix);
+  assert.equal(limitBoosterChannelContent("inr_search", `${fitPrefix}🙂suite`), `${fitPrefix}🙂`);
+  assert.equal(limitBoosterGeneratedContent("inr_search", `${splitPrefix}🙂suite`), splitPrefix);
+  assert.equal(limitInrSearchContent(` ${fitPrefix}🙂suite`), fitPrefix);
+});
+
 test("Booster exposes iNrSearch in content, generation and image channel flows", async () => {
   const [modal, foundations, imageController, contentEditor, mediaPanel, shared, prompt, generation] =
     await Promise.all([
@@ -35,7 +47,9 @@ test("Booster exposes iNrSearch in content, generation and image channel flows",
     ]);
 
   assert.match(foundations, /CHANNEL_KEYS: ChannelKey\[\] = BOOSTER_CHANNEL_ORDER/);
+  assert.match(foundations, /limitInrSearchContent\(next\.content\)/);
   assert.match(modal, /CHANNEL_KEYS\.filter\(\(channel\) => channels\[channel\] && connected\[channel\]\)/);
+  assert.match(modal, /limitInrSearchContent\(nextPatch\.content\)/);
   assert.match(imageController, /BOOSTER_CHANNEL_ORDER\.filter/);
   assert.match(contentEditor, /i18nT\("phrase_courte_inr_search_ee6e97e1"\)/);
   assert.match(modal, /<PublishValidationBoard items=\{publishReadinessItems\}/);

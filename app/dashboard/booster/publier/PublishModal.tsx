@@ -61,7 +61,7 @@ import {
 import { readSanitizedElementHtml } from "@/lib/sanitizeHtml";
 import { type VideoAiContextReference } from "@/lib/videoAiContextReference";
 import { confirmInrcy } from "@/lib/inrcyDialog";
-import { INR_SEARCH_CONTENT_MAX_LENGTH } from "@/lib/boosterChannelRules";
+import { limitInrSearchContent } from "@/lib/boosterChannelRules";
 import {
   buildCtaTextForChannel,
   sanitizeBoosterPostForStructuredCta,
@@ -3855,9 +3855,7 @@ export default function PublishModal({
         ? patch
         : sanitizePatchForEditor(channel, patch);
     if (channel === "inr_search" && typeof nextPatch.content === "string") {
-      nextPatch.content = nextPatch.content
-        .slice(0, INR_SEARCH_CONTENT_MAX_LENGTH)
-        .trim();
+      nextPatch.content = limitInrSearchContent(nextPatch.content);
     }
     const merged = {
         ...current,
