@@ -146,7 +146,7 @@
         "app/dashboard/_components/dashboardMobileMenuModel.ts": "c4d9be815f9b6064e2498e4b23d907265e325d0ddfd14b167b8056c57a6deb88",
         "app/dashboard/_hooks/useInrAssistantScheduledPublicationControls.ts": "b2821f84dc12790da8378f745023dfcc84444bd9c6408f48f726772e61192ef2",
         "app/dashboard/_hooks/useUnsavedExitGuard.ts": "4e2ca6bd1df1311ef91c154ae9f5a13ebf162c533892dc01df9f600b6a2c5b6c",
-        "app/dashboard/booster/publier/PublishModal.tsx": "7e477d9253a3d681bb75f793222f9e7a2d063f3008232cb790182db3b3898f77",
+        "app/dashboard/booster/publier/PublishModal.tsx": "72459f9fa799394ffebd19974d2c8c8e286ddef88a68d47975049f962e18f348",
         "app/dashboard/booster/publier/components/PublishContentAdjustmentModal.tsx": "8fefc4931648cb970b25f7e424e117562532aa54bf13817020eb1406931af043",
         "app/dashboard/booster/publier/components/PublishContentEditorPanel.tsx": "ebaa9d413b12c8c59279276aea88bb66f8fcf2d6a3448f4c9d0bf99c5e2fecc2",
         "app/dashboard/booster/publier/components/PublishCreationModePanel.tsx": "65d8bff38f722386bad77711881c4ca58c484b8e1fb590a1457217237b986973",
@@ -412,7 +412,7 @@
         "app/dashboard/_components/PublishExecutionResultModal.tsx": "0785dba57341159d2bde2499d6da57b9754fae2c8b004212423c8cd91c2ee44f",
         "app/dashboard/_components/dashboardMobileMenuModel.ts": "c4d9be815f9b6064e2498e4b23d907265e325d0ddfd14b167b8056c57a6deb88",
         "app/dashboard/_hooks/useUnsavedExitGuard.ts": "4e2ca6bd1df1311ef91c154ae9f5a13ebf162c533892dc01df9f600b6a2c5b6c",
-        "app/dashboard/booster/publier/PublishModal.tsx": "7e477d9253a3d681bb75f793222f9e7a2d063f3008232cb790182db3b3898f77",
+        "app/dashboard/booster/publier/PublishModal.tsx": "72459f9fa799394ffebd19974d2c8c8e286ddef88a68d47975049f962e18f348",
         "app/dashboard/booster/publier/components/PublishContentAdjustmentModal.tsx": "8fefc4931648cb970b25f7e424e117562532aa54bf13817020eb1406931af043",
         "app/dashboard/booster/publier/components/PublishContentEditorPanel.tsx": "ebaa9d413b12c8c59279276aea88bb66f8fcf2d6a3448f4c9d0bf99c5e2fecc2",
         "app/dashboard/booster/publier/components/PublishCreationModePanel.tsx": "65d8bff38f722386bad77711881c4ca58c484b8e1fb590a1457217237b986973",
@@ -967,7 +967,7 @@
       "guideDigest": "efd9e058a43a2c27c81cc8efe1a3055f53123eec28fbd8ba892dc355dcb991f4",
       "sources": {
         "app/dashboard/_hooks/useInrStudioSession.tsx": "d6aeb230b1a82b4878df64b390dbde07bc25058bb228c2c655cc5653545d640a",
-        "app/dashboard/booster/publier/PublishModal.tsx": "7e477d9253a3d681bb75f793222f9e7a2d063f3008232cb790182db3b3898f77",
+        "app/dashboard/booster/publier/PublishModal.tsx": "72459f9fa799394ffebd19974d2c8c8e286ddef88a68d47975049f962e18f348",
         "lib/inrStudioNavigation.ts": "4586467a30adf62611b9e1c0a7aff2b60da0d2cd724f5fb34321a06152b082bb",
         "messages/fr-FR/booster.json": "d0952e94b141a66924c4e217e41312bf260715571766e324ed59210d930195ed"
       }
@@ -1013,7 +1013,7 @@
     "publication-lengths": {
       "guideDigest": "8a43812696e8570afe6cf752717caaf5ee2f6f081a5fcd8eab2c4fb683094fcf",
       "sources": {
-        "lib/boosterChannelRules.ts": "0be4639f6e27732c83e715142e2f6855f6e48a898490588325875331aa0baaeb",
+        "lib/boosterChannelRules.ts": "6bbbdf00c9ffb283f56cb2c7b24c0b072322ca1a246253546a6ab7507b2e540c",
         "lib/boosterCta.ts": "3b87322e1b5a85e7b6969415f7f2da634aba8d4088873e80563e28fb18a0bda4",
         "lib/inrsend/publicationChannelActions.ts": "705ccd142af060e2ca5b6dc0a55a102c8770c83173250b959645e70704b43564",
         "lib/instagramCaptionLimits.ts": "d7025f500b05ad93f5dddf20131b1d8f8589b97ce264ddd0bb8616f6250e0e27",

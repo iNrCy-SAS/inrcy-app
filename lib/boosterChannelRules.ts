@@ -176,6 +176,14 @@ export const BOOSTER_CHANNEL_TITLE_MAX_LENGTH: Record<
 export const INR_SEARCH_CONTENT_MAX_LENGTH =
   BOOSTER_CHANNEL_CONTENT_RULES.inr_search.max;
 
+function removeTrailingHighSurrogate(text: string) {
+  return text.replace(/[\uD800-\uDBFF]$/u, "");
+}
+
+export function limitInrSearchContent(content: string) {
+  return removeTrailingHighSurrogate(content.slice(0, INR_SEARCH_CONTENT_MAX_LENGTH)).trim();
+}
+
 export function getBoosterGeneratedContentRule(
   channel: BoosterChannelKey,
   length: BoosterContentLengthPreference,
@@ -312,8 +320,10 @@ export function limitBoosterGeneratedContent(
     content,
     Math.max(0, Math.min(BOOSTER_CHANNEL_CONTENT_RULES[channel].max, contentBudget)),
   );
-  // The conservative Instagram UTF-16 budget must never split an emoji pair.
-  return channel === "instagram" ? limited.replace(/[\uD800-\uDBFF]$/u, "").trimEnd() : limited;
+  // The UTF-16 limits must preserve complete Unicode characters.
+  return channel === "instagram" || channel === "inr_search"
+    ? removeTrailingHighSurrogate(limited).trimEnd()
+    : limited;
 }
 
 /**
@@ -324,6 +334,6 @@ export function limitBoosterGeneratedContent(
 export function limitBoosterChannelContent(channel: string, content: string) {
   const normalized = String(content || "").trim();
   return channel === "inr_search"
-    ? normalized.slice(0, INR_SEARCH_CONTENT_MAX_LENGTH).trim()
+    ? limitInrSearchContent(normalized)
     : normalized;
 }
