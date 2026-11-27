@@ -57,6 +57,8 @@ function fixture(plan: Plan, cycle: Cycle, trial = false, money: boolean | "imag
   const moneyCalls: Row[] = [];
   const approvedSyncs: unknown[] = [];
   const moneyFailure = { enabled: false };
+  const cyclicomFailure = { enabled: false };
+  const cyclicomCalls: Array<{ id: string; type: string }> = [];
   const moneyCall = async (operation: string, id: string, event: string, domain = "video") => {
     const matches = money === "image" ? domain === "image" : money === true && domain === "video";
     if (!matches && operation === "checkout") throw new Error("Checkout must use its verified credit domain");
@@ -121,6 +123,14 @@ function fixture(plan: Plan, cycle: Cycle, trial = false, money: boolean | "imag
     "@/lib/stripeSubscription": subscriptionDates,
     "@/lib/stripeWebhookPayload": payload,
     "@/lib/stripeWebhookReconciliation": reconciliation,
+    "@/lib/cyclicom/stripe": {
+      handleCyclicomStripeEvent: async (event: { id: string; type: string; data: { object: Row } }) => {
+        if ((event.data.object?.metadata as Row | undefined)?.kind !== "cyclicom_fixture") return false;
+        cyclicomCalls.push({ id: event.id, type: event.type });
+        if (cyclicomFailure.enabled) throw new Error("Synthetic Cyclicom Stripe retry");
+        return true;
+      },
+    },
     "@/lib/boutique/videoCreditPayments": {
       VIDEO_CREDIT_PAYMENT_KIND: "inrcy_video_credits_v1",
       fulfillVideoCreditCheckout: async (id: string,event: string) => moneyCall("checkout",id,event),
@@ -143,8 +153,27 @@ function fixture(plan: Plan, cycle: Cycle, trial = false, money: boolean | "imag
   const post = (type: string, object: Row, id = `evt_${type}`, signature = "fixture-verified") => route.POST(new Request("https://example.invalid/api/stripe/webhook", {
     method: "POST", headers: { "stripe-signature": signature }, body: JSON.stringify({ id, type, data: { object } }),
   }));
-  return { row, writes, live, checkout, post, trialEnd, moneyCalls, moneyFailure, events, approvedSyncs };
+  return { row, writes, live, checkout, post, trialEnd, moneyCalls, moneyFailure, events, approvedSyncs, cyclicomFailure, cyclicomCalls };
 }
+
+test("a signed Cyclicom Checkout retries before completion and never reaches iNrCy subscription matching", async () => {
+  const run = fixture("Standard", "monthly", false, false, true);
+  const object = { ...run.checkout, metadata: { ...run.checkout.metadata, kind: "cyclicom_fixture" } };
+  const id = "evt_cyclicom_checkout";
+  const type = "checkout.session.completed";
+
+  run.cyclicomFailure.enabled = true;
+  assert.equal((await run.post(type, object, id)).status, 500);
+  assert.equal(run.events.get(id)?.status, "failed");
+
+  run.cyclicomFailure.enabled = false;
+  assert.deepEqual(await (await run.post(type, object, id)).json(), { received: true, cyclicom: true });
+  assert.equal(run.events.get(id)?.status, "completed");
+  assert.deepEqual(await (await run.post(type, object, id)).json(), { received: true, duplicate: true });
+  assert.deepEqual(run.cyclicomCalls, [{ id, type }, { id, type }]);
+  assert.deepEqual(run.approvedSyncs, []);
+  assert.deepEqual(run.writes, []);
+});
 
 test("an approved secondary contract syncs current Stripe state and durably completes without rebinding its payer", async () => {
   const run = fixture("Standard", "monthly", false, false, true);
