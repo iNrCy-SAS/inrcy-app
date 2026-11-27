@@ -3,6 +3,10 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import vm from "node:vm";
 import ts from "typescript";
+import { normalizeBoosterPublicationChannels } from "../../lib/boosterPublicationPolicy.ts";
+import { buildScheduledPublicationRequest } from "../../lib/inrAgentScheduledPublication.ts";
+import { getMetaTargetSettings, normalizeMetaPublicationSelection } from "../../lib/metaPublicationTargets.ts";
+import { parseThreadsPublicationSettings } from "../../lib/threadsPublicationPreferences.ts";
 import { runtimeModules } from "../inragent/runtime-module-loader.mts";
 
 type Row = Record<string, unknown>;
@@ -187,6 +191,216 @@ test("Booster caption preflight reads only the active account's ordered image me
   assert.deepEqual(imageRead.filters, [["workspace_id", "workspace"], ["pro_media_library.user_id", "owned-account"]]);
   assert.equal(await h.validate("owned-account", { ...body, mediaPipelineCutoverV1: false, imagesByChannel: { instagram: [] } }, ["classic"]), null);
   h.foreignWorkspace(); assert.equal((await h.validate("owned-account", body, ["classic"]))?.status, 503);
+});
+
+function scheduledMixedPreflightHarness(options: {
+  manualActor?: boolean;
+  pilotAllowed?: boolean;
+  integrationRows?: Record<string, Row | Error>;
+  refreshError?: Error;
+  captionContextUnavailable?: boolean;
+  instagramPlacementFailure?: Row;
+  threadsPreferenceFailure?: Row;
+} = {}) {
+  const { ast, found } = functionNode("publishNowHandler", boosterPath);
+  const statements = found.body?.statements.find(ts.isTryStatement)?.tryBlock.statements;
+  assert.ok(statements);
+  const start = statements.findIndex(statement => statement.getText(ast).startsWith("const normalizedChannels ="));
+  const end = statements.findIndex(statement => statement.getText(ast).startsWith("const mediaWorkspaceId ="));
+  assert.ok(start >= 0 && end > start);
+  const section = statements.slice(start, end).map(statement => statement.getText(ast)).join("\n");
+  const integrationReads: string[] = [];
+  const instagramPlacementChecks: string[] = [];
+  const tokenRefreshes: string[] = [];
+  const pilotChecks: string[] = [];
+  const caption = boosterHarness();
+  if (options.captionContextUnavailable) caption.foreignWorkspace();
+  const deps: Row = {
+    NextResponse: Response,
+    cronUserId: options.manualActor ? "" : "account",
+    userId: "account",
+    internalAsyncDispatch: false,
+    internalAsyncWorkerDispatch: false,
+    supabaseAdmin: {},
+    normalizeBoosterPublicationChannels,
+    parseThreadsPublicationSettings,
+    normalizeMetaPublicationSelection,
+    getMetaTargetSettings,
+    normalizeInstagramPublicationSettings: (value: unknown) => value,
+    normalizeFacebookPublicationSettings: (value: unknown) => value,
+    getLatestIntegrationRow: async (_: string, provider: string) => {
+      integrationReads.push(provider);
+      const row = options.integrationRows?.[provider];
+      if (row instanceof Error) throw row;
+      return row ?? null;
+    },
+    isMetaChannelPilotEnabledForAccount: async () => {
+      pilotChecks.push("account");
+      return options.pilotAllowed !== false;
+    },
+    isMetaChannelPilotEnabledForActorAndAccount: async () => {
+      pilotChecks.push("actor");
+      return options.pilotAllowed !== false;
+    },
+    metaChannelPilotDeniedResponse: () => Response.json({
+      ok: false, code: "meta_channel_admin_pilot", error: "Ce canal est réservé aux comptes autorisés.",
+    }, { status: 403 }),
+    getThreadsPublicationPreflightFailure: async () => options.threadsPreferenceFailure ?? null,
+    hasSelectedThreadsPublicationMedia: () => false,
+    ensureMetaDirectAccessToken: async (_: unknown, integration: Row) => {
+      tokenRefreshes.push(String(integration.provider));
+      if (options.refreshError) throw options.refreshError;
+    },
+    validateBoosterInstagramPublication: caption.validate,
+    getInstagramPlacementPreflightFailure: async ({ placement }: { placement: string }) => {
+      instagramPlacementChecks.push(placement);
+      return options.instagramPlacementFailure ?? null;
+    },
+  };
+  deps.asRecord = actualFunction("asRecord", deps);
+  deps.resolveInstagramAuthMode = actualFunction("resolveInstagramAuthMode", deps, "lib/instagramAuthMode.ts");
+  for (const name of ["normalizeClientPreflightFailuresByChannel", "normalizeClientPreflightFailuresByTarget"]) {
+    deps[name] = actualFunction(name, deps, "lib/boosterPublicationIngress.ts");
+  }
+  const preflight = evaluateFunction(`(async function (body) { ${section} return { body, dispatchableSelected }; })`, deps) as
+    (body: Row) => Promise<Response | { body: Row; dispatchableSelected: string[] }>;
+  return { preflight, integrationReads, instagramPlacementChecks, pilotChecks, tokenRefreshes };
+}
+
+function scheduledBody(payload: Row & { channels: string[] }) {
+  const request = buildScheduledPublicationRequest({ id: "schedule", channels: payload.channels, payload: { publishPayload: payload } });
+  assert.ok(request);
+  return request.body;
+}
+
+test("a scheduled mixed post keeps Facebook and Story when its Instagram Reel caption is too long", async () => {
+  const h = scheduledMixedPreflightHarness();
+  const payload = {
+    channels: ["instagram", "facebook"],
+    instagramPublicationSettings: { placements: ["reel", "story"] },
+    postByChannel: { instagram: { content: "x".repeat(2201), ctaMode: "none" } },
+  };
+  const result = await h.preflight(scheduledBody(payload));
+  assert.ok(!(result instanceof Response));
+  const failures = result.body.clientPreflightFailuresByTarget as Record<string, Row>;
+  assert.deepEqual(Object.keys(failures), ["instagram:reel"]);
+  assert.equal(failures["instagram:reel"].code, "instagram_caption_too_long");
+  assert.equal(failures["instagram:reel"].retryable, false);
+  assert.deepEqual([...result.dispatchableSelected], ["instagram", "facebook"]);
+  assert.deepEqual(h.instagramPlacementChecks, ["story"]);
+
+  const immediate = await h.preflight(payload);
+  assert.ok(immediate instanceof Response);
+  assert.equal(immediate.status, 400);
+});
+
+test("an invalid Threads mode fails only Threads on a mixed schedule and never looks up its connection", async () => {
+  const h = scheduledMixedPreflightHarness();
+  const payload = { channels: ["threads", "facebook"], threadsPublicationSettings: { mode: "unsupported" } };
+  const result = await h.preflight(scheduledBody(payload));
+  assert.ok(!(result instanceof Response));
+  const failures = result.body.clientPreflightFailuresByChannel as Record<string, Row>;
+  assert.deepEqual(Object.keys(failures), ["threads"]);
+  assert.equal(failures.threads.code, "threads_invalid_publication_mode");
+  assert.deepEqual([...result.dispatchableSelected], ["facebook"]);
+  assert.deepEqual(h.integrationReads, []);
+
+  const single = await h.preflight(scheduledBody({ ...payload, channels: ["threads"] }));
+  assert.ok(single instanceof Response);
+  assert.equal(single.status, 400);
+});
+
+test("mixed schedules defer a failed Meta lookup or expired token while each child still checks its connection", async () => {
+  const h = scheduledMixedPreflightHarness({
+    integrationRows: {
+      instagram: new Error("integration read failed"),
+      threads: { provider: "threads", status: "connected" },
+    },
+    refreshError: Object.assign(new Error("Reconnectez ce compte."), { status: 401 }),
+  });
+  const payload = { channels: ["instagram", "threads", "facebook"] };
+  const result = await h.preflight(scheduledBody(payload));
+  assert.ok(!(result instanceof Response));
+  assert.deepEqual([...result.dispatchableSelected], payload.channels);
+  assert.deepEqual(Object.keys(result.body.clientPreflightFailuresByChannel as Row), []);
+  assert.deepEqual(h.tokenRefreshes, ["threads"]);
+  await assert.rejects(h.preflight(scheduledBody({ channels: ["instagram"] })), /integration read failed/);
+  await assert.rejects(h.preflight(scheduledBody({ channels: ["threads"] })), /Reconnectez ce compte/);
+  await assert.rejects(h.preflight(payload), /integration read failed/);
+});
+
+test("pilot denial blocks Threads and direct Instagram without refreshing their tokens or blocking Facebook", async () => {
+  const h = scheduledMixedPreflightHarness({
+    manualActor: true,
+    pilotAllowed: false,
+    integrationRows: {
+      instagram: { provider: "instagram", status: "connected", meta: { auth_mode: "instagram_login" } },
+      threads: { provider: "threads", status: "connected" },
+    },
+  });
+  const result = await h.preflight(scheduledBody({ channels: ["instagram", "threads", "facebook"] }));
+  assert.ok(!(result instanceof Response));
+  assert.deepEqual([...result.dispatchableSelected], ["facebook"]);
+  const failures = result.body.clientPreflightFailuresByChannel as Record<string, Row>;
+  assert.equal(failures.threads.code, "meta_channel_admin_pilot");
+  assert.equal(failures.instagram.code, "meta_channel_admin_pilot");
+  assert.deepEqual(h.pilotChecks, ["actor"]);
+  assert.deepEqual(h.tokenRefreshes, []);
+  const rejectedChild = await h.preflight(scheduledBody({ channels: ["instagram"] }));
+  assert.ok(rejectedChild instanceof Response);
+  assert.equal(rejectedChild.status, 403);
+});
+
+test("a manual actor without pilot access cannot defer an unreadable Instagram connection to account credentials", async () => {
+  const payload = { channels: ["instagram", "facebook"] };
+  const h = scheduledMixedPreflightHarness({
+    manualActor: true,
+    pilotAllowed: false,
+    integrationRows: { instagram: new Error("integration read failed") },
+  });
+  const result = await h.preflight(scheduledBody(payload));
+  assert.ok(!(result instanceof Response));
+  assert.deepEqual([...result.dispatchableSelected], ["facebook"]);
+  const failures = result.body.clientPreflightFailuresByChannel as Record<string, Row>;
+  assert.equal(failures.instagram.code, "instagram_connection_state_unavailable");
+  assert.deepEqual(h.pilotChecks, ["actor"]);
+  assert.deepEqual(h.tokenRefreshes, []);
+});
+
+test("a mixed schedule defers an unreadable Instagram caption context and the Instagram worker checks it again", async () => {
+  const h = scheduledMixedPreflightHarness({
+    captionContextUnavailable: true,
+    instagramPlacementFailure: { code: "instagram_publication_preferences_unavailable", retryable: true },
+  });
+  const payload = {
+    channels: ["instagram", "facebook"],
+    instagramPublicationSettings: { placements: ["reel", "story"] },
+    mediaType: "images",
+    mediaWorkspaceId: "workspace",
+    mediaPipelineCutoverV1: true,
+  };
+  const result = await h.preflight(scheduledBody(payload));
+  assert.ok(!(result instanceof Response));
+  assert.deepEqual([...result.dispatchableSelected], payload.channels);
+  assert.deepEqual(Object.keys(result.body.clientPreflightFailuresByTarget as Row), []);
+  const child = await h.preflight(scheduledBody({ ...payload, channels: ["instagram"] }));
+  assert.ok(child instanceof Response);
+  assert.equal(child.status, 503);
+});
+
+test("a mixed schedule lets a Threads worker retry unavailable preferences", async () => {
+  const h = scheduledMixedPreflightHarness({
+    threadsPreferenceFailure: { code: "threads_publication_preferences_unavailable", retryable: true },
+  });
+  const payload = { channels: ["threads", "facebook"], threadsPublicationSettings: { mode: "ghost" } };
+  const result = await h.preflight(scheduledBody(payload));
+  assert.ok(!(result instanceof Response));
+  assert.deepEqual([...result.dispatchableSelected], payload.channels);
+  const child = await h.preflight(scheduledBody({ ...payload, channels: ["threads"] }));
+  assert.ok(!(child instanceof Response));
+  assert.deepEqual([...child.dispatchableSelected], []);
+  const failures = child.body.clientPreflightFailuresByChannel as Record<string, Row>;
+  assert.equal(failures.threads.code, "threads_publication_preferences_unavailable");
 });
 
 test("Booster calls caption preflight before durable ingress, parent lock acquisition and preparation", () => {

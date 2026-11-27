@@ -122,7 +122,7 @@ test("async serialization and a second resolver pass do not duplicate a CTA or i
 test("the real route resolver never borrows image links for video, no media, or an explicit empty selection", () => {
   const route = read("app/api/booster/publish-now/route.ts");
   const start = route.indexOf("const getChannelPost = (channel: ChannelKey) => {");
-  const end = route.indexOf("const firstPost =", start);
+  const end = route.indexOf("const getChannelPostForPlacement =", start);
   assert.ok(start > 0 && end > start);
   const code = ts.transpileModule(route.slice(start, end) + "\nreturn getChannelPost;", {
     compilerOptions: { target: ts.ScriptTarget.ES2022 },

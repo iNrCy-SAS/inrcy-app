@@ -236,7 +236,10 @@ import {
 } from "@/lib/boosterPreparationDispatch";
 import { normalizeBoosterPublicationChannels } from "@/lib/boosterPublicationPolicy";
 import { guardInrAgentAdminBoosterPublication } from "@/lib/inrAgentAdminPublishWorkerServer";
-import { buildBoosterPublicationDispatchPlan } from "@/lib/boosterPublicationDispatchPlan";
+import {
+  buildBoosterPublicationDispatchPlan,
+  hasInvalidBoosterPublicationJson,
+} from "@/lib/boosterPublicationDispatchPlan";
 import {
   getChannelConnectionStates,
   type ChannelStates,
@@ -695,32 +698,89 @@ async function publishNowHandler(req: Request) {
     const postByChannel = ((body.postByChannel || {}) as PostByChannel) || {};
     const idea = String(body.idea || "").trim();
     const selected = normalizedChannels.channels;
+    const isolateScheduledChannelFailures =
+      selected.length > 1 && Boolean(asRecord(body.origin).scheduledActionId);
+    const clientPreflightFailuresByChannel = normalizeClientPreflightFailuresByChannel(
+      body.clientPreflightFailuresByChannel, selected,
+    );
+    const clientPreflightFailuresByTarget = normalizeClientPreflightFailuresByTarget(
+      body.clientPreflightFailuresByTarget, selected,
+    );
     let threadsPublicationSettings: ThreadsPublicationSettings | null = null;
+    let threadsSettingsFailure: JsonRecord | null = null;
     if (selected.includes("threads")) {
-      try { threadsPublicationSettings = parseThreadsPublicationSettings(body.threadsPublicationSettings); }
-      catch (error) { return NextResponse.json({ ok: false, code: "threads_invalid_publication_mode", retryable: false,
-        error: error instanceof Error ? error.message : "Le format Threads demandé est invalide." }, { status: 400 }); }
-      // Freeze the format before durable ingress. Old payloads remain Classic.
-      body.threadsPublicationSettings = threadsPublicationSettings;
+      try {
+        threadsPublicationSettings = parseThreadsPublicationSettings(body.threadsPublicationSettings);
+        // Freeze the format before durable ingress. Old payloads remain Classic.
+        body.threadsPublicationSettings = threadsPublicationSettings;
+      } catch (error) {
+        const failure = {
+          ok: false,
+          code: "threads_invalid_publication_mode",
+          retryable: false,
+          error: error instanceof Error ? error.message : "Le format Threads demandé est invalide.",
+        };
+        if (!isolateScheduledChannelFailures) return NextResponse.json(failure, { status: 400 });
+        threadsSettingsFailure = failure;
+      }
     }
     const metaPilotCanPublish = () => cronUserId
       ? isMetaChannelPilotEnabledForAccount(supabaseAdmin, userId)
       : isMetaChannelPilotEnabledForActorAndAccount(supabaseAdmin, userId);
+    const shouldPreflightThreads = selected.includes("threads") && !threadsSettingsFailure &&
+      (!isolateScheduledChannelFailures || !clientPreflightFailuresByChannel.threads);
+    const shouldPreflightInstagram = selected.includes("instagram") &&
+      (!isolateScheduledChannelFailures || !clientPreflightFailuresByChannel.instagram);
+    let instagramLookupUnavailable = false;
+    const loadDirectIntegration = async (channel: "threads" | "instagram") => {
+      try {
+        return await getLatestIntegrationRow(userId, channel, channel, channel,
+          "id,user_id,provider,source,product,status,resource_id,access_token_enc,resource_label,meta,expires_at");
+      } catch (error) {
+        if (!isolateScheduledChannelFailures) throw error;
+        if (channel === "instagram") instagramLookupUnavailable = true;
+        return null;
+      }
+    };
     // Refresh direct tokens before connection-state checks can reject expiry.
-    const directRows = await Promise.all([
-      selected.includes("threads") ? getLatestIntegrationRow(userId, "threads", "threads", "threads", "id,user_id,provider,source,product,status,resource_id,access_token_enc,resource_label,meta,expires_at") : Promise.resolve(null),
-      selected.includes("instagram") ? getLatestIntegrationRow(userId, "instagram", "instagram", "instagram", "id,user_id,provider,source,product,status,resource_id,access_token_enc,resource_label,meta,expires_at") : Promise.resolve(null),
+    const [directThreads, directInstagram] = await Promise.all([
+      shouldPreflightThreads ? loadDirectIntegration("threads") : null,
+      shouldPreflightInstagram ? loadDirectIntegration("instagram") : null,
     ]);
-    const pilotRequested = selected.includes("threads") || resolveInstagramAuthMode(asRecord(directRows[1]).meta) === "instagram_login";
-    if (pilotRequested && !(await metaPilotCanPublish())) return metaChannelPilotDeniedResponse();
-    const threadsPreflightFailure = threadsPublicationSettings
+    const instagramRequiresPilot = resolveInstagramAuthMode(asRecord(directInstagram).meta) === "instagram_login";
+    // A channel worker runs as the account. Require actor approval before
+    // deferring an integration whose Instagram auth mode could not be read.
+    const unknownManualInstagramAuthMode = instagramLookupUnavailable && !cronUserId;
+    if ((shouldPreflightThreads || instagramRequiresPilot || unknownManualInstagramAuthMode) && !(await metaPilotCanPublish())) {
+      const denied = metaChannelPilotDeniedResponse();
+      if (!isolateScheduledChannelFailures) return denied;
+      const failure = asRecord(await denied.json());
+      if (shouldPreflightThreads) clientPreflightFailuresByChannel.threads = failure;
+      if (instagramRequiresPilot) clientPreflightFailuresByChannel.instagram = failure;
+      else if (unknownManualInstagramAuthMode) clientPreflightFailuresByChannel.instagram = {
+        ok: false,
+        code: "instagram_connection_state_unavailable",
+        error: "La connexion Instagram n’a pas pu être vérifiée. Réessayez dans quelques instants.",
+        retryable: false,
+      };
+    }
+    const threadsPreflightFailure = threadsSettingsFailure ?? (threadsPublicationSettings &&
+      (!isolateScheduledChannelFailures || !clientPreflightFailuresByChannel.threads)
       ? await getThreadsPublicationPreflightFailure({ supabase: supabaseAdmin, accountId: userId,
           mode: threadsPublicationSettings.mode, hasMedia: hasSelectedThreadsPublicationMedia(body) })
-      : null;
-    for (const row of directRows) {
+      : null);
+    const directIntegrations = [
+      !threadsPreflightFailure && (!isolateScheduledChannelFailures || !clientPreflightFailuresByChannel.threads) ? directThreads : null,
+      instagramRequiresPilot && (!isolateScheduledChannelFailures || !clientPreflightFailuresByChannel.instagram) ? directInstagram : null,
+    ];
+    for (const row of directIntegrations) {
       const integration = asRecord(row);
-      if (!(integration.provider === "threads" && threadsPreflightFailure) && integration.status === "connected" && (integration.provider === "threads" || resolveInstagramAuthMode(integration.meta) === "instagram_login")) {
+      if (integration.status !== "connected") continue;
+      try {
         await ensureMetaDirectAccessToken(supabaseAdmin, integration);
+      } catch (error) {
+        if (!isolateScheduledChannelFailures) throw error;
+        // The one-channel worker repeats this check before any publication.
       }
     }
 
@@ -827,34 +887,38 @@ async function publishNowHandler(req: Request) {
         )
       : null;
     let validatedInstagramCtaContext: Readonly<{ websiteUrl: string; phone: string }> | undefined;
-    if (selected.includes("instagram")) {
+    if (shouldPreflightInstagram &&
+      (!isolateScheduledChannelFailures || !clientPreflightFailuresByChannel.instagram)) {
       const invalidCaption = await validateBoosterInstagramPublication(userId, asRecord(body), requestedInstagramPlacements, context => { validatedInstagramCtaContext = context; });
-      if (invalidCaption) return invalidCaption;
+      if (invalidCaption) {
+        if (!isolateScheduledChannelFailures || ![400, 503].includes(invalidCaption.status)) return invalidCaption;
+        if (invalidCaption.status === 400) {
+          const failure = asRecord(await invalidCaption.json());
+          for (const placement of requestedInstagramPlacements) {
+            if (placement !== "story") clientPreflightFailuresByTarget[`instagram:${placement}`] = failure;
+          }
+        }
+      }
     }
-    const clientPreflightFailuresByChannel =
-      normalizeClientPreflightFailuresByChannel(
-        body.clientPreflightFailuresByChannel,
-        selected,
-      );
-    const clientPreflightFailuresByTarget = normalizeClientPreflightFailuresByTarget(
-      body.clientPreflightFailuresByTarget, selected,
-    );
     // Older clients sent this Story-only incompatibility as a channel failure.
     if (clientPreflightFailuresByChannel.facebook?.code === "facebook_vertical_duration_invalid") {
       const placement = requestedFacebookPlacements.includes("story") ? "story" : "reel";
       clientPreflightFailuresByTarget[`facebook:${placement}`] = clientPreflightFailuresByChannel.facebook;
       delete clientPreflightFailuresByChannel.facebook;
     }
-    if (threadsPreflightFailure) clientPreflightFailuresByChannel.threads = {
+    if (threadsPreflightFailure &&
+      (!isolateScheduledChannelFailures || threadsPreflightFailure.retryable !== true)) clientPreflightFailuresByChannel.threads = {
       ok: false, source: "server_preflight", threads_publication_mode: threadsPublicationSettings?.mode,
       ...threadsPreflightFailure,
     };
     if (!clientPreflightFailuresByChannel.instagram) {
       for (const placement of requestedInstagramPlacements) {
-        if (placement === "classic") continue;
+        if (placement === "classic" ||
+          (isolateScheduledChannelFailures && clientPreflightFailuresByTarget[`instagram:${placement}`])) continue;
         const instagramPreflightFailure =
           await getInstagramPlacementPreflightFailure({ userId, placement });
-        if (instagramPreflightFailure) {
+        if (instagramPreflightFailure &&
+          (!isolateScheduledChannelFailures || instagramPreflightFailure.retryable !== true)) {
           clientPreflightFailuresByTarget[`instagram:${placement}`] = instagramPreflightFailure;
         }
       }
@@ -2503,8 +2567,6 @@ async function publishNowHandler(req: Request) {
       );
     };
 
-    const firstPost = getChannelPost(selected[0]);
-
     if (!internalAsyncDispatch) {
       await syncMediaWorkspaceLifecycle("publishing", {
         publicationId,
@@ -2574,8 +2636,52 @@ async function publishNowHandler(req: Request) {
       );
     }
 
+    const invalidChannelData = new Set<ChannelKey>();
+    const invalidBaseImageData =
+      !internalAsyncDispatch && hasInvalidBoosterPublicationJson(baseImageSet);
+    const invalidChannelDataFailure = {
+      ok: false as const,
+      code: "publication_channel_invalid_data",
+      error: "Le contenu de ce canal contient un caractère invalide. Corrigez-le avant de le republier.",
+      retryable: false,
+    };
+    // The shared publication and the parent event must only contain data
+    // PostgreSQL can store. Keep the failed channel in the dispatch plan.
+    if (!internalAsyncDispatch) {
+      for (const channel of selected) {
+        const hasVideo = mediaModeByChannel[channel] === "video";
+        const channelData = {
+          post: getChannelPost(channel),
+          historyPost: postByChannel[channel],
+          imageSet: channelImageSets[channel],
+          imageSettings: imageSettingsByChannel[channel],
+          video: hasVideo ? publicationVideo : null,
+          channelVideo: publicationVideoByChannel[channel],
+        };
+        const usesInvalidSharedImages = mediaModeByChannel[channel] === "images" &&
+          !channelImageSets[channel] && invalidBaseImageData;
+        if (!usesInvalidSharedImages && !hasInvalidBoosterPublicationJson(channelData)) continue;
+        invalidChannelData.add(channel);
+        setPreflightFailure(channel, invalidChannelDataFailure);
+      }
+    }
+    const persistableChannels = selected.filter((channel) => !invalidChannelData.has(channel));
+    const persistableVideo = hasAnyVideoChannel &&
+      persistableChannels.some((channel) => mediaModeByChannel[channel] === "video")
+      ? publicationVideo
+      : null;
+    const persistableVideoByChannel = Object.fromEntries(
+      Object.entries(publicationVideoByChannel)
+        .filter(([channel]) => !invalidChannelData.has(channel as ChannelKey)),
+    );
+    const persistableImageSettingsByChannel = Object.fromEntries(
+      persistableChannels.map((channel) => [channel, imageSettingsByChannel[channel]]),
+    );
+    const persistableUploadErrors = uploadErrors.filter((error) => !hasInvalidBoosterPublicationJson(error));
+
     const fallbackImageSet =
       activePreparationSelected
+        .filter((channel) => !invalidChannelData.has(channel))
         .map((channel) => channelImageSets[channel])
         .find((value): value is ImageSet =>
           Boolean(
@@ -2589,9 +2695,10 @@ async function publishNowHandler(req: Request) {
           ),
         ) || null;
 
-    const publicationImageSet = baseImageSet.images.length
+    const publicationImageSet = !invalidBaseImageData && baseImageSet.images.length
       ? baseImageSet
       : fallbackImageSet || baseImageSet;
+    const persistableUploadedImageSet = invalidBaseImageData ? fallbackImageSet : baseImageSet;
     const originalPublicationImageAttachments =
       buildOriginalImageAttachments(publicationImageSet);
     const getOriginalImagesForChannel = (channel: ChannelKey) =>
@@ -2617,7 +2724,7 @@ async function publishNowHandler(req: Request) {
           setPreflightFailure(channel, {
             code: "image_upload_failed",
             error: imageFailureMessage,
-            uploadErrors,
+            uploadErrors: persistableUploadErrors,
           }),
         );
     }
@@ -2630,14 +2737,20 @@ async function publishNowHandler(req: Request) {
         >
       >,
     );
+    const displayChannel = channelPreflightPlan.dispatchableChannels[0] || persistableChannels[0];
+    const firstPost: PostPayload = displayChannel
+      ? getChannelPost(displayChannel)
+      : { title: "", content: "", cta: "", hashtags: [] };
     if (!internalAsyncDispatch) {
       // 2) Persist publication
-      const inrSearchSelected = selected.includes("inr_search");
+      const inrSearchSelected =
+        selected.includes("inr_search") && !preflightFailuresByChannel.inr_search;
       const inrSearchMediaMode = mediaModeByChannel.inr_search || "none";
-      const inrSearchImageSet =
-        channelImageSets.inr_search || publicationImageSet;
+      const inrSearchImageSet = inrSearchMediaMode === "images"
+        ? channelImageSets.inr_search || publicationImageSet
+        : null;
       const inrSearchImageAttachments =
-        inrSearchSelected && inrSearchMediaMode === "images"
+        inrSearchSelected && inrSearchImageSet
           ? getOriginalImagesForChannel("inr_search")
           : [];
       const inrSearchPreparedVideo =
@@ -2659,16 +2772,16 @@ async function publishNowHandler(req: Request) {
               .map((attachment) => String(asRecord(attachment).url || "").trim())
               .filter(Boolean),
             attachments: inrSearchImageAttachments,
-            storagePaths: inrSearchImageSet.storagePaths,
+            storagePaths: inrSearchImageSet?.storagePaths || [],
             publishableStoragePaths:
-              inrSearchImageSet.publishableStoragePaths,
+              inrSearchImageSet?.publishableStoragePaths || [],
             socialFeedStoragePaths:
-              inrSearchImageSet.socialFeedStoragePaths,
-            publishableUrls: inrSearchImageSet.publishableUrls,
+              inrSearchImageSet?.socialFeedStoragePaths || [],
+            publishableUrls: inrSearchImageSet?.publishableUrls || [],
             socialFeedPublishableUrls:
-              inrSearchImageSet.socialFeedPublishableUrls,
+              inrSearchImageSet?.socialFeedPublishableUrls || [],
             siteCardPublishableUrls:
-              inrSearchImageSet.siteCardPublishableUrls,
+              inrSearchImageSet?.siteCardPublishableUrls || [],
             video: durableInrSearchVideo,
           }
         : null;
@@ -2679,7 +2792,7 @@ async function publishNowHandler(req: Request) {
         content: firstPost.content,
         cta: firstPost.cta,
         hashtags: firstPost.hashtags,
-        images: hasAnyImageChannel ? uploadedUrls : [],
+        images: hasAnyImageChannel ? persistableUploadedImageSet?.images || [] : [],
         idea,
       };
 
@@ -2688,18 +2801,18 @@ async function publishNowHandler(req: Request) {
       }
 
       // Champs ajoutés par ops/sql/2026-05-29_booster_video_publication_columns.sql.
-      if (hasAnyVideoChannel && publicationVideo) {
+      if (persistableVideo) {
         publicationInsert.media_type = "video";
-        publicationInsert.video_url = publicationVideo.publicUrl;
-        publicationInsert.video_path = publicationVideo.storagePath;
-        publicationInsert.video_mime = publicationVideo.type;
-        publicationInsert.video_size = publicationVideo.size;
-        publicationInsert.video_duration_seconds = publicationVideo.duration;
-        publicationInsert.video_thumbnail_url = publicationVideo.thumbnailUrl;
+        publicationInsert.video_url = persistableVideo.publicUrl;
+        publicationInsert.video_path = persistableVideo.storagePath;
+        publicationInsert.video_mime = persistableVideo.type;
+        publicationInsert.video_size = persistableVideo.size;
+        publicationInsert.video_duration_seconds = persistableVideo.duration;
+        publicationInsert.video_thumbnail_url = persistableVideo.thumbnailUrl;
         publicationInsert.media_metadata = {
           ...asRecord(publicationInsert.media_metadata),
-          video: publicationVideo,
-          videoByChannel: publicationVideoByChannel,
+          video: persistableVideo,
+          videoByChannel: persistableVideoByChannel,
         };
       }
 
@@ -2730,7 +2843,8 @@ async function publishNowHandler(req: Request) {
 
       const { error: deliveriesError } = await supabaseAdmin
         .from("publication_deliveries")
-        .upsert(deliveries, { onConflict: "id" });
+        // A later preparation pass must retain deliveries that have already advanced.
+        .upsert(deliveries, { onConflict: "id", ignoreDuplicates: true });
       if (deliveriesError) {
         throw new Error(
           `publication_deliveries_insert_failed:${deliveriesError.message || "unknown"}`,
@@ -2741,7 +2855,7 @@ async function publishNowHandler(req: Request) {
       if (!asyncSecret) throw new Error("publication_worker_unavailable");
       if (asyncSecret) {
         const persistedPostByChannelForAsync = Object.fromEntries(
-          selected.map((channel) => {
+          persistableChannels.map((channel) => {
             const rawBaseValue = (postByChannel as Record<string, unknown>)[
               channel
             ] as Record<string, unknown> | undefined;
@@ -2813,7 +2927,7 @@ async function publishNowHandler(req: Request) {
         );
 
         const preparedImagesByChannel = Object.fromEntries(
-          selected
+          persistableChannels
             .filter((channel) => mediaModeByChannel[channel] === "images")
             .map((channel) => {
               const rawChannelImages = Array.isArray(imagesByChannel[channel])
@@ -2859,22 +2973,22 @@ async function publishNowHandler(req: Request) {
           soundtrackByChannel: publicationSoundtrackByChannel,
           threadsPublicationSettings,
           videoSettingsByChannel,
-          video: hasAnyVideoChannel ? publicationVideo : null,
-          videoByChannel: publicationVideoByChannel,
-          attachments: hasAnyVideoChannel && publicationVideo
-            ? [publicationVideo]
-            : originalPublicationImageAttachments,
+          video: persistableVideo,
+          videoByChannel: persistableVideoByChannel,
+          attachments: persistableVideo
+            ? [persistableVideo]
+            : invalidBaseImageData && !fallbackImageSet ? [] : originalPublicationImageAttachments,
           idea,
           post: firstPost,
           postByChannel: persistedPostByChannelForAsync,
-          imageSettingsByChannel,
-          images: uploadedUrls,
-          publishableUrls,
-          instagramPublishableUrls,
-          socialFeedPublishableUrls,
-          siteCardPublishableUrls,
-          gmbPublishableUrls,
-          uploadErrors,
+          imageSettingsByChannel: persistableImageSettingsByChannel,
+          images: persistableUploadedImageSet?.images || [],
+          publishableUrls: persistableUploadedImageSet?.publishableUrls || [],
+          instagramPublishableUrls: persistableUploadedImageSet?.instagramPublishableUrls || [],
+          socialFeedPublishableUrls: persistableUploadedImageSet?.socialFeedPublishableUrls || [],
+          siteCardPublishableUrls: persistableUploadedImageSet?.siteCardPublishableUrls || [],
+          gmbPublishableUrls: persistableUploadedImageSet?.gmbPublishableUrls || [],
+          uploadErrors: persistableUploadErrors,
           publication_id: publicationId,
           mediaWorkspaceId: mediaWorkspaceId || null,
           mediaWorkspaceRevision: workspaceConsumption?.workspaceRevision || null,
@@ -3034,6 +3148,9 @@ async function publishNowHandler(req: Request) {
               channelMediaMode === "video" &&
               hasTrustedPublicationVideoCompatibilityProof,
           };
+          if (!preflightFailure && hasInvalidBoosterPublicationJson(channelDispatchRequest)) {
+            preflightFailure = invalidChannelDataFailure;
+          }
           return {
             id: channelEventIds[target.key],
             user_id: userId,
@@ -3103,7 +3220,10 @@ async function publishNowHandler(req: Request) {
             }),
           })),
         );
-        if (deferredPreparationChannels.size > 0) {
+        const deferredChannelRows = durableChannelRows.filter(
+          (row) => asRecord(row.payload).status === "preparing" && asRecord(row.payload).preparationPending === true,
+        );
+        if (deferredChannelRows.length > 0) {
           await updateAsyncPublicationJobEvent({
             userId,
             publicationId,
@@ -3147,11 +3267,6 @@ async function publishNowHandler(req: Request) {
           const queuedChannelRows = durableChannelRows.filter(
             (row) => asRecord(row.payload).status === "queued",
           );
-          const deferredChannelRows = durableChannelRows.filter(
-            (row) =>
-              asRecord(row.payload).status === "preparing" &&
-              asRecord(row.payload).preparationPending === true,
-          );
           if (!queuedChannelRows.length && !deferredChannelRows.length) {
             const finalization = await finalizeAsyncPublicationIfReady({
               userId,
@@ -3160,7 +3275,7 @@ async function publishNowHandler(req: Request) {
             const finalPayload = asRecord(finalization.payload);
             return NextResponse.json({
               ...finalPayload,
-              ok: false,
+              ok: asRecord(finalPayload.summary).allFailed === false,
               queued: false,
               asyncDispatch: true,
               publication_id: publicationId,
@@ -3232,10 +3347,10 @@ async function publishNowHandler(req: Request) {
               mediaType,
               mediaModeByChannel,
               videoSettingsByChannel,
-              video: hasAnyVideoChannel ? publicationVideo : null,
-              videoByChannel: publicationVideoByChannel,
-              images: uploadedUrls,
-              uploadErrors,
+              video: persistableVideo,
+              videoByChannel: persistableVideoByChannel,
+              images: persistableUploadedImageSet?.images || [],
+              uploadErrors: persistableUploadErrors,
               results: Object.fromEntries(
                 selected.map((channel) => [
                   channel,
