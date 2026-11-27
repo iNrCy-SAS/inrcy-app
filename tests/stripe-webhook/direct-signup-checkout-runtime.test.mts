@@ -124,6 +124,7 @@ function fixture(options: { legacyTrial?: boolean; userMetadataOnly?: boolean } 
   }, { STRIPE_SECRET_KEY: "synthetic-stripe-key" });
   const webhook = load<{ POST(request: Request): Promise<Response> }>("app/api/stripe/webhook/route.ts", { ...common,
     "@/lib/accountBillingSubscriptionServer": { getApprovedAccountSubscriptionByStripeId: async () => null },
+    "@/lib/cyclicom/stripe": { handleCyclicomStripeEvent: async () => false },
     "@/lib/apiUserFacingErrors": { jsonUserFacingError: (_error: unknown, init: ResponseInit) => Response.json({ error: "synthetic_failure" }, init) },
     "@/lib/adminSubscriberStripe": terms, "@/lib/stripeSubscription": dates, "@/lib/stripeWebhookPayload": webhookPayload, "@/lib/stripeWebhookReconciliation": reconciliation,
     "@/lib/subscriptionAdmin": { sendAdminSubscriptionAlertForUser: async () => {} }, "@/lib/metaConversionOutbox": { enqueueMetaConversionEvent: async () => {} },

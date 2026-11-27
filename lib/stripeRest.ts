@@ -28,13 +28,14 @@ export function getAppUrl(req?: Request) {
   return requireEnv("NEXT_PUBLIC_APP_URL").replace(/\/$/, "");
 }
 
-export async function stripePost(path: string, body: URLSearchParams, options?: { idempotencyKey?: string | null }) {
+export async function stripePost(path: string, body: URLSearchParams, options?: { idempotencyKey?: string | null; apiVersion?: string }) {
   const res = await fetch(`${STRIPE_API_BASE}${path}`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${stripeKey()}`,
       "Content-Type": "application/x-www-form-urlencoded",
       ...(options?.idempotencyKey ? { "Idempotency-Key": options.idempotencyKey } : {}),
+      ...(options?.apiVersion ? { "Stripe-Version": options.apiVersion } : {}),
     },
     body,
   });
@@ -55,10 +56,13 @@ export async function stripePost(path: string, body: URLSearchParams, options?: 
   return json;
 }
 
-export async function stripeGet(path: string) {
+export async function stripeGet(path: string, options?: { apiVersion?: string }) {
   const res = await fetch(`${STRIPE_API_BASE}${path}`, {
     method: "GET",
-    headers: { Authorization: `Bearer ${stripeKey()}` },
+    headers: {
+      Authorization: `Bearer ${stripeKey()}`,
+      ...(options?.apiVersion ? { "Stripe-Version": options.apiVersion } : {}),
+    },
   });
 
   const text = await res.text();

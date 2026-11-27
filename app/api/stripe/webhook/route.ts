@@ -10,6 +10,7 @@ import { sendAdminSubscriptionAlertForUser } from "@/lib/subscriptionAdmin";
 import { enqueueMetaConversionEvent } from "@/lib/metaConversionOutbox";
 import { fulfillVideoCreditCheckout, reconcileVideoCreditRefund, reconcileVideoCreditDispute, VIDEO_CREDIT_PAYMENT_KIND } from "@/lib/boutique/videoCreditPayments";
 import { fulfillImageCreditCheckout, reconcileImageCreditRefund, reconcileImageCreditDispute, IMAGE_CREDIT_PAYMENT_KIND } from "@/lib/boutique/imageCreditPayments";
+import { handleCyclicomStripeEvent } from "@/lib/cyclicom/stripe";
 import {
   stripeWebhookNeedsReconciliation,
   stripeWebhookReconciliationLastError,
@@ -549,6 +550,13 @@ export async function POST(req: Request) {
     const type = String(evt.type || "");
     const obj = (evt.data?.object ?? null) as StripeObjectLoose | null;
     const previous = (evt.data?.previous_attributes ?? {}) as StripeObjectLoose;
+    const cyclicomEvent = { id: String(evt.id ?? ""), type, data: { object: obj } };
+
+    // Cyclicom website payments must never reach the iNrCy subscription identity heuristics.
+    if (type !== "charge.refunded" && type !== "charge.dispute.created" && await handleCyclicomStripeEvent(cyclicomEvent)) {
+      await completeStripeWebhookEvent(evt);
+      return NextResponse.json({ received: true, cyclicom: true });
+    }
 
     // Explicit business contracts take precedence over payer/email heuristics.
     // Read current Stripe state so delayed events cannot restore an obsolete status.
@@ -583,17 +591,17 @@ export async function POST(req: Request) {
     }
     if (type === "charge.refunded") {
       const chargeId = stripeObjectId(obj?.id) ?? "";
-      if (!await reconcileVideoCreditRefund(chargeId, String(evt.id ?? ""))) {
-        await reconcileImageCreditRefund(chargeId, String(evt.id ?? ""));
-      }
+      const creditRefundHandled = await reconcileVideoCreditRefund(chargeId, cyclicomEvent.id)
+        || await reconcileImageCreditRefund(chargeId, cyclicomEvent.id);
+      if (!creditRefundHandled) await handleCyclicomStripeEvent(cyclicomEvent);
       await completeStripeWebhookEvent(evt);
       return NextResponse.json({ received: true });
     }
     if (VIDEO_CREDIT_DISPUTE_EVENTS.has(type)) {
       const disputeId = stripeObjectId(obj?.id) ?? "";
-      if (!await reconcileVideoCreditDispute(disputeId, String(evt.id ?? ""))) {
-        await reconcileImageCreditDispute(disputeId, String(evt.id ?? ""));
-      }
+      const creditDisputeHandled = await reconcileVideoCreditDispute(disputeId, cyclicomEvent.id)
+        || await reconcileImageCreditDispute(disputeId, cyclicomEvent.id);
+      if (type === "charge.dispute.created" && !creditDisputeHandled) await handleCyclicomStripeEvent(cyclicomEvent);
       await completeStripeWebhookEvent(evt);
       return NextResponse.json({ received: true });
     }
