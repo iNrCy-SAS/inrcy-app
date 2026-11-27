@@ -175,6 +175,30 @@ test("a signed Cyclicom Checkout retries before completion and never reaches iNr
   assert.deepEqual(run.writes, []);
 });
 
+test("Cyclicom risk handling follows credit reconciliation and remains retryable after a handler error", async () => {
+  for (const type of ["charge.refunded", "charge.dispute.created"]) {
+    const object = { id: "credit_or_cyclicom", metadata: { kind: "cyclicom_fixture" } };
+    const legacy = fixture("Standard", "monthly", false, "image");
+    legacy.moneyFailure.enabled = true;
+    assert.equal((await legacy.post(type, object)).status, 500);
+    assert.equal(legacy.events.get(`evt_${type}`)?.status, "failed");
+    legacy.moneyFailure.enabled = false;
+    assert.equal((await legacy.post(type, object)).status, 200);
+    assert.deepEqual(legacy.moneyCalls.map(call => call.domain), ["video", "image", "video", "image"]);
+    assert.deepEqual(legacy.cyclicomCalls, []);
+
+    const cyclicom = fixture("Standard", "monthly");
+    cyclicom.cyclicomFailure.enabled = true;
+    assert.equal((await cyclicom.post(type, object)).status, 500);
+    assert.deepEqual(cyclicom.moneyCalls.map(call => call.domain), ["video", "image"]);
+    assert.equal(cyclicom.events.get(`evt_${type}`)?.status, "failed");
+    cyclicom.cyclicomFailure.enabled = false;
+    assert.equal((await cyclicom.post(type, object)).status, 200);
+    assert.equal(cyclicom.events.get(`evt_${type}`)?.status, "completed");
+    assert.equal(cyclicom.cyclicomCalls.length, 2);
+  }
+});
+
 test("an approved secondary contract syncs current Stripe state and durably completes without rebinding its payer", async () => {
   const run = fixture("Standard", "monthly", false, false, true);
   const original = { ...run.row };
