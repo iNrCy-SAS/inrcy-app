@@ -496,11 +496,15 @@ function isAuthRecoveryPath(pathname: string): boolean {
 }
 
 function isAnonymousPublicPagePath(pathname: string): boolean {
-  return pathname === "/suppression-compte";
+  return pathname === "/suppression-compte"
+    || pathname === "/cyclicom/paiement/one-page"
+    || pathname === "/cyclicom/paiement/5-pages"
+    || pathname === "/cyclicom/paiement/10-pages";
 }
 
 function isAnonymousPublicApiPath(pathname: string): boolean {
-  return pathname === "/api/public/privacy/deletion-request";
+  return pathname === "/api/public/privacy/deletion-request"
+    || pathname === "/api/public/cyclicom/checkout";
 }
 
 type LimitPlan = {
